@@ -60,7 +60,7 @@ command: mark_position(plain_command) { $1 }
 plain_command:
   | TYPE defs = separated_nonempty_list(AND, ty_def)
     { TyDef defs }
-  | OPERATION op = lname COLON ty1 = ty ARROW ty2 = ty HASH tau = INT
+  | OPERATION op = UNAME COLON ty1 = ty ARROW ty2 = ty HASH tau = INT
     { OpSig (op, ty1, ty2, tau) }
   | LET x = ident t = lambdas0(EQUAL)
     { TopLet (x, t) }
@@ -97,7 +97,7 @@ plain_term:
     { Box (tau, e, (p, c)) }
   | UNBOX tau = INT e = term AS p = pattern IN c = term
     { Unbox (tau, e, (p, c)) }
-  | PERFORM op = lname e = term TO p = pattern IN c = term
+  | PERFORM op = UNAME e = term TO p = pattern IN c = term
     { Perform (op, e, (p, c)) }
   | t = plain_comma_term
     { t }
