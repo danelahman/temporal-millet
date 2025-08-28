@@ -1,5 +1,5 @@
-operation get : unit -> int # 3
-operation set : int -> unit # 7
+operation get : unit -> int # 3 
+operation set : int -> unit # 7 
 
 run
   42

@@ -25,7 +25,6 @@
     ("match", MATCH);
     ("mod", MOD);
     ("of", OF);
-    ("operation", OPERATION);
     ("or", OR);
     ("rec", REC);
     ("run", RUN);
@@ -36,6 +35,9 @@
     ("delay", DELAY);
     ("box", BOX);
     ("unbox", UNBOX);
+    ("operation", OPERATION);
+    ("perform", PERFORM);
+    ("to", TO);    
   ]
 
   let escaped_characters = [
