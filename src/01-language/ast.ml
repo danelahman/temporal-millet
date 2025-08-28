@@ -19,6 +19,11 @@ module TauParamSet = Set.Make (TauParamModule)
 
 type tau_param = TauParamModule.t
 
+module OpName = Symbol.Make ()
+module OpNameMap = Map.Make (OpName)
+
+type operation = OpName.t
+
 type 'a tau =
   | TauConst of 'a
   | TauParam of tau_param
@@ -77,6 +82,7 @@ and 'a computation =
   | Delay of 'a tau * 'a computation
   | Box of 'a tau * 'a expression * 'a abstraction
   | Unbox of 'a tau * 'a expression * 'a abstraction
+  | Perform of operation * 'a expression * 'a abstraction
 
 and 'a abstraction = 'a pattern * 'a computation
 
@@ -84,6 +90,7 @@ type 'a ty_def = TySum of (label * 'a ty option) list | TyInline of 'a ty
 
 type 'a command =
   | TyDef of (ty_param list * ty_name * 'a ty_def) list
+  | OpSig of (operation * 'a ty * 'a ty * 'a tau)
   | TopLet of variable * 'a expression
   | TopDo of 'a computation
 

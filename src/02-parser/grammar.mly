@@ -14,7 +14,7 @@
 %token <float> FLOAT
 %token <SugaredAst.label> UNAME
 %token <SugaredAst.ty_param> PARAM
-%token TYPE ARROW OF HASH
+%token TYPE OPERATION ARROW OF HASH
 %token MATCH WITH FUNCTION
 %token RUN LET REC AND IN
 %token DELAY BOX UNBOX
@@ -60,6 +60,8 @@ command: mark_position(plain_command) { $1 }
 plain_command:
   | TYPE defs = separated_nonempty_list(AND, ty_def)
     { TyDef defs }
+  | OPERATION op = ident COLON ty1 = ty ARROW ty2 = ty HASH tau = INT
+    { OpSig (op, ty1, ty2, tau) }
   | LET x = ident t = lambdas0(EQUAL)
     { TopLet (x, t) }
   | LET REC def = let_rec_def

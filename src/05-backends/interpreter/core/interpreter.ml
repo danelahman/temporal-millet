@@ -144,6 +144,10 @@ and refresh_computation vars = function
       let e' = refresh_expression vars e in
       let abs' = refresh_abstraction vars abs in
       Ast.Unbox (tau, e', abs')
+  | Ast.Perform (op, e, abs) ->
+      let e' = refresh_expression vars e in
+      let abs' = refresh_abstraction vars abs in
+      Ast.Perform (op, e', abs')
 
 and refresh_abstraction vars (pat, comp) =
   let pat', vars' = refresh_pattern pat in
@@ -182,6 +186,9 @@ and substitute_computation subst = function
   | Ast.Unbox (tau, e, abs) ->
       Ast.Unbox
         (tau, substitute_expression subst e, substitute_abstraction subst abs)
+  | Ast.Perform (op, e, abs) ->
+      Ast.Perform
+        (op, substitute_expression subst e, substitute_abstraction subst abs)
 
 and substitute_abstraction subst (pat, comp) =
   let subst' = remove_pattern_bound_variables subst pat in
@@ -293,6 +300,8 @@ let rec step_computation env = function
               (PrettyPrint.print_expression (module Tau) expr)
       in
       doUnbox expr pat comp
+  | Ast.Perform (op, _expr, (_pat, _comp)) ->
+      Error.runtime "Unhandled operation %t" (Ast.OpName.print op)
 
 type load_state = {
   environment : evaluation_environment;

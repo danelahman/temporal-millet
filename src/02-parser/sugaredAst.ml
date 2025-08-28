@@ -1,6 +1,7 @@
 module Location = Utils.Location
 
 type ty_name = string
+type tau_val = int
 
 let bool_ty_name = "bool"
 let int_ty_name = "int"
@@ -21,9 +22,9 @@ and plain_ty =
   | TyParam of ty_param  (** ['a] *)
   | TyArrow of ty * plain_comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
-  | TyBox of int * ty  (** [ [tau]ty ] *)
+  | TyBox of tau_val * ty  (** [ [tau]ty ] *)
 
-and plain_comp_ty = CompTy of ty * int  (** [ty ! tau] *)
+and plain_comp_ty = CompTy of ty * tau_val  (** [ty ! tau] *)
 
 type variable = string
 type label = string
@@ -63,6 +64,7 @@ and plain_term =
   | Delay of int * term  (** [delay tau t] **)
   | Box of int * term * abstraction  (** [box tau expr as v in n] *)
   | Unbox of int * term * abstraction  (** [unbox tau expr as v in n] *)
+  | Perform of operation * term * abstraction  (** [perform op expr x.n] *)
 
 and abstraction = pattern * term
 and guarded_abstraction = pattern * term option * term
@@ -78,6 +80,8 @@ type command = plain_command annotated
 and plain_command =
   | TyDef of (ty_param list * ty_name * ty_def) list
       (** [type ('a...1) t1 = def1 and ... and ('a...n) tn = defn] *)
+  | OpSig of (operation * ty * ty * tau_val)
+      (** [operation op : t1 -> t2 # tau ] *)
   | TopLet of variable * term  (** [let x = t] *)
   | TopLetRec of variable * term  (** [let rec f = t] *)
   | TopDo of term  (** [do t] *)

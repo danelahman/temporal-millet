@@ -21,6 +21,7 @@ type state = {
   ty_params : Untyped.ty_param StringMap.t;
   variables : Untyped.variable StringMap.t;
   labels : Untyped.label StringMap.t;
+  operations : Untyped.operation StringMap.t;
 }
 
 let initial_state =
@@ -40,6 +41,7 @@ let initial_state =
       StringMap.empty
       |> StringMap.add Sugared.nil_label Untyped.nil_label
       |> StringMap.add Sugared.cons_label Untyped.cons_label;
+    operations = StringMap.empty;
   }
 
 let find_symbol ~loc map name =
@@ -51,6 +53,7 @@ let lookup_ty_name ~loc state = find_symbol ~loc state.ty_names
 let lookup_ty_param ~loc state = find_symbol ~loc state.ty_params
 let lookup_variable ~loc state = find_symbol ~loc state.variables
 let lookup_label ~loc state = find_symbol ~loc state.labels
+let lookup_operation ~loc state = find_symbol ~loc state.operations
 
 let rec desugar_ty state { Sugared.it = plain_ty; at = loc } =
   desugar_plain_ty ~loc state plain_ty
@@ -151,7 +154,7 @@ and desugar_plain_expression ~loc state = function
       (binds, Untyped.Variant (lbl', Some expr))
   | ( Sugared.Apply _ | Sugared.Match _ | Sugared.Let _ | Sugared.LetRec _
     | Sugared.Delay _ | Sugared.Box _ | Sugared.Unbox _ | Sugared.Conditional _
-      ) as term ->
+    | Sugared.Perform _ ) as term ->
       let x = Untyped.Variable.fresh "b" in
       let comp = desugar_computation state { Sugared.it = term; at = loc } in
       let hoist = (Untyped.PVar x, comp) in
@@ -212,6 +215,11 @@ and desugar_plain_computation ~loc state =
       let binds, e' = desugar_expression state e in
       let abs = desugar_abstraction state (p, c) in
       (binds, Untyped.Unbox (TauConst (Tau.of_int tau), e', abs))
+  | Sugared.Perform (op, e, a) ->
+      let operation = lookup_operation ~loc state op in
+      let binds, expr = desugar_expression state e in
+      let abs = desugar_abstraction state a in
+      (binds, Untyped.Perform (operation, expr, abs))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _
@@ -286,6 +294,12 @@ let add_fresh_ty_params state vars =
   let ty_params' = List.fold_left aux state.ty_params vars in
   { state with ty_params = ty_params' }
 
+let add_operation ~loc state operation operation' =
+  let operations' =
+    add_unique ~loc "Operation" operation operation' state.operations
+  in
+  { state with operations = operations' }
+
 let desugar_ty_def ~loc state = function
   | Sugared.TyInline ty -> (state, Untyped.TyInline (desugar_ty state ty))
   | Sugared.TySum variants ->
@@ -317,6 +331,13 @@ let desugar_command state { Sugared.it = cmd; at = loc } =
       in
       let state'', defs' = List.fold_right2 aux defs new_names (state', []) in
       (state'', Untyped.TyDef defs')
+  | Sugared.OpSig (op_name, ty1_name, ty2_name, tau_val) ->
+      let operation = Untyped.OpName.fresh op_name in
+      let ty1 = desugar_ty state ty1_name in
+      let ty2 = desugar_ty state ty2_name in
+      let tau = Untyped.TauConst (Tau.of_int tau_val) in
+      let state' = add_operation ~loc state op_name operation in
+      (state', Untyped.OpSig (operation, ty1, ty2, tau))
   | Sugared.TopLet (x, term) ->
       let x' = Untyped.Variable.fresh x in
       let state' = add_fresh_variables state (StringMap.singleton x x') in

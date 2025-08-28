@@ -57,6 +57,13 @@ module Loader (Backend : Backend.S) = struct
           typechecker = typechecker_state';
           backend = backend_state';
         }
+    | Ast.OpSig (op, ty1, ty2, tau) ->
+        let typechecker_state' =
+          Typechecker.add_operation_signature state.typechecker
+            (op, ty1, ty2, tau)
+        in
+        { state with typechecker = typechecker_state' }
+        (* TODO: account for operations in the backend as well *)
     | Ast.TopLet (x, expr) ->
         let typechecker_state' =
           Typechecker.add_top_definition state.typechecker x expr

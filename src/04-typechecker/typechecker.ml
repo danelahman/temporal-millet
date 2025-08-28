@@ -14,6 +14,7 @@ type state = {
     (Ast.ty_param list * Ast.tau_param list * Tau.t Ast.ty)
     ContextHolderModule.t;
   type_definitions : (Ast.ty_param list * Tau.t Ast.ty_def) Ast.TyNameMap.t;
+  op_signatures : (Tau.t Ast.ty * Tau.t Ast.ty * Tau.t Ast.tau) Ast.OpNameMap.t;
 }
 
 let initial_state =
@@ -46,6 +47,7 @@ let initial_state =
                        Ast.TyApply (Ast.list_ty_name, [ Ast.TyParam a ]);
                      ]) );
             ] ));
+    op_signatures = Ast.OpNameMap.empty;
   }
 
 let print_type_constraint t1 t2 =
@@ -302,6 +304,21 @@ and infer_computation state = function
         :: Constraint.TauGeq (sum_taus_added_after, tau)
         :: eqs
         @ eqs' )
+  | Ast.Perform (op, e, abs) -> (
+      let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
+      match op_sig with
+      | None -> Error.typing "Unknown operation call."
+      | Some (param_ty, arity_ty, op_tau) ->
+          let value_ty, eqs = infer_expression state e in
+          let state_ahead = extend_temporal state op_tau in
+          let value_ty', CompTy (cont_ty, cont_tau), eqs' =
+            infer_abstraction state_ahead abs
+          in
+          ( CompTy (cont_ty, Ast.TauAdd (op_tau, cont_tau)),
+            Constraint.TypeConstraint (value_ty, param_ty)
+            :: Constraint.TypeConstraint (value_ty', arity_ty)
+            :: eqs
+            @ eqs' ))
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
@@ -630,6 +647,15 @@ let add_type_definitions state ty_defs =
       state ty_defs
   in
   List.iter (fun (_, _, ty_def) -> check_ty_def state' ty_def) ty_defs;
+  state'
+
+let add_operation_signature state (op, ty1, ty2, tau) =
+  let state' =
+    {
+      state with
+      op_signatures = Ast.OpNameMap.add op (ty1, ty2, tau) state.op_signatures;
+    }
+  in
   state'
 
 let load_primitive state x prim =

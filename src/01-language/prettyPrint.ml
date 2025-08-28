@@ -230,6 +230,10 @@ and print_computation tau_module =
           (print_tau tau_module tau_pp tau)
           (print_expression tau_module e)
           (print_pattern p) (aux c)
+    | Perform (op, e, (pat, c)) ->
+        print ~at_level:1 "perform %t %t %t. %t" (OpName.print op)
+          (print_expression tau_module e)
+          (print_pattern pat) (aux c)
   in
   aux
 
