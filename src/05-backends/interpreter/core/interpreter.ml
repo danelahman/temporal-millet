@@ -276,11 +276,16 @@ let rec step_computation env = function
       let rec doBox tau expr pat comp =
         match pat with
         | Ast.PVar x ->
+            let x' = Ast.Variable.fresh "box_var" in
             let state' =
-              ContextHolderModule.add_variable x (tau, expr) env.state
+              ContextHolderModule.add_variable x' (tau, expr) env.state
             in
             let env' = { env with state = state' } in
-            [ (env', ComputationRedex Box, fun () -> comp) ]
+            [
+              ( env',
+                ComputationRedex Box,
+                fun () -> refresh_computation [ (x, x') ] comp );
+            ]
         | Ast.PAnnotated (pat', _) -> doBox tau expr pat' comp
         | _ ->
             Error.runtime "Box expected a variable but got pattern %t"
