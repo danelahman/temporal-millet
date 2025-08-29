@@ -1,6 +1,6 @@
 run
     let x = (10, 10) in
     box 5 x as boxed in
-    delay 4                     (* <- insufficient delay *)
+    (delay 4);                     (* <- insufficient delay *)
     unbox 5 boxed as (l, r) in
     l + r

@@ -5,11 +5,15 @@ type uvCured = UvCured of cooled
 type complete = Complete of uvCured
 
 (* Mock 3D printing operation with signature model -> [5]fresh # 7 *)
-let printResinModel model = delay 7 box 5 (Fresh model) as
-            printingResult in printingResult
+let printResinModel model = 
+  (delay 7); 
+  box 5 (Fresh model) as printingResult in 
+  printingResult
 
 (* Mock UV curing operation with signature cooled -> uvCured # 10 *)
-let uvCure cooledObject = delay 5 (UvCured cooledObject)
+let uvCure cooledObject = 
+  (delay 5); 
+  UvCured cooledObject
 
 run
     let freshSword = printResinModel (Model "Sword") in

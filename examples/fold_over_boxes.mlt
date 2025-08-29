@@ -11,5 +11,5 @@ run
                            unboxed_acc () + unboxed_value) as boxed_val in boxed_val) 
       (box 10 (fun () -> 0) as boxed_val in boxed_val)
       boxed_vals in
-  delay 10 
+  (delay 10); 
   unbox 10 boxed_fun as f in f ()
