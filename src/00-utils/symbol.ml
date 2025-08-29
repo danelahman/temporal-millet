@@ -5,6 +5,7 @@ module type S = sig
   val fresh : string -> t
   val refresh : t -> t
   val print : t -> Format.formatter -> unit
+  val string_of : t -> string
 end
 
 module Make () : S = struct
@@ -19,4 +20,5 @@ module Make () : S = struct
 
   let refresh (_, ann) = fresh ann
   let print (_n, ann) ppf = Format.fprintf ppf "%s" ann
+  let string_of (_, ann) = ann
 end

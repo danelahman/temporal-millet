@@ -276,7 +276,7 @@ let rec step_computation env = function
       let rec doBox tau expr pat comp =
         match pat with
         | Ast.PVar x ->
-            let x' = Ast.Variable.fresh "box_var" in
+            let x' = Ast.Variable.fresh (Ast.Variable.string_of x) in
             let state' =
               ContextHolderModule.add_variable x' (tau, expr) env.state
             in
