@@ -7,7 +7,7 @@
 %token COLON COMMA SEMI EQUAL CONS
 %token BEGIN END
 %token <string> LNAME
-%token UNDERSCORE AS TO
+%token UNDERSCORE AS
 %token <int> INT
 %token <string> STRING
 %token <bool> BOOL
@@ -97,8 +97,8 @@ plain_term:
     { Box (tau, e, (p, c)) }
   | UNBOX tau = INT e = term AS p = pattern IN c = term
     { Unbox (tau, e, (p, c)) }
-  | PERFORM op = UNAME e = term TO p = pattern IN c = term
-    { Perform (op, e, (p, c)) }
+  | PERFORM op = UNAME e = term
+    { Perform (op, e) }
   | t = plain_comma_term
     { t }
 

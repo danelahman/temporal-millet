@@ -64,7 +64,7 @@ and plain_term =
   | Delay of int * term  (** [delay tau t] **)
   | Box of int * term * abstraction  (** [box tau expr as v in n] *)
   | Unbox of int * term * abstraction  (** [unbox tau expr as v in n] *)
-  | Perform of operation * term * abstraction  (** [perform op expr x.n] *)
+  | Perform of operation * term  (** [perform op expr] *)
 
 and abstraction = pattern * term
 and guarded_abstraction = pattern * term option * term

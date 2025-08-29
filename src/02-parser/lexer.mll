@@ -37,7 +37,6 @@
     ("unbox", UNBOX);
     ("operation", OPERATION);
     ("perform", PERFORM);
-    ("to", TO);    
   ]
 
   let escaped_characters = [

@@ -215,11 +215,14 @@ and desugar_plain_computation ~loc state =
       let binds, e' = desugar_expression state e in
       let abs = desugar_abstraction state (p, c) in
       (binds, Untyped.Unbox (TauConst (Tau.of_int tau), e', abs))
-  | Sugared.Perform (op, e, a) ->
+  | Sugared.Perform (op, e) ->
       let operation = lookup_operation ~loc state op in
       let binds, expr = desugar_expression state e in
-      let abs = desugar_abstraction state a in
-      (binds, Untyped.Perform (operation, expr, abs))
+      let var = Untyped.Variable.fresh "op_var" in
+      ( binds,
+        Untyped.Perform
+          (operation, expr, (Untyped.PVar var, Untyped.Return (Untyped.Var var)))
+      )
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _
