@@ -9,18 +9,18 @@ let foo_int =
 
 let foo_int_temporal =
   function
-  | Zero -> (delay 3); 0
-  | Succ m -> (delay 3); 1
+  | Zero -> delay 3; 0
+  | Succ m -> delay 3; 1
 
 let del n = 
-  (delay 9); 
-  foo_int_temporal ((delay 2); Succ n)
+  delay 9; 
+  foo_int_temporal (delay 2; Succ n)
 
-let higher n = fun m -> (delay 5); n + m
+let higher n = fun m -> delay 5; n + m
 
 let higher2 n = 
-  (delay 10); 
-  fun m -> (delay 5); (n + m)
+  delay 10; 
+  fun m -> delay 5; n + m
 
 let foo f f2 n = f n; f n; f n; f2 n; f2 n; delay 42
 
@@ -32,23 +32,23 @@ let foobar () = foo bar bar2 7
 
 let test () = 
   box 3 (higher 5 6) as x in 
-  (delay 3); 
+  delay 3; 
   x
 
 let test2 () = 
   box 3 (42) as r in 
-  (delay 3); 
+  delay 3; 
   unbox 3 r as y in y
 
 let test3 () = 
-  (delay 2); 
+  delay 2; 
   box 3 (
     43,
     8+91,
-    (let h = "test" in (delay 10); h)
+    (let h = "test" in delay 10; h)
   ) as r
   in 
-  (delay 3); 
+  delay 3; 
   unbox 3 r as (n, a, h)
   in (n, h)
 
