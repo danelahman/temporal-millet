@@ -1,15 +1,15 @@
 let rec box_n_values n boxed =
-  if n = 0 then boxed else box_n_values (n - 1) ((box 3 n*n as v in v) :: boxed)
+  if n = 0 then boxed else box_n_values (n - 1) ((box 3 n*n) :: boxed)
 
 run
   let boxed_vals = box_n_values 5 [] in
   let boxed_fun = 
     fold_left 
       (fun acc value -> 
-         box 10 (fun () -> unbox 10 acc as unboxed_acc in 
-                           unbox 3 value as unboxed_value in 
-                           unboxed_acc () + unboxed_value) as boxed_val in boxed_val) 
-      (box 10 (fun () -> 0) as boxed_val in boxed_val)
+         box 10 (fun () -> let unboxed_acc = unbox 10 acc in 
+                           let unboxed_value = unbox 3 value in 
+                           unboxed_acc () + unboxed_value)) 
+      (box 10 (fun () -> 0))
       boxed_vals in
   delay 10; 
-  unbox 10 boxed_fun as f in f ()
+  (unbox 10 boxed_fun) ()

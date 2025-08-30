@@ -4,3 +4,12 @@ run
     delay 4;                     (* <- insufficient delay *)
     unbox 5 boxed as (l, r) in
     l + r
+
+(* Same code as above, but instead using the generic effect versions of box and unbox *)
+
+run
+    let x = (10, 10) in
+    let boxed = box 5 x in
+    delay 4;                       (* <- insufficient delay *)
+    let (l, r) = unbox 5 boxed in
+    l + r

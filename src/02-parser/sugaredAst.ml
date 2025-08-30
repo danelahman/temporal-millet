@@ -63,7 +63,9 @@ and plain_term =
   | Apply of term * term  (** [t1 t2] *)
   | Delay of int  (** [delay tau] **)
   | Box of int * term * abstraction  (** [box tau expr as v in n] *)
+  | GenBox of int * term  (** [box tau expr] *)
   | Unbox of int * term * abstraction  (** [unbox tau expr as v in n] *)
+  | GenUnbox of int * term  (** [unbox tau expr] *)
   | Perform of operation * term  (** [perform op expr] *)
 
 and abstraction = pattern * term

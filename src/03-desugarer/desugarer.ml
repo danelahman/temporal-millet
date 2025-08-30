@@ -153,8 +153,9 @@ and desugar_plain_expression ~loc state = function
       let binds, expr = desugar_expression state term in
       (binds, Untyped.Variant (lbl', Some expr))
   | ( Sugared.Apply _ | Sugared.Match _ | Sugared.Let _ | Sugared.LetRec _
-    | Sugared.Delay _ | Sugared.Box _ | Sugared.Unbox _ | Sugared.Conditional _
-    | Sugared.Perform _ ) as term ->
+    | Sugared.Delay _ | Sugared.Box _ | Sugared.GenBox _ | Sugared.Unbox _
+    | Sugared.GenUnbox _ | Sugared.Conditional _ | Sugared.Perform _ ) as term
+    ->
       let x = Untyped.Variable.fresh "b" in
       let comp = desugar_computation state { Sugared.it = term; at = loc } in
       let hoist = (Untyped.PVar x, comp) in
@@ -212,10 +213,26 @@ and desugar_plain_computation ~loc state =
       let binds, e' = desugar_expression state e in
       let abs = desugar_abstraction state (p, c) in
       (binds, Untyped.Box (TauConst (Tau.of_int tau), e', abs))
+  | Sugared.GenBox (tau, e) ->
+      let binds, e' = desugar_expression state e in
+      let var = Untyped.Variable.fresh "box_var" in
+      ( binds,
+        Untyped.Box
+          ( TauConst (Tau.of_int tau),
+            e',
+            (Untyped.PVar var, Untyped.Return (Untyped.Var var)) ) )
   | Sugared.Unbox (tau, e, (p, c)) ->
       let binds, e' = desugar_expression state e in
       let abs = desugar_abstraction state (p, c) in
       (binds, Untyped.Unbox (TauConst (Tau.of_int tau), e', abs))
+  | Sugared.GenUnbox (tau, e) ->
+      let binds, e' = desugar_expression state e in
+      let var = Untyped.Variable.fresh "unbox_var" in
+      ( binds,
+        Untyped.Unbox
+          ( TauConst (Tau.of_int tau),
+            e',
+            (Untyped.PVar var, Untyped.Return (Untyped.Var var)) ) )
   | Sugared.Perform (op, e) ->
       let operation = lookup_operation ~loc state op in
       let binds, expr = desugar_expression state e in

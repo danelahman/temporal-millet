@@ -95,8 +95,12 @@ plain_term:
     { Delay tau }
   | BOX tau = INT e = term AS p = pattern IN c = term
     { Box (tau, e, (p, c)) }
+  | BOX tau = INT e = term
+    { GenBox (tau, e) }
   | UNBOX tau = INT e = term AS p = pattern IN c = term
     { Unbox (tau, e, (p, c)) }
+  | UNBOX tau = INT e = term
+    { GenUnbox (tau, e) }
   | PERFORM op = UNAME e = comma_term
     { Perform (op, e) }
   | t = plain_comma_term

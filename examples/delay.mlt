@@ -31,7 +31,7 @@ let bar2 n = delay 23
 let foobar () = foo bar bar2 7
 
 let test () = 
-  box 3 (higher 5 6) as x in 
+  let x = box 3 (higher 5 6) in 
   delay 3; 
   x
 
@@ -49,8 +49,8 @@ let test3 () =
   ) as r
   in 
   delay 3; 
-  unbox 3 r as (n, a, h)
-  in (n, h)
+  let (n, a, h) = unbox 3 r in 
+  (n, h)
 
 run foo_int Zero
 run foo_int_temporal Zero
