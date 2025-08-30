@@ -60,7 +60,7 @@ run
     (Complete (uvCure' (Cooled (unbox 5 freshSword))), 
      Complete (uvCure' (Cooled (unbox 5 freshHammer))))
 
-(* But inlinging further is not type safe any more *)
+(* But inlining further is not type safe any more *)
 
 (*
 run
