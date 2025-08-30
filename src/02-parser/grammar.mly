@@ -97,7 +97,7 @@ plain_term:
     { Box (tau, e, (p, c)) }
   | UNBOX tau = INT e = term AS p = pattern IN c = term
     { Unbox (tau, e, (p, c)) }
-  | PERFORM op = UNAME e = term
+  | PERFORM op = UNAME e = comma_term
     { Perform (op, e) }
   | t = plain_comma_term
     { t }
