@@ -42,3 +42,28 @@ run
     let cooledHammer = unbox 5 freshHammer in
     let curedHammer = uvCure' (Cooled cooledHammer) in
     (Complete curedSword, Complete curedHammer)
+
+(* Here it is safe to inline the unboxes into the respective uvCure' function arguments *)
+
+run
+    let freshSword = printResinModel' (Model "Sword") in
+    let freshHammer = printResinModel' (Model "Hammer") in
+    let curedSword = uvCure' (Cooled (unbox 5 freshSword)) in
+    let curedHammer = uvCure' (Cooled (unbox 5 freshHammer)) in
+    (Complete curedSword, Complete curedHammer)
+
+(* And by inlining even further, we get the following code *)
+
+run
+    let freshSword = printResinModel' (Model "Sword") in
+    let freshHammer = printResinModel' (Model "Hammer") in
+    (Complete (uvCure' (Cooled (unbox 5 freshSword))), 
+     Complete (uvCure' (Cooled (unbox 5 freshHammer))))
+
+(* But inlinging further is not type safe any more *)
+
+(*
+run
+    (Complete (uvCure' (Cooled (unbox 5 (printResinModel' (Model "Sword"))))), 
+     Complete (uvCure' (Cooled (unbox 5 (printResinModel' (Model "Hammer"))))))
+*)
