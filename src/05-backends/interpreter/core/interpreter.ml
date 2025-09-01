@@ -13,6 +13,7 @@ type evaluation_environment = {
   variables : Tau.t Ast.expression ContextHolderModule.t;
   builtin_functions :
     (Tau.t Ast.expression -> Tau.t Ast.computation) ContextHolderModule.t;
+  resource_counter : int;
 }
 
 let initial_environment =
@@ -20,6 +21,7 @@ let initial_environment =
     state = ContextHolderModule.empty;
     variables = ContextHolderModule.empty;
     builtin_functions = ContextHolderModule.empty;
+    resource_counter = 0;
   }
 
 exception PatternMismatch
@@ -269,11 +271,28 @@ let rec step_computation env = function
       let rec doBox tau expr pat comp =
         match pat with
         | Ast.PVar x ->
-            let state' =
-              ContextHolderModule.add_variable x (tau, expr) env.state
+            let resource_counter = env.resource_counter in
+            (* let x' =
+              Ast.Variable.fresh
+                (Ast.Variable.string_of x ^ string_of_int resource_counter) *)
+            let x' =
+              Ast.Variable.fresh ("resource_" ^ string_of_int resource_counter)
             in
-            let env' = { env with state = state' } in
-            [ (env', ComputationRedex Box, fun () -> comp) ]
+            let state' =
+              ContextHolderModule.add_variable x' (tau, expr) env.state
+            in
+            let env' =
+              {
+                env with
+                state = state';
+                resource_counter = resource_counter + 1;
+              }
+            in
+            [
+              ( env',
+                ComputationRedex Box,
+                fun () -> refresh_computation [ (x, x') ] comp );
+            ]
         | Ast.PAnnotated (pat', _) -> doBox tau expr pat' comp
         | _ ->
             Error.runtime "Box expected a variable but got pattern %t"

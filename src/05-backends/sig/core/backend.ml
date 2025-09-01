@@ -14,6 +14,7 @@ module type S = sig
     variables : Tau.t Ast.expression ContextHolderModule.t;
     builtin_functions :
       (Tau.t Ast.expression -> Tau.t Ast.computation) ContextHolderModule.t;
+    resource_counter : int;
   }
 
   val initial_load_state : load_state
