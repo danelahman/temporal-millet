@@ -197,9 +197,9 @@ and print_expression tau_module =
         print ~at_level:2 "fun %t" (print_abstraction tau_module a)
     | RecLambda (f, _ty) -> print ~at_level:2 "rec %t ..." (Variable.print f)
     | Handler (ret_case, op_cases) ->
-        print "handler @[| return %t%t@]"
+        print "handler (@[<hov>return %t%t@])"
           (print_abstraction tau_module ret_case)
-          (Print.print_sequence " | " (print_op_case tau_module)
+          (Print.print_sequence_with_start_sep " | " (print_op_case tau_module)
              (OpNameMap.bindings op_cases))
   in
   aux

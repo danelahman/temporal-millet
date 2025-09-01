@@ -7,8 +7,18 @@ let h () =
       perform Set 42; 
       let y = perform Get () in
       x + y
-  | Get () k -> delay 1; 42
-  | Set x k -> delay 2; x
+  | Get () k -> 
+      delay 1;
+      let k' = unbox 1 k in
+      k' 24
+
+
+(*
+  | Set x k -> 
+      perform Set x;
+      let k' = unbox 2 k in
+      k' ()
+*)
 
 (*     
   | Get () k -> 

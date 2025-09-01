@@ -247,15 +247,15 @@ let rec infer_expression state = function
       in
       let eqs' =
         Ast.OpNameMap.fold
-          (fun op op_case eqs ->
+          (fun op op_case eqs'' ->
             let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
             match op_sig with
-            | None -> Error.typing "Unknown operation case."
+            | None -> Error.typing "Case for an unknown operation."
             | Some (param_ty, arity_ty, op_tau) ->
-                let tau = fresh_tau () in
                 let op_args_ty, CompTy (op_case_ty, op_case_tau), op_eqs =
                   infer_abstraction state op_case
                 in
+                let tau = fresh_tau () in
                 Constraint.TypeConstraint (op_case_ty, ret_ty)
                 :: Constraint.TauConstraint
                      (op_case_tau, Ast.TauAdd (op_tau, tau))
@@ -269,9 +269,10 @@ let rec infer_expression state = function
                                Ast.TyArrow (arity_ty, CompTy (ret_ty, tau)) );
                          ] )
                 :: op_eqs
-                @ eqs)
+                @ eqs'')
           op_cases []
       in
+      print_constraints eqs';
       ( Ast.TyHandler (CompTy (arg_ty, arg_tau), CompTy (ret_ty, ret_tau)),
         eqs @ eqs' )
 

@@ -24,6 +24,11 @@ let rec print_sequence sep pp vs ppf =
   | v :: vs ->
       Format.fprintf ppf "%t%s@,%t" (pp v) sep (print_sequence sep pp vs)
 
+let print_sequence_with_start_sep sep pp vs ppf =
+  if List.length vs > 0 then
+    Format.fprintf ppf "%s%t" sep (print_sequence sep pp vs)
+  else print_sequence sep pp vs ppf
+
 let rec print_cases pp vs ppf =
   match vs with
   | [] -> ()
