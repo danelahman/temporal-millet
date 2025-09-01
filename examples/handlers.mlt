@@ -8,6 +8,7 @@ let h () =
       let y = perform Get () in
       x + y
   | Get () k -> delay 1; 42
+  | Set x k -> delay 2; x
 
 (*     
   | Get () k -> 
