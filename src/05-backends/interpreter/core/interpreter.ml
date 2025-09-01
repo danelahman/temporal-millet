@@ -114,6 +114,12 @@ let rec refresh_pattern = function
       (PVariant (lbl, Some pat'), vars)
   | (PVariant (_, None) | PConst _ | PNonbinding) as pat -> (pat, [])
 
+(** | Ast.Handler ((y, ret_case), op_cases) -> let y' = Ast.Variable.refresh y
+    in let ret_case' = refresh_computation ((y, y') :: vars) ret_case in let
+    op_cases' = Ast.OpNameMap.map (fun (x, k, op_case) -> let x' =
+    Ast.Variable.refresh x in let k' = Ast.Variable.refresh k in let op_case' =
+    refresh_computation ((x, x') :: (k, k') :: vars) op_case in (x', k',
+    op_case')) op_cases in Ast.Handler ((y', ret_case'), op_cases') *)
 let rec refresh_expression vars = function
   | Ast.Var x as expr -> (
       match List.assoc_opt x vars with None -> expr | Some x' -> Var x')
@@ -127,6 +133,14 @@ let rec refresh_expression vars = function
   | Ast.RecLambda (x, abs) ->
       let x' = Ast.Variable.refresh x in
       Ast.RecLambda (x', refresh_abstraction ((x, x') :: vars) abs)
+  | Ast.Handler (ret_case, op_cases) ->
+      let ret_case' = refresh_abstraction vars ret_case in
+      let op_cases' =
+        Ast.OpNameMap.map
+          (fun op_case -> refresh_abstraction vars op_case)
+          op_cases
+      in
+      Ast.Handler (ret_case', op_cases')
 
 and refresh_computation vars = function
   | Ast.Return expr -> Ast.Return (refresh_expression vars expr)
@@ -168,6 +182,12 @@ let rec substitute_expression subst = function
   | Ast.Lambda abs -> Lambda (substitute_abstraction subst abs)
   | Ast.PureLambda abs -> PureLambda (substitute_abstraction subst abs)
   | Ast.RecLambda (x, abs) -> RecLambda (x, substitute_abstraction subst abs)
+  | Ast.Handler (ret_case, op_cases) ->
+      Ast.Handler
+        ( substitute_abstraction subst ret_case,
+          Ast.OpNameMap.map
+            (fun op_case -> substitute_abstraction subst op_case)
+            op_cases )
 
 and substitute_computation subst = function
   | Ast.Return expr -> Ast.Return (substitute_expression subst expr)

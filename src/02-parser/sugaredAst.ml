@@ -23,6 +23,7 @@ and plain_ty =
   | TyArrow of ty * plain_comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of ty list  (** [ty1 * ty2 * ... * tyn] *)
   | TyBox of tau_val * ty  (** [ [tau]ty ] *)
+  | TyHandler of plain_comp_ty * plain_comp_ty
 
 and plain_comp_ty = CompTy of ty * tau_val  (** [ty ! tau] *)
 
@@ -67,6 +68,7 @@ and plain_term =
   | Unbox of int * term * abstraction  (** [unbox tau expr as v in n] *)
   | GenUnbox of int * term  (** [unbox tau expr] *)
   | Perform of operation * term  (** [perform op expr] *)
+  | Handler of abstraction * (operation * abstraction) list
 
 and abstraction = pattern * term
 and guarded_abstraction = pattern * term option * term

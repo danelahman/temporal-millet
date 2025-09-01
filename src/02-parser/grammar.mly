@@ -15,7 +15,7 @@
 %token <SugaredAst.label> UNAME
 %token <SugaredAst.ty_param> PARAM
 %token TYPE OPERATION ARROW SIGARROW OF HASH
-%token MATCH WITH FUNCTION
+%token MATCH WITH FUNCTION HANDLER
 %token RUN LET REC AND IN
 %token DELAY BOX UNBOX PERFORM
 %token FUN BAR BARBAR
@@ -103,6 +103,10 @@ plain_term:
     { GenUnbox (tau, e) }
   | PERFORM op = UNAME e = comma_term
     { Perform (op, e) }
+  | HANDLER BAR? ret_case = case
+    { Handler (ret_case, []) }
+  | HANDLER BAR? ret_case = case op_cases = bar_cases0(op_case)
+    { Handler (ret_case, op_cases) }
   | t = plain_comma_term
     { t }
 
@@ -199,6 +203,10 @@ const:
 case:
   | p = pattern ARROW t = term
     { (p, t) }
+
+op_case:
+  | op = UNAME p = pattern k = pattern ARROW t = term
+    { (op, ({it= PTuple [p; k]; at= Location.of_lexeme $startpos}, t)) }
 
 lambdas0(SEP):
   | SEP t = term
@@ -356,6 +364,10 @@ ident:
 
 cases0(case):
   | BAR? cs = separated_list(BAR, case)
+    { cs }
+
+bar_cases0(case):
+  | BAR cs = separated_list(BAR, case)
     { cs }
 
 cases(case):

@@ -96,6 +96,9 @@ let rec check_ty state = function
       check_comp_ty state ty2
   | TyTuple tys -> List.iter (check_ty state) tys
   | TyBox (_, ty) -> check_ty state ty
+  | TyHandler (ty1, ty2) ->
+      check_comp_ty state ty1;
+      check_comp_ty state ty2
 
 and check_comp_ty state = function Ast.CompTy (ty, _tau) -> check_ty state ty
 
@@ -236,6 +239,41 @@ let rec infer_expression state = function
           (ty_out, Constraint.TypeConstraint (ty_in, ty) :: eqs)
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch")
+  | Ast.Handler (ret_case, op_cases) ->
+      let arg_tau = fresh_tau () in
+      let state' = extend_temporal state arg_tau in
+      let arg_ty, CompTy (ret_ty, ret_tau), eqs =
+        infer_abstraction state' ret_case
+      in
+      let eqs' =
+        Ast.OpNameMap.fold
+          (fun op op_case eqs ->
+            let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
+            match op_sig with
+            | None -> Error.typing "Unknown operation case."
+            | Some (param_ty, arity_ty, op_tau) ->
+                let tau = fresh_tau () in
+                let op_args_ty, CompTy (op_case_ty, op_case_tau), op_eqs =
+                  infer_abstraction state op_case
+                in
+                Constraint.TypeConstraint (op_case_ty, ret_ty)
+                :: Constraint.TauConstraint
+                     (op_case_tau, Ast.TauAdd (op_tau, tau))
+                :: Constraint.TypeConstraint
+                     ( op_args_ty,
+                       Ast.TyTuple
+                         [
+                           param_ty;
+                           Ast.TyBox
+                             ( op_tau,
+                               Ast.TyArrow (arity_ty, CompTy (ret_ty, tau)) );
+                         ] )
+                :: op_eqs
+                @ eqs)
+          op_cases []
+      in
+      ( Ast.TyHandler (CompTy (arg_ty, arg_tau), CompTy (ret_ty, ret_tau)),
+        eqs @ eqs' )
 
 and infer_computation state = function
   | Ast.Return expr ->
@@ -354,6 +392,8 @@ let rec occurs_ty a = function
   | Ast.TyApply (_, tys) -> List.exists (occurs_ty a) tys
   | Ast.TyTuple tys -> List.exists (occurs_ty a) tys
   | Ast.TyBox (_, ty) -> occurs_ty a ty
+  | Ast.TyHandler (CompTy (ty1, _), CompTy (ty2, _)) ->
+      occurs_ty a ty1 || occurs_ty a ty2
 
 let rec occurs_tau a = function
   | Ast.TauParam a' -> a = a'
@@ -395,6 +435,10 @@ and simplify_ty ty =
       TyArrow (simplify_ty ty, Ast.CompTy (simplify_ty ty', simplify_tau tau'))
   | TyTuple ty_list -> TyTuple (List.map simplify_ty ty_list)
   | TyBox (tau, ty) -> TyBox (simplify_tau tau, simplify_ty ty)
+  | TyHandler (Ast.CompTy (ty1, tau1), Ast.CompTy (ty2, tau2)) ->
+      TyHandler
+        ( Ast.CompTy (simplify_ty ty1, simplify_tau tau1),
+          Ast.CompTy (simplify_ty ty2, simplify_tau tau2) )
 
 let simplify_comp_ty = function
   | Ast.CompTy (ty, tau) -> Ast.CompTy (simplify_ty ty, simplify_tau tau)

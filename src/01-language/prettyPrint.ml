@@ -153,6 +153,11 @@ let print_ty (type a) ?max_level tau_module ty_print_param tau_print_param =
         print ~at_level:1 "[%t]%t"
           (print_tau tau_module tau_print_param tau)
           (aux ~max_level:0 ty)
+    | TyHandler (CompTy (ty1, tau1), CompTy (ty2, tau2)) ->
+        print ~at_level:3 "%t # %t ⇒ %t # %t" (aux ~max_level:2 ty1)
+          (print_tau tau_module tau_print_param tau1)
+          (aux ~max_level:3 ty2)
+          (print_tau tau_module tau_print_param tau2)
   in
   aux ?max_level
 
@@ -191,6 +196,11 @@ and print_expression tau_module =
     | PureLambda a ->
         print ~at_level:2 "fun %t" (print_abstraction tau_module a)
     | RecLambda (f, _ty) -> print ~at_level:2 "rec %t ..." (Variable.print f)
+    | Handler (ret_case, op_cases) ->
+        print "handler @[| return %t%t@]"
+          (print_abstraction tau_module ret_case)
+          (Print.print_sequence " | " (print_op_case tau_module)
+             (OpNameMap.bindings op_cases))
   in
   aux
 
@@ -243,6 +253,9 @@ and print_abstraction tau_module (p, c) ppf =
 
 and print_case tau_module a ppf =
   Format.fprintf ppf "%t" (print_abstraction tau_module a)
+
+and print_op_case tau_module (op, a) ppf =
+  Format.fprintf ppf "%t %t" (OpName.print op) (print_abstraction tau_module a)
 
 let print_vars_and_tys tau_module print_var_and_ty lst ppf =
   let rec print_list lst ppf =

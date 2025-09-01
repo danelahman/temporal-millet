@@ -36,6 +36,7 @@ type 'a ty =
   | TyArrow of 'a ty * 'a comp_ty  (** [ty1 -> ty2 ! tau] *)
   | TyTuple of 'a ty list  (** [ty1 * ty2 * ... * tyn] *)
   | TyBox of 'a tau * 'a ty  (** [ [tau]ty ] *)
+  | TyHandler of 'a comp_ty * 'a comp_ty
 
 and 'a comp_ty = CompTy of 'a ty * 'a tau  (** [ty ! tau] *)
 
@@ -73,6 +74,7 @@ type 'a expression =
   | Lambda of 'a abstraction
   | PureLambda of 'a abstraction
   | RecLambda of variable * 'a abstraction
+  | Handler of 'a abstraction * 'a abstraction OpNameMap.t
 
 and 'a computation =
   | Return of 'a expression
@@ -119,6 +121,13 @@ let rec substitute_ty ty_subst tau_subst = function
         )
   | TyBox (tau, ty) ->
       TyBox (substitute_tau tau_subst tau, substitute_ty ty_subst tau_subst ty)
+  | TyHandler (CompTy (ty1, tau1), CompTy (ty2, tau2)) ->
+      TyHandler
+        ( CompTy
+            (substitute_ty ty_subst tau_subst ty1, substitute_tau tau_subst tau1),
+          CompTy
+            (substitute_ty ty_subst tau_subst ty2, substitute_tau tau_subst tau2)
+        )
 
 let substitute_comp_ty ty_subst tau_subst = function
   | CompTy (ty, tau) ->
@@ -152,6 +161,15 @@ let rec free_vars = function
       let fv_ty, fv_tau = free_vars ty in
       let nested_free_taus = free_taus tau in
       (fv_ty, TauParamSet.union fv_tau nested_free_taus)
+  | TyHandler (CompTy (ty1, tau1), CompTy (ty2, tau2)) ->
+      let fv_ty1, fv_tau1 = free_vars ty1 in
+      let fv_ty2, fv_tau2 = free_vars ty2 in
+      let nested_free_taus1 = free_taus tau1 in
+      let nested_free_taus2 = free_taus tau2 in
+      ( TyParamSet.union fv_ty1 fv_ty2,
+        TauParamSet.union
+          (TauParamSet.union fv_tau1 fv_tau2)
+          (TauParamSet.union nested_free_taus1 nested_free_taus2) )
 
 and free_taus tau =
   match tau with

@@ -1,0 +1,33 @@
+operation Get : unit ~> int # 1
+operation Set : int ~> unit # 2
+
+let h () =
+  handler
+  | x -> 
+      perform Set 42; 
+      let y = perform Get () in
+      x + y
+  | Get () k -> delay 1; 42
+
+(*     
+  | Get () k -> 
+      delay 1; 
+      let k' = unbox 1 k in
+      k' 42
+*)
+
+(*
+(* Why does this variant typecheck? *)
+(* Get case should not allow delay > 0! *)
+
+operation Get : unit ~> int # 0
+operation Set : int ~> unit # 0
+
+let h () =
+  handler
+  | x -> 
+      perform Set 42; 
+      let y = perform Get () in
+      x + y
+  | Get () k -> delay 7; 42
+*)

@@ -78,6 +78,12 @@ and desugar_plain_ty ~loc state = function
       let tau' = Untyped.TauConst (Tau.of_int tau) in
       let ty' = desugar_ty state ty in
       Untyped.TyBox (tau', ty')
+  | Sugared.TyHandler (CompTy (ty1, tau1), CompTy (ty2, tau2)) ->
+      let ty1' = desugar_ty state ty1 in
+      let tau1' = Untyped.TauConst (Tau.of_int tau1) in
+      let ty2' = desugar_ty state ty2 in
+      let tau2' = Untyped.TauConst (Tau.of_int tau2) in
+      Untyped.TyHandler (CompTy (ty1', tau1'), CompTy (ty2', tau2'))
 
 let rec desugar_pattern state vars { Sugared.it = pat; at = loc } =
   let vars, pat' = desugar_plain_pattern ~loc state vars pat in
@@ -152,6 +158,22 @@ and desugar_plain_expression ~loc state = function
       let lbl' = lookup_label ~loc state lbl in
       let binds, expr = desugar_expression state term in
       (binds, Untyped.Variant (lbl', Some expr))
+  | Sugared.Handler (ret_case, op_cases) ->
+      let ret_case' = desugar_abstraction state ret_case in
+      let op_cases' =
+        List.fold_left
+          (fun op_cases'' (op, op_case) ->
+            let op' = lookup_operation ~loc state op in
+            match Untyped.OpNameMap.find_opt op' op_cases'' with
+            | None ->
+                Untyped.OpNameMap.add op'
+                  (desugar_abstraction state op_case)
+                  op_cases''
+            | Some _ ->
+                Error.syntax ~loc "Multiple cases for the same operation.")
+          Untyped.OpNameMap.empty op_cases
+      in
+      ([], Untyped.Handler (ret_case', op_cases'))
   | ( Sugared.Apply _ | Sugared.Match _ | Sugared.Let _ | Sugared.LetRec _
     | Sugared.Delay _ | Sugared.Box _ | Sugared.GenBox _ | Sugared.Unbox _
     | Sugared.GenUnbox _ | Sugared.Conditional _ | Sugared.Perform _ ) as term
@@ -245,7 +267,7 @@ and desugar_plain_computation ~loc state =
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _
     | Sugared.Variant _ | Sugared.Lambda _ | Sugared.PureLambda _
-    | Sugared.Function _ ) as term ->
+    | Sugared.Function _ | Sugared.Handler _ ) as term ->
       let binds, expr = desugar_expression state { it = term; at = loc } in
       (binds, Untyped.Return expr)
 

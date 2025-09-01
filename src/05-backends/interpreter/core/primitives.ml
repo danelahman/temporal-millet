@@ -68,6 +68,7 @@ let rec comparable_expression = function
   | Lambda _ -> false
   | PureLambda _ -> false
   | RecLambda _ -> false
+  | Handler _ -> false
 
 let comparison f =
   binary_function (fun e1 e2 ->
