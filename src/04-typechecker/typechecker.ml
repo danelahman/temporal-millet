@@ -55,15 +55,28 @@ let print_type_constraint t1 t2 ty_pp tau_pp =
     (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t1)
     (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t2)
 
+let print_one_type_constraint t1 t2 =
+  let ty_pp = PrettyPrint.TyPrintParam.create () in
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
+  print_type_constraint t1 t2 ty_pp tau_pp
+
 let print_tau_constraint tau1 tau2 tau_pp =
   Format.printf "TauConstraint(%t = %t)"
     (PrettyPrint.print_tau (module Tau) tau_pp tau1)
     (PrettyPrint.print_tau (module Tau) tau_pp tau2)
 
+let print_one_tau_constraint tau1 tau2 =
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
+  print_tau_constraint tau1 tau2 tau_pp
+
 let print_tau_geq tau1 tau2 tau_pp =
   Format.printf "TauGeq(%t >= %t)"
     (PrettyPrint.print_tau (module Tau) tau_pp tau1)
     (PrettyPrint.print_tau (module Tau) tau_pp tau2)
+
+let print_one_tau_geq tau1 tau2 =
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
+  print_tau_geq tau1 tau2 tau_pp
 
 let print_constraints constraints =
   let ty_pp = PrettyPrint.TyPrintParam.create () in
@@ -255,23 +268,25 @@ let rec infer_expression state = function
                   infer_abstraction state op_case
                 in
                 let tau = fresh_tau () in
-                Constraint.TypeConstraint (op_case_ty, ret_ty)
-                :: Constraint.TauConstraint
-                     (op_case_tau, Ast.TauAdd (op_tau, tau))
-                :: Constraint.TypeConstraint
-                     ( op_args_ty,
-                       Ast.TyTuple
-                         [
-                           param_ty;
-                           Ast.TyBox
-                             ( op_tau,
-                               Ast.TyArrow (arity_ty, CompTy (ret_ty, tau)) );
-                         ] )
-                :: op_eqs
-                @ eqs'')
+                let op_eqs' =
+                  Constraint.TypeConstraint (op_case_ty, ret_ty)
+                  :: Constraint.TauConstraint
+                       (op_case_tau, Ast.TauAdd (op_tau, tau))
+                  :: Constraint.TypeConstraint
+                       ( op_args_ty,
+                         Ast.TyTuple
+                           [
+                             param_ty;
+                             Ast.TyBox
+                               ( op_tau,
+                                 Ast.TyArrow (arity_ty, CompTy (ret_ty, tau)) );
+                           ] )
+                  :: op_eqs
+                in
+                print_constraints op_eqs';
+                op_eqs' @ eqs'')
           op_cases []
       in
-      print_constraints eqs';
       ( Ast.TyHandler (CompTy (arg_ty, arg_tau), CompTy (ret_ty, ret_tau)),
         eqs @ eqs' )
 
