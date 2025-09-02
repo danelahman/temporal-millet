@@ -512,7 +512,6 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
         Error.typing
           "Unification stuck - could not solve remaining constraints %t"
           (fun ppf ->
-            print_constraints unsolved;
             Format.fprintf ppf "%s" "")
       else
         (* Retry with deferred constraints *)
