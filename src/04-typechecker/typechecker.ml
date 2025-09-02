@@ -447,8 +447,6 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
       match (tau1', tau2') with
       | _ when tau1' = tau2' ->
           unify_with_accum state prev_unsolved_size unsolved eqs
-      | Ast.TauParam p1, Ast.TauParam p2 when p1 = p2 ->
-          unify_with_accum state prev_unsolved_size unsolved eqs
       | Ast.TauParam tp, tau when not (occurs_tau tp tau) ->
           let ty_subst, tau_subst =
             unify_with_accum state prev_unsolved_size unsolved
