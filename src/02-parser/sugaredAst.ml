@@ -69,6 +69,7 @@ and plain_term =
   | GenUnbox of int * term  (** [unbox tau expr] *)
   | Perform of operation * term  (** [perform op expr] *)
   | Handler of abstraction * (operation * abstraction) list
+  | Handle of term * term
 
 and abstraction = pattern * term
 and guarded_abstraction = pattern * term option * term

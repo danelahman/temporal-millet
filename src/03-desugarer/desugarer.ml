@@ -176,8 +176,8 @@ and desugar_plain_expression ~loc state = function
       ([], Untyped.Handler (ret_case', op_cases'))
   | ( Sugared.Apply _ | Sugared.Match _ | Sugared.Let _ | Sugared.LetRec _
     | Sugared.Delay _ | Sugared.Box _ | Sugared.GenBox _ | Sugared.Unbox _
-    | Sugared.GenUnbox _ | Sugared.Conditional _ | Sugared.Perform _ ) as term
-    ->
+    | Sugared.GenUnbox _ | Sugared.Conditional _ | Sugared.Perform _
+    | Sugared.Handle _ ) as term ->
       let x = Untyped.Variable.fresh "b" in
       let comp = desugar_computation state { Sugared.it = term; at = loc } in
       let hoist = (Untyped.PVar x, comp) in
@@ -263,6 +263,10 @@ and desugar_plain_computation ~loc state =
         Untyped.Perform
           (operation, expr, (Untyped.PVar var, Untyped.Return (Untyped.Var var)))
       )
+  | Sugared.Handle (c, h) ->
+      let c' = desugar_computation state c in
+      let binds, h' = desugar_expression state h in
+      (binds, Untyped.Handle (c', h'))
   (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
   | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _

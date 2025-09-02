@@ -164,6 +164,10 @@ and refresh_computation vars = function
       let e' = refresh_expression vars e in
       let abs' = refresh_abstraction vars abs in
       Ast.Perform (op, e', abs')
+  | Ast.Handle (c, h) ->
+      let c' = refresh_computation vars c in
+      let h' = refresh_expression vars h in
+      Ast.Handle (c', h')
 
 and refresh_abstraction vars (pat, comp) =
   let pat', vars' = refresh_pattern pat in
@@ -211,6 +215,8 @@ and substitute_computation subst = function
   | Ast.Perform (op, e, abs) ->
       Ast.Perform
         (op, substitute_expression subst e, substitute_abstraction subst abs)
+  | Ast.Handle (c, h) ->
+      Ast.Handle (substitute_computation subst c, substitute_expression subst h)
 
 and substitute_abstraction subst (pat, comp) =
   let subst' = remove_pattern_bound_variables subst pat in
@@ -341,6 +347,7 @@ let rec step_computation env = function
       doUnbox expr pat comp
   | Ast.Perform (op, _expr, (_pat, _comp)) ->
       Error.runtime "Unhandled operation %t" (Ast.OpName.print op)
+  | Ast.Handle (_c, _h) -> failwith "TODO"
 
 type load_state = {
   environment : evaluation_environment;

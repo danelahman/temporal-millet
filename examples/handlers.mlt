@@ -1,7 +1,7 @@
 operation Get : unit ~> int # 71
 operation Set : int ~> unit # 2
 
-let h () =
+let h =
   handler
   | x -> 
       perform Set 42; 
@@ -15,3 +15,11 @@ let h () =
       perform Set x;
       let k' = unbox 2 k in
       k' ()
+
+let foo () =
+  handle 
+    perform Set 4; 
+    perform Get ();
+    delay 2;
+    1
+  with h

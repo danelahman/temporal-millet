@@ -244,6 +244,9 @@ and print_computation tau_module =
         print ~at_level:1 "perform %t %t (%t. %t)" (OpName.print op)
           (print_expression tau_module e)
           (print_pattern pat) (aux c)
+    | Handle (c, h) ->
+        print ~at_level:1 "handle %t with %t" (aux c)
+          (print_expression tau_module h)
   in
   aux
 

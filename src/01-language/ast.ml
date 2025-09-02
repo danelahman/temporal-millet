@@ -85,6 +85,7 @@ and 'a computation =
   | Box of 'a tau * 'a expression * 'a abstraction
   | Unbox of 'a tau * 'a expression * 'a abstraction
   | Perform of operation * 'a expression * 'a abstraction
+  | Handle of 'a computation * 'a expression
 
 and 'a abstraction = 'a pattern * 'a computation
 

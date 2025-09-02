@@ -394,6 +394,16 @@ and infer_computation state = function
             :: Constraint.TypeConstraint (value_ty', arity_ty)
             :: eqs
             @ eqs' ))
+  | Ast.Handle (c, h) ->
+      let CompTy (ty, tau), eqs = infer_computation state c in
+      let ty', eqs' = infer_expression state h in
+      let ty'' = fresh_ty () in
+      let tau'' = fresh_tau () in
+      ( CompTy (ty'', Ast.TauAdd (tau, tau'')),
+        Constraint.TypeConstraint
+          (ty', TyHandler (CompTy (ty, tau), CompTy (ty'', tau'')))
+        :: eqs
+        @ eqs' )
 
 and infer_abstraction state (pat, comp) =
   let ty, vars, eqs = infer_pattern state pat in
@@ -703,6 +713,16 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
       unify_with_accum state prev_unsolved_size unsolved
         (Constraint.TypeConstraint (ty1, ty2)
         :: Constraint.TauConstraint (tau1, tau2)
+        :: eqs)
+  | Constraint.TypeConstraint
+      ( Ast.TyHandler (Ast.CompTy (ty1, tau1), Ast.CompTy (ty2, tau2)),
+        Ast.TyHandler (Ast.CompTy (ty1', tau1'), Ast.CompTy (ty2', tau2')) )
+    :: eqs ->
+      unify_with_accum state prev_unsolved_size unsolved
+        (Constraint.TypeConstraint (ty1, ty1')
+        :: Constraint.TypeConstraint (ty2, ty2')
+        :: Constraint.TauConstraint (tau1, tau1')
+        :: Constraint.TauConstraint (tau2, tau2')
         :: eqs)
   | Constraint.TypeConstraint (t1, t2) :: _ ->
       let ty_pp = PrettyPrint.TyPrintParam.create () in

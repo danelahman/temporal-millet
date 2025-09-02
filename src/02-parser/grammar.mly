@@ -15,7 +15,7 @@
 %token <SugaredAst.label> UNAME
 %token <SugaredAst.ty_param> PARAM
 %token TYPE OPERATION ARROW SIGARROW OF HASH
-%token MATCH WITH FUNCTION HANDLER
+%token MATCH WITH FUNCTION HANDLER HANDLE
 %token RUN LET REC AND IN
 %token DELAY BOX UNBOX PERFORM
 %token FUN BAR BARBAR
@@ -107,6 +107,8 @@ plain_term:
     { Handler (ret_case, []) }
   | HANDLER BAR? ret_case = case op_cases = bar_cases0(op_case)
     { Handler (ret_case, op_cases) }
+  | HANDLE c = term WITH h = term
+    { Handle (c, h) }
   | t = plain_comma_term
     { t }
 
