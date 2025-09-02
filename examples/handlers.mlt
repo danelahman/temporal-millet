@@ -24,8 +24,16 @@ let h' =
       let k' = unbox 71 k in
       k' 42
 
+let h'' =
+  handler
+  | x -> x * x
+  | Get x k -> 
+      perform Get ();
+      let k' = unbox 71 k in
+      k' 42
+
 run
   handle 
-    perform Get ();
-    return 3
+    let x = perform Get () in
+    return x + 3
   with h'

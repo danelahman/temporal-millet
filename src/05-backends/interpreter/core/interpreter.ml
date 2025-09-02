@@ -425,7 +425,7 @@ let rec step_computation env = function
               | None ->
                   Error.runtime
                     "TODO: Operation signature not found in runtime state")
-          | Some _ -> Error.runtime "TODO: Operation case not in correct form"
+          | Some _ -> Error.runtime "TODO: Operation case not in correct format"
           | _ ->
               ( env,
                 ComputationRedex HandleOp,

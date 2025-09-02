@@ -230,13 +230,13 @@ and print_computation tau_module =
           (aux c)
     | Box (tau, e, (p, c)) ->
         let tau_pp = TauPrintParam.create () in
-        print ~at_level:1 "box %t[%t] as %t in %t"
+        print ~at_level:1 "box %t %t as %t in %t"
           (print_tau tau_module tau_pp tau)
           (print_expression tau_module e)
           (print_pattern p) (aux c)
     | Unbox (tau, e, (p, c)) ->
         let tau_pp = TauPrintParam.create () in
-        print ~at_level:1 "unbox %t[%t] as %t in %t"
+        print ~at_level:1 "unbox %t %t as %t in %t"
           (print_tau tau_module tau_pp tau)
           (print_expression tau_module e)
           (print_pattern p) (aux c)
@@ -245,7 +245,7 @@ and print_computation tau_module =
           (print_expression tau_module e)
           (print_pattern pat) (aux c)
     | Handle (c, h) ->
-        print ~at_level:1 "handle %t with %t" (aux c)
+        print ~at_level:1 "handle (%t) with %t" (aux c)
           (print_expression tau_module h)
   in
   aux
