@@ -6,12 +6,16 @@ let view_computation_redex = function
   | Interpreter.Match -> "match"
   | Interpreter.ApplyFun -> "applyFun"
   | Interpreter.DoReturn -> "doReturn"
+  | Interpreter.DoOp -> "doOp"
   | Interpreter.Delay -> "delay"
   | Interpreter.Box -> "box"
   | Interpreter.Unbox -> "unbox"
+  | Interpreter.HandleReturn -> "handleReturn"
+  | Interpreter.HandleOp -> "handleOp"
 
 let rec view_computation_reduction = function
   | Interpreter.DoCtx red -> view_computation_reduction red
+  | Interpreter.HandleCtx red -> view_computation_reduction red
   | Interpreter.ComputationRedex redex -> view_computation_redex redex
 
 let view_step_label = function

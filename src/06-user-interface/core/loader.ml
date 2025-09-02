@@ -2,6 +2,7 @@ module Location = Utils.Location
 module Error = Utils.Error
 module List = Utils.List
 module Ast = Language.Ast
+open Backend
 
 module Loader (Backend : Backend.S) = struct
   type state = {
@@ -62,8 +63,12 @@ module Loader (Backend : Backend.S) = struct
           Typechecker.add_operation_signature state.typechecker
             (op, ty1, ty2, tau)
         in
-        { state with typechecker = typechecker_state' }
-        (* TODO: account for operations in the backend as well *)
+        let _evaluation_environment_state' = state.backend in
+        {
+          state with
+          typechecker = typechecker_state';
+          backend = Backend.load_op_sig state.backend op tau;
+        }
     | Ast.TopLet (x, expr) ->
         let typechecker_state' =
           Typechecker.add_top_definition state.typechecker x expr

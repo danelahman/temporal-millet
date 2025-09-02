@@ -16,10 +16,16 @@ let h =
       let k' = unbox 2 k in
       k' ()
 
-let foo () =
+let h' =
+  handler
+  | x -> x * x
+  | Get x k -> 
+      let y = perform Get x in
+      let k' = unbox 71 k in
+      k' y
+
+run
   handle 
-    perform Set 4; 
     perform Get ();
-    delay 2;
-    1
-  with h
+    return 3
+  with h'

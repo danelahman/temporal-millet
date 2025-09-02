@@ -15,6 +15,7 @@ module type S = sig
     builtin_functions :
       (Tau.t Ast.expression -> Tau.t Ast.computation) ContextHolderModule.t;
     resource_counter : int;
+    op_signatures : Tau.t Ast.tau Ast.OpNameMap.t;
   }
 
   val initial_load_state : load_state
@@ -31,6 +32,7 @@ module type S = sig
     load_state -> Ast.variable -> Tau.t Ast.expression -> load_state
 
   val load_top_do : load_state -> Tau.t Ast.computation -> load_state
+  val load_op_sig : load_state -> Ast.OpName.t -> Tau.t Ast.tau -> load_state
 
   type run_state
   type step_label

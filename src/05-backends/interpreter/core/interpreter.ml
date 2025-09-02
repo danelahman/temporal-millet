@@ -14,6 +14,7 @@ type evaluation_environment = {
   builtin_functions :
     (Tau.t Ast.expression -> Tau.t Ast.computation) ContextHolderModule.t;
   resource_counter : int;
+  op_signatures : Tau.t Ast.tau Ast.OpNameMap.t;
 }
 
 let initial_environment =
@@ -22,14 +23,25 @@ let initial_environment =
     variables = ContextHolderModule.empty;
     builtin_functions = ContextHolderModule.empty;
     resource_counter = 0;
+    op_signatures = Ast.OpNameMap.empty;
   }
 
 exception PatternMismatch
 
-type computation_redex = Match | ApplyFun | DoReturn | Delay | Box | Unbox
+type computation_redex =
+  | Match
+  | ApplyFun
+  | DoReturn
+  | DoOp
+  | Delay
+  | Box
+  | Unbox
+  | HandleReturn
+  | HandleOp
 
 type computation_reduction =
   | DoCtx of computation_reduction
+  | HandleCtx of computation_reduction
   | ComputationRedex of computation_redex
 
 let rec eval_tuple (env : evaluation_environment) = function
@@ -250,6 +262,17 @@ let rec eval_function env = function
       Error.runtime "Function expected but got %t"
         (PrettyPrint.print_expression (module Tau) expr)
 
+let rec eval_handler env = function
+  | Ast.Handler (ret_case, op_cases) -> (ret_case, op_cases)
+  | Ast.Var x -> (
+      match ContextHolderModule.find_variable_opt x env.variables with
+      | Some expr -> eval_handler env expr
+      | None ->
+          Error.runtime "Handler expected but did not find it from environment")
+  | expr ->
+      Error.runtime "Handler expected but got %t"
+        (PrettyPrint.print_expression (module Tau) expr)
+
 let step_in_context step env redCtx ctx term =
   let terms' = step env term in
   List.map
@@ -293,6 +316,11 @@ let rec step_computation env = function
           let pat, comp2' = comp2 in
           let subst = match_pattern_with_expression env pat expr in
           (env, ComputationRedex DoReturn, fun () -> substitute subst comp2')
+          :: comps1'
+      | Ast.Perform (op, expr, (pat, cont)) ->
+          ( env,
+            ComputationRedex DoOp,
+            fun () -> Ast.Perform (op, expr, (pat, Ast.Do (cont, comp2))) )
           :: comps1'
       | _ -> comps1')
   | Ast.Delay (tau, comp) ->
@@ -345,9 +373,65 @@ let rec step_computation env = function
               (PrettyPrint.print_expression (module Tau) expr)
       in
       doUnbox expr pat comp
-  | Ast.Perform (op, _expr, (_pat, _comp)) ->
-      Error.runtime "Unhandled operation %t" (Ast.OpName.print op)
-  | Ast.Handle (_c, _h) -> failwith "TODO"
+  | Ast.Perform _ -> []
+  (* (op, _expr, (_pat, _comp)) ->
+      Error.runtime "Unhandled operation %t" (Ast.OpName.print op) *)
+  | Ast.Handle (comp, handler) -> (
+      let comps' =
+        step_in_context step_computation env
+          (fun red -> DoCtx red)
+          (fun comp' -> Ast.Handle (comp', handler))
+          comp
+      in
+      let (pat, ret_comp), op_cases = eval_handler env handler in
+      match comp with
+      | Ast.Return expr ->
+          let subst = match_pattern_with_expression env pat expr in
+          ( env,
+            ComputationRedex HandleReturn,
+            fun () -> substitute subst ret_comp )
+          :: comps'
+      | Ast.Perform (op, expr, (op_pat, op_cont)) -> (
+          let op_case = Ast.OpNameMap.find_opt op op_cases in
+          match op_case with
+          | Some (Ast.PTuple [ op_arg_pat; op_cont_pat ], op_case) -> (
+              let op_sig = Ast.OpNameMap.find_opt op env.op_signatures in
+              match op_sig with
+              | Some tau ->
+                  let resource_counter = env.resource_counter in
+                  let x =
+                    Ast.Variable.fresh
+                      ("resource_" ^ string_of_int resource_counter)
+                  in
+                  let env' =
+                    { env with resource_counter = resource_counter + 1 }
+                  in
+                  let arg_subst =
+                    match_pattern_with_expression env' op_arg_pat expr
+                  in
+                  let cont_subst =
+                    match_pattern_with_expression env' op_cont_pat (Ast.Var x)
+                  in
+                  ( env',
+                    ComputationRedex HandleOp,
+                    fun () ->
+                      Ast.Box
+                        ( tau,
+                          Ast.Lambda (op_pat, Ast.Handle (op_cont, handler)),
+                          ( Ast.PVar x,
+                            substitute cont_subst (substitute arg_subst op_case)
+                          ) ) )
+                  :: comps'
+              | None ->
+                  Error.runtime
+                    "TODO: Operation signature not found in runtime state")
+          | Some _ -> Error.runtime "TODO: Operation case not in correct form"
+          | _ ->
+              ( env,
+                ComputationRedex HandleOp,
+                fun () -> Ast.Perform (op, expr, (op_pat, op_cont)) )
+              :: comps')
+      | _ -> comps')
 
 type load_state = {
   environment : evaluation_environment;
@@ -386,6 +470,17 @@ let load_top_let load_state x expr =
 
 let load_top_do load_state comp =
   { load_state with computations = load_state.computations @ [ comp ] }
+
+let load_op_sig load_state op tau =
+  {
+    load_state with
+    environment =
+      {
+        load_state.environment with
+        op_signatures =
+          Ast.OpNameMap.add op tau load_state.environment.op_signatures;
+      };
+  }
 
 type run_state = load_state
 type step_label = ComputationReduction of computation_reduction | Return
