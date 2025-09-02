@@ -78,6 +78,14 @@ let print_one_tau_geq tau1 tau2 =
   let tau_pp = PrettyPrint.TauPrintParam.create () in
   print_tau_geq tau1 tau2 tau_pp
 
+let print_fresh_tau_constraint tau tau_pp =
+  Format.printf "FreshTauConstraint(%t)"
+    (PrettyPrint.print_tau (module Tau) tau_pp tau)
+
+let print_one_fresh_tau_constraint tau =
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
+  print_fresh_tau_constraint tau tau_pp
+
 let print_constraints constraints =
   let ty_pp = PrettyPrint.TyPrintParam.create () in
   let tau_pp = PrettyPrint.TauPrintParam.create () in
@@ -90,8 +98,22 @@ let print_constraints constraints =
              print_type_constraint t1 t2 ty_pp tau_pp
          | Constraint.TauConstraint (tau1, tau2) ->
              print_tau_constraint tau1 tau2 tau_pp
-         | Constraint.TauGeq (tau1, tau2) -> print_tau_geq tau1 tau2 tau_pp))
+         | Constraint.TauGeq (tau1, tau2) -> print_tau_geq tau1 tau2 tau_pp
+         | Constraint.FreshTauConstraint tau ->
+             print_fresh_tau_constraint tau tau_pp))
     constraints
+
+let rec check_unsolved_constraints = function
+  | [] -> ([], [])
+  | Constraint.FreshTauConstraint tau :: eqs -> (
+      match tau with
+      | Ast.TauParam _ -> check_unsolved_constraints eqs
+      | _ ->
+          let fs, eqs' = check_unsolved_constraints eqs in
+          (Constraint.FreshTauConstraint tau :: fs, eqs'))
+  | c :: eqs ->
+      let fs, eqs' = check_unsolved_constraints eqs in
+      (fs, c :: eqs')
 
 let rec check_ty state = function
   | Ast.TyConst _ -> ()
@@ -269,7 +291,8 @@ let rec infer_expression state = function
                 in
                 let tau = fresh_tau () in
                 let op_eqs' =
-                  Constraint.TypeConstraint (op_case_ty, ret_ty)
+                  Constraint.FreshTauConstraint tau
+                  :: Constraint.TypeConstraint (op_case_ty, ret_ty)
                   :: Constraint.TauConstraint
                        (op_case_tau, Ast.TauAdd (op_tau, tau))
                   :: Constraint.TypeConstraint
@@ -390,6 +413,8 @@ let subst_equations ty_subst tau_subst =
     | Constraint.TauGeq (tau1, tau2) ->
         Constraint.TauGeq
           (Ast.substitute_tau tau_subst tau1, Ast.substitute_tau tau_subst tau2)
+    | Constraint.FreshTauConstraint tau ->
+        FreshTauConstraint (Ast.substitute_tau tau_subst tau)
   in
   List.map subst_equation
 
@@ -508,10 +533,18 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
         (* All constraints solved *)
         (Ast.TyParamMap.empty, Ast.TauParamMap.empty)
       else if current_unsolved_size = prev_unsolved_size then
-        (* No progress made on last pass — constraints are stuck *)
-        Error.typing
-          "Unification stuck - could not solve remaining constraints %t"
-          (fun ppf -> Format.fprintf ppf "%s" "")
+        let fs, eqs = check_unsolved_constraints unsolved in
+        if List.length fs == 0 && List.length eqs == 0 then
+          (* Only unsolved constraints were satisfied freshness constraints *)
+          (Ast.TyParamMap.empty, Ast.TauParamMap.empty)
+        else
+          (* Unsatisfied freshness constraints or unsolved ordinary constraints remain *)
+          Error.typing
+            "Unification stuck - could not solve remaining constraints or \
+             freshness constraints violated %t" (fun ppf ->
+              print_constraints fs;
+              print_constraints eqs;
+              Format.fprintf ppf "%s" "")
       else
         (* Retry with deferred constraints *)
         unify_with_accum state current_unsolved_size [] unsolved
@@ -600,6 +633,10 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
                   (PrettyPrint.TauPrintParam.create ())
                   tau_smaller_simplified ppf)
           else unify_with_accum state prev_unsolved_size unsolved eqs)
+  | Constraint.FreshTauConstraint tau :: eqs ->
+      unify_with_accum state prev_unsolved_size
+        (Constraint.FreshTauConstraint tau :: unsolved)
+        eqs
   | Constraint.TypeConstraint (t1, t2) :: eqs when t1 = t2 ->
       unify_with_accum state prev_unsolved_size unsolved eqs
   | Constraint.TypeConstraint

@@ -11,25 +11,7 @@ let h () =
       delay 71;
       let k' = unbox 71 k in
       k' 24
-(*
   | Set x k -> 
       perform Set x;
       let k' = unbox 2 k in
       k' ()
-*)
-
-(*
-(* Why does this variant typecheck? *)
-(* Get case should not allow delay > 0! *)
-
-operation Get : unit ~> int # 0
-operation Set : int ~> unit # 0
-
-let h () =
-  handler
-  | x -> 
-      perform Set 42; 
-      let y = perform Get () in
-      x + y
-  | Get () k -> delay 7; 42
-*)
