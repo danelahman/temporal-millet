@@ -217,7 +217,7 @@ and print_computation tau_module =
           (aux c1) (aux c2)
     | Match (e, lst) ->
         print "match %t with (@[<hov>%t@])"
-          (print_expression tau_module e)
+          (print_expression tau_module ~max_level:0 e)
           (Print.print_sequence " | " (print_case tau_module) lst)
     | Apply (e1, e2) ->
         print ~at_level:1 "@[%t@ %t@]"
@@ -225,28 +225,29 @@ and print_computation tau_module =
           (print_expression tau_module ~max_level:0 e2)
     | Delay (tau, c) ->
         let tau_pp = TauPrintParam.create () in
-        print ~at_level:1 "delay %t %t"
+        print ~at_level:1 "delay %t @[%t@]"
           (print_tau tau_module tau_pp tau)
-          (aux c)
+          (aux ~max_level:0 c)
     | Box (tau, e, (p, c)) ->
         let tau_pp = TauPrintParam.create () in
-        print ~at_level:1 "box %t %t as %t in %t"
+        print ~at_level:1 "box %t %t as %t in@ @[%t@]"
           (print_tau tau_module tau_pp tau)
-          (print_expression tau_module e)
-          (print_pattern p) (aux c)
+          (print_expression tau_module ~max_level:0 e)
+          (print_pattern ~max_level:0 p)
+          (aux ~max_level:0 c)
     | Unbox (tau, e, (p, c)) ->
         let tau_pp = TauPrintParam.create () in
-        print ~at_level:1 "unbox %t %t as %t in %t"
+        print ~at_level:1 "unbox %t %t as %t in@ @[%t@]"
           (print_tau tau_module tau_pp tau)
-          (print_expression tau_module e)
+          (print_expression tau_module ~max_level:0 e)
           (print_pattern p) (aux c)
     | Perform (op, e, (pat, c)) ->
-        print ~at_level:1 "perform %t %t (%t. %t)" (OpName.print op)
-          (print_expression tau_module e)
-          (print_pattern pat) (aux c)
+        print ~at_level:1 "perform %t %t (%t. @[%t@])" (OpName.print op)
+          (print_expression tau_module ~max_level:0 e)
+          (print_pattern pat) (aux ~max_level:1 c)
     | Handle (c, h) ->
-        print ~at_level:1 "handle (%t) with %t" (aux c)
-          (print_expression tau_module h)
+        print ~at_level:1 "handle @[%t@]@ with %t" (aux ~max_level:0 c)
+          (print_expression tau_module ~max_level:0 h)
   in
   aux
 
