@@ -449,7 +449,10 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
           unify_with_accum state prev_unsolved_size unsolved eqs
       | Ast.TauParam tp, tau when not (occurs_tau tp tau) ->
           let ty_subst, tau_subst =
-            unify_with_accum state prev_unsolved_size unsolved
+            unify_with_accum state prev_unsolved_size
+              (subst_equations Ast.TyParamMap.empty
+                 (Ast.TauParamMap.singleton tp tau)
+                 unsolved)
               (subst_equations Ast.TyParamMap.empty
                  (Ast.TauParamMap.singleton tp tau)
                  eqs)
@@ -457,7 +460,10 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
           (ty_subst, add_tau_subst tp tau tau_subst)
       | tau, Ast.TauParam tp when not (occurs_tau tp tau) ->
           let ty_subst, tau_subst =
-            unify_with_accum state prev_unsolved_size unsolved
+            unify_with_accum state prev_unsolved_size
+              (subst_equations Ast.TyParamMap.empty
+                 (Ast.TauParamMap.singleton tp tau)
+                 unsolved)
               (subst_equations Ast.TyParamMap.empty
                  (Ast.TauParamMap.singleton tp tau)
                  eqs)
@@ -560,7 +566,10 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
   | Constraint.TypeConstraint (Ast.TyParam a, t) :: eqs when not (occurs_ty a t)
     ->
       let ty_subst, tau_subst =
-        unify_with_accum state prev_unsolved_size unsolved
+        unify_with_accum state prev_unsolved_size
+          (subst_equations
+             (Ast.TyParamMap.singleton a t)
+             Ast.TauParamMap.empty unsolved)
           (subst_equations
              (Ast.TyParamMap.singleton a t)
              Ast.TauParamMap.empty eqs)
@@ -569,7 +578,10 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
   | Constraint.TypeConstraint (t, Ast.TyParam a) :: eqs when not (occurs_ty a t)
     ->
       let ty_subst, tau_subst =
-        unify_with_accum state prev_unsolved_size unsolved
+        unify_with_accum state prev_unsolved_size
+          (subst_equations
+             (Ast.TyParamMap.singleton a t)
+             Ast.TauParamMap.empty unsolved)
           (subst_equations
              (Ast.TyParamMap.singleton a t)
              Ast.TauParamMap.empty eqs)
