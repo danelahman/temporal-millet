@@ -283,7 +283,6 @@ let rec infer_expression state = function
                            ] )
                   :: op_eqs
                 in
-                print_constraints op_eqs';
                 op_eqs' @ eqs'')
           op_cases []
       in

@@ -1,4 +1,4 @@
-operation Get : unit ~> int # 1
+operation Get : unit ~> int # 71
 operation Set : int ~> unit # 2
 
 let h () =
@@ -8,8 +8,8 @@ let h () =
       let y = perform Get () in
       x + y
   | Get () k -> 
-      delay 1;
-      let k' = unbox 1 k in
+      delay 71;
+      let k' = unbox 71 k in
       k' 24
 (*
   | Set x k -> 
