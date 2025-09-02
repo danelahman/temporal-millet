@@ -20,9 +20,9 @@ let h' =
   handler
   | x -> x * x
   | Get x k -> 
-      let y = perform Get x in
+      delay 71;
       let k' = unbox 71 k in
-      k' y
+      k' 42
 
 run
   handle 
