@@ -243,18 +243,16 @@ and desugar_plain_computation ~loc state =
           ( TauConst (Tau.of_int tau),
             e',
             (Untyped.PVar var, Untyped.Return (Untyped.Var var)) ) )
-  | Sugared.Unbox (tau, e, (p, c)) ->
+  | Sugared.Unbox (e, (p, c)) ->
       let binds, e' = desugar_expression state e in
       let abs = desugar_abstraction state (p, c) in
-      (binds, Untyped.Unbox (TauConst (Tau.of_int tau), e', abs))
-  | Sugared.GenUnbox (tau, e) ->
+      (binds, Untyped.Unbox (e', abs))
+  | Sugared.GenUnbox e ->
       let binds, e' = desugar_expression state e in
       let var = Untyped.Variable.fresh "unbox_var" in
       ( binds,
-        Untyped.Unbox
-          ( TauConst (Tau.of_int tau),
-            e',
-            (Untyped.PVar var, Untyped.Return (Untyped.Var var)) ) )
+        Untyped.Unbox (e', (Untyped.PVar var, Untyped.Return (Untyped.Var var)))
+      )
   | Sugared.Perform (op, e) ->
       let operation = lookup_operation ~loc state op in
       let binds, expr = desugar_expression state e in

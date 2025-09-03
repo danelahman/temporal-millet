@@ -65,8 +65,8 @@ and plain_term =
   | Delay of int  (** [delay tau] **)
   | Box of int * term * abstraction  (** [box tau expr as v in n] *)
   | GenBox of int * term  (** [box tau expr] *)
-  | Unbox of int * term * abstraction  (** [unbox tau expr as v in n] *)
-  | GenUnbox of int * term  (** [unbox tau expr] *)
+  | Unbox of term * abstraction  (** [unbox expr as v in n] *)
+  | GenUnbox of term  (** [unbox expr] *)
   | Perform of operation * term  (** [perform op expr] *)
   | Handler of abstraction * (operation * abstraction) list
   | Handle of term * term

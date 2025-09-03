@@ -38,7 +38,7 @@ let test () =
 let test2 () = 
   box 3 (42) as r in 
   delay 3; 
-  unbox 3 r as y in y
+  unbox r as y in y
 
 let test3 () = 
   delay 2; 
@@ -49,7 +49,7 @@ let test3 () =
   ) as r
   in 
   delay 3; 
-  let (n, a, h) = unbox 3 r in 
+  let (n, a, h) = unbox r in 
   (n, h)
 
 run foo_int Zero

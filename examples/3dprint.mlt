@@ -18,9 +18,9 @@ let uvCure cooledObject =
 run
     let freshSword = printResinModel (Model "Sword") in
     let freshHammer = printResinModel (Model "Hammer") in
-    unbox 5 freshSword as cooledSword in 
+    unbox freshSword as cooledSword in 
     let curedSword = uvCure (Cooled cooledSword) in
-    unbox 5 freshHammer as cooledHammer in
+    unbox freshHammer as cooledHammer in
     let curedHammer = uvCure (Cooled cooledHammer) in
     (Complete curedSword, Complete curedHammer)
 
@@ -37,9 +37,9 @@ let uvCure' cooledObject =
 run
     let freshSword = printResinModel' (Model "Sword") in
     let freshHammer = printResinModel' (Model "Hammer") in
-    let cooledSword = unbox 5 freshSword in 
+    let cooledSword = unbox freshSword in 
     let curedSword = uvCure' (Cooled cooledSword) in
-    let cooledHammer = unbox 5 freshHammer in
+    let cooledHammer = unbox freshHammer in
     let curedHammer = uvCure' (Cooled cooledHammer) in
     (Complete curedSword, Complete curedHammer)
 
@@ -48,8 +48,8 @@ run
 run
     let freshSword = printResinModel' (Model "Sword") in
     let freshHammer = printResinModel' (Model "Hammer") in
-    let curedSword = uvCure' (Cooled (unbox 5 freshSword)) in
-    let curedHammer = uvCure' (Cooled (unbox 5 freshHammer)) in
+    let curedSword = uvCure' (Cooled (unbox freshSword)) in
+    let curedHammer = uvCure' (Cooled (unbox freshHammer)) in
     (Complete curedSword, Complete curedHammer)
 
 (* And by inlining even further, we get the following code *)
@@ -57,13 +57,13 @@ run
 run
     let freshSword = printResinModel' (Model "Sword") in
     let freshHammer = printResinModel' (Model "Hammer") in
-    (Complete (uvCure' (Cooled (unbox 5 freshSword))), 
-     Complete (uvCure' (Cooled (unbox 5 freshHammer))))
+    (Complete (uvCure' (Cooled (unbox freshSword))), 
+     Complete (uvCure' (Cooled (unbox freshHammer))))
 
 (* But inlining further is not type safe any more *)
 
 (*
 run
-    (Complete (uvCure' (Cooled (unbox 5 (printResinModel' (Model "Sword"))))), 
-     Complete (uvCure' (Cooled (unbox 5 (printResinModel' (Model "Hammer"))))))
+    (Complete (uvCure' (Cooled (unbox (printResinModel' (Model "Sword"))))), 
+     Complete (uvCure' (Cooled (unbox (printResinModel' (Model "Hammer"))))))
 *)

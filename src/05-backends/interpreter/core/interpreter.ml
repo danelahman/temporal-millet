@@ -168,10 +168,10 @@ and refresh_computation vars = function
       let e' = refresh_expression vars e in
       let abs' = refresh_abstraction vars abs in
       Ast.Box (tau, e', abs')
-  | Ast.Unbox (tau, e, abs) ->
+  | Ast.Unbox (e, abs) ->
       let e' = refresh_expression vars e in
       let abs' = refresh_abstraction vars abs in
-      Ast.Unbox (tau, e', abs')
+      Ast.Unbox (e', abs')
   | Ast.Perform (op, e, abs) ->
       let e' = refresh_expression vars e in
       let abs' = refresh_abstraction vars abs in
@@ -221,9 +221,8 @@ and substitute_computation subst = function
   | Ast.Box (tau, e, abs) ->
       Ast.Box
         (tau, substitute_expression subst e, substitute_abstraction subst abs)
-  | Ast.Unbox (tau, e, abs) ->
-      Ast.Unbox
-        (tau, substitute_expression subst e, substitute_abstraction subst abs)
+  | Ast.Unbox (e, abs) ->
+      Ast.Unbox (substitute_expression subst e, substitute_abstraction subst abs)
   | Ast.Perform (op, e, abs) ->
       Ast.Perform
         (op, substitute_expression subst e, substitute_abstraction subst abs)
@@ -360,7 +359,7 @@ let rec step_computation env = function
               (PrettyPrint.print_pattern pat)
       in
       doBox tau expr pat comp
-  | Ast.Unbox (_tau, expr, (pat, comp)) ->
+  | Ast.Unbox (expr, (pat, comp)) ->
       let rec doUnbox expr pat comp =
         match expr with
         | Ast.Var x ->

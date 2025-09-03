@@ -8,11 +8,11 @@ run
   let boxed_fun = 
     fold_left 
       (fun acc value -> 
-         box 10 (fun () -> let unboxed_acc = unbox 10 acc in 
-                           let unboxed_value = unbox 3 value in 
+         box 10 (fun () -> let unboxed_acc = unbox acc in 
+                           let unboxed_value = unbox value in 
                            unboxed_acc () + unboxed_value)) 
       (box 10 (fun () -> 0))
       boxed_vals 
   in
   delay 10; 
-  (unbox 10 boxed_fun) ()
+  (unbox boxed_fun) ()

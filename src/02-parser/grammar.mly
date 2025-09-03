@@ -97,10 +97,10 @@ plain_term:
     { Box (tau, e, (p, c)) }
   | BOX tau = INT e = term
     { GenBox (tau, e) }
-  | UNBOX tau = INT e = term AS p = pattern IN c = term
-    { Unbox (tau, e, (p, c)) }
-  | UNBOX tau = INT e = term
-    { GenUnbox (tau, e) }
+  | UNBOX e = term AS p = pattern IN c = term
+    { Unbox (e, (p, c)) }
+  | UNBOX e = term
+    { GenUnbox (e) }
   | PERFORM op = UNAME e = comma_term
     { Perform (op, e) }
   | HANDLER BAR? ret_case = case

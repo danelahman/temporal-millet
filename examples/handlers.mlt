@@ -9,11 +9,11 @@ let h =
       x + y
   | Get () k -> 
       delay 71;
-      let k' = unbox 71 k in
+      let k' = unbox k in
       k' 24
   | Set x k -> 
       perform Set x;
-      let k' = unbox 2 k in
+      let k' = unbox k in
       k' ()
 
 let h' =
@@ -21,7 +21,7 @@ let h' =
   | x -> x * x
   | Get x k -> 
       delay 71;
-      let k' = unbox 71 k in
+      let k' = unbox k in
       k' 42
 
 let h'' =
@@ -29,7 +29,7 @@ let h'' =
   | x -> x * x
   | Get x k -> 
       perform Get ();
-      let k' = unbox 71 k in
+      let k' = unbox k in
       k' 42
 
 run

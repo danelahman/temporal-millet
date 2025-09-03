@@ -357,7 +357,7 @@ and infer_computation state = function
       ( comp_ty,
         (Constraint.TypeConstraint (Ast.TyBox (tau, value_ty), value_ty') :: eqs)
         @ eqs' )
-  | Ast.Unbox (tau, e, abs) ->
+  | Ast.Unbox (e, abs) ->
       let abstract_context_tau =
         ContextHolderModule.abstract_tau_sum state.variables
       in
@@ -373,6 +373,7 @@ and infer_computation state = function
       in
       let boxed_ty, eqs = infer_expression state e in
       let value_ty, comp_ty, eqs' = infer_abstraction state abs in
+      let tau = fresh_tau () in
       ( comp_ty,
         Constraint.TypeConstraint (Ast.TyBox (tau, value_ty), boxed_ty)
         :: Constraint.TauGeq (abstract_context_tau, tau)

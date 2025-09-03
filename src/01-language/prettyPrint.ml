@@ -235,10 +235,8 @@ and print_computation tau_module =
           (print_expression tau_module ~max_level:0 e)
           (print_pattern ~max_level:0 p)
           (aux ~max_level:0 c)
-    | Unbox (tau, e, (p, c)) ->
-        let tau_pp = TauPrintParam.create () in
-        print ~at_level:1 "unbox %t %t as %t in@ @[%t@]"
-          (print_tau tau_module tau_pp tau)
+    | Unbox (e, (p, c)) ->
+        print ~at_level:1 "unbox %t as %t in@ @[%t@]"
           (print_expression tau_module ~max_level:0 e)
           (print_pattern p) (aux c)
     | Perform (op, e, (pat, c)) ->
