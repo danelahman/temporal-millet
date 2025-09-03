@@ -69,6 +69,7 @@ and plain_term =
   | GenUnbox of term  (** [unbox expr] *)
   | Perform of operation * term  (** [perform op expr] *)
   | Handler of abstraction * (operation * abstraction) list
+  | Continue of term * term
   | Handle of term * term
 
 and abstraction = pattern * term

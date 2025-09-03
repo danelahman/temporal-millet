@@ -9,31 +9,27 @@ let h =
       x + y
   | Get () k -> 
       delay 71;
-      let k' = unbox k in
-      k' 24
+      continue k with 42
   | Set x k -> 
       perform Set x;
-      let k' = unbox k in
-      k' ()
+      continue k with ()
 
 let h' =
   handler
   | x -> x * x
   | Get x k -> 
       delay 71;
-      let k' = unbox k in
-      k' 42
+      continue k with 42
 
 let h'' =
   handler
   | x -> x * x
   | Get x k -> 
       perform Get ();
-      let k' = unbox k in
-      k' 42
+      continue k with 42
 
 run
   handle 
     let x = perform Get () in
     return x + 3
-  with h'
+  with h
