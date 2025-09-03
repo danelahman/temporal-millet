@@ -428,7 +428,9 @@ let rec step_computation env = function
           | _ ->
               ( env,
                 ComputationRedex HandleOp,
-                fun () -> Ast.Perform (op, expr, (op_pat, op_cont)) )
+                fun () ->
+                  Ast.Perform (op, expr, (op_pat, Ast.Handle (op_cont, handler)))
+              )
               :: comps')
       | _ -> comps')
 
