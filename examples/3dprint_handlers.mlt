@@ -7,21 +7,12 @@ type complete = Complete of uvCured
 operation PrintResinModel : model ~> [5]fresh # 7
 operation UvCure : cooled ~> uvCured # 5
 
-let printResinModel model = 
-  delay 7;
-  box 5 (Fresh model)
-
-let uvCure cooledObject = 
-  delay 5;
-  UvCured cooledObject
-
 let h = 
   handler
   | x -> x
   | PrintResinModel model k ->
       delay 7;
-      let x = box 5 (Fresh model) in
-      continue k with x
+      continue k with (box 5 (Fresh model))
   | UvCure cooled k ->
       delay 5;
       continue k with (UvCured cooled)
