@@ -10,7 +10,7 @@ let printResinModel model =
   box 5 (Fresh model) as printingResult in 
   printingResult
 
-(* Mock UV curing operation with signature cooled -> uvCured # 10 *)
+(* Mock UV curing operation with signature cooled -> uvCured # 5 *)
 let uvCure cooledObject = 
   delay 5;
   UvCured cooledObject
