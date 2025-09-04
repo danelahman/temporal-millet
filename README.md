@@ -26,7 +26,7 @@ The repository also includes automated tests that run on every master build. To 
 
 Temporal Millet, like original Millet, gives you two options to run programs:
 
-- The first option is a web interface, accessible at `web/index.html`, which allows you to load one of the built-in examples or enter your own program, and then interactively click through all its (non-deterministic and asynchronous) reductions or introduce external interrupts. The web interface of Temporal Millet also showcases an interactive state that tracks temporal information.
+- The first option is a web interface, accessible at `web/index.html`, which allows you to load one of the built-in examples or enter your own program, and then interactively click through all its (non-deterministic and asynchronous) reductions or introduce external interrupts. The web interface of Temporal Millet also showcases an interactive state that tracks temporal information.<br/><br/>The web interface is also available at <https://danel.ahman.ee/temporal-millet/>.
 
 - The second option is a command line executable run as
 
