@@ -1,6 +1,10 @@
 # Temporal Millet
 
-Temporal Millet was implemented as part of a Master's thesis that showcases how type systems can be used to track the temporal availability of resources, and how types can be inferred for unannotated terms in the presence of temporal effects. It is a pure ML-like language, built as an extension of Millet (https://github.com/matijapretnar/millet). The concepts implemented in Temporal Millet are hugely inspired by the work of Ahman and Žajdela (https://msfp-workshop.github.io/msfp2024/submissions/ahman+%c5%beajdela.pdf).
+Temporal Millet is a prototype programming language under development that showcases how modal types can be combined with graded effect systems to modularly specify and verify temporal properties of resources that programs manipulate. In particular, this prototype demonstrates how checking such properties can be done automatically by the means of type inference for a Hindley–Milner style type system.
+
+The original version of Temporal Millet was implemented as part of Joosep Tavits's Master's thesis at the University of Tartu ([code](https://github.com/joosepgit/temporal-millet), [thesis](https://thesis.cs.ut.ee/1c038012-af0d-444a-95dc-7ffc8b3a1f20)). This repository contains the further development of the original prototype language, in particular it contains an extension with temporal algebraic effects and effect handlers that are guaranteed to adhere to the temporal specifications of operations.
+
+Temporal Millet is built on top of Matija Pretnar's [Millet](https://github.com/matijapretnar/millet) language following the ideas developed by [Ahman](https://doi.org/10.1007/978-3-031-30829-1_1) and [Ahman and Žajdela](https://msfp-workshop.github.io/msfp2024/submissions/ahman+%c5%beajdela.pdf).
 
 ## How to install and run Temporal Millet?
 
@@ -22,7 +26,7 @@ The repository also includes automated tests that run on every master build. To 
 
 Temporal Millet, like original Millet, gives you two options to run programs:
 
-- The first option is a web interface, accessible at `web/index.html`, which allows you to load one of the built-in examples or enter your own program, and then interactively click through all its (non-deterministic and asynchronous) reductions or introduce external interrupts. The web interface of Temporal Millet also showcases an interactive state that tracks temporal information. It is also available at <https://joosepgit.github.io/temporal-millet/>.
+- The first option is a web interface, accessible at `web/index.html`, which allows you to load one of the built-in examples or enter your own program, and then interactively click through all its (non-deterministic and asynchronous) reductions or introduce external interrupts. The web interface of Temporal Millet also showcases an interactive state that tracks temporal information.
 
 - The second option is a command line executable run as
 
