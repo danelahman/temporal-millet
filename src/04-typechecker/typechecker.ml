@@ -99,18 +99,18 @@ let print_constraints constraints =
          | Constraint.TauConstraint (tau1, tau2) ->
              print_tau_constraint tau1 tau2 tau_pp
          | Constraint.TauGeq (tau1, tau2) -> print_tau_geq tau1 tau2 tau_pp
-         | Constraint.FreshTauConstraint tau ->
+         | Constraint.AbstractTauConstraint tau ->
              print_fresh_tau_constraint tau tau_pp))
     constraints
 
 let rec check_unsolved_constraints = function
   | [] -> ([], [])
-  | Constraint.FreshTauConstraint tau :: eqs -> (
+  | Constraint.AbstractTauConstraint tau :: eqs -> (
       match tau with
       | Ast.TauParam _ -> check_unsolved_constraints eqs
       | _ ->
           let fs, eqs' = check_unsolved_constraints eqs in
-          (Constraint.FreshTauConstraint tau :: fs, eqs'))
+          (Constraint.AbstractTauConstraint tau :: fs, eqs'))
   | c :: eqs ->
       let fs, eqs' = check_unsolved_constraints eqs in
       (fs, c :: eqs')
@@ -291,7 +291,7 @@ let rec infer_expression state = function
                 in
                 let tau = fresh_tau () in
                 let op_eqs' =
-                  Constraint.FreshTauConstraint tau
+                  Constraint.AbstractTauConstraint tau
                   :: Constraint.TypeConstraint (op_case_ty, ret_ty)
                   :: Constraint.TauConstraint
                        (op_case_tau, Ast.TauAdd (op_tau, tau))
@@ -424,8 +424,8 @@ let subst_equations ty_subst tau_subst =
     | Constraint.TauGeq (tau1, tau2) ->
         Constraint.TauGeq
           (Ast.substitute_tau tau_subst tau1, Ast.substitute_tau tau_subst tau2)
-    | Constraint.FreshTauConstraint tau ->
-        FreshTauConstraint (Ast.substitute_tau tau_subst tau)
+    | Constraint.AbstractTauConstraint tau ->
+        AbstractTauConstraint (Ast.substitute_tau tau_subst tau)
   in
   List.map subst_equation
 
@@ -644,9 +644,9 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
                   (PrettyPrint.TauPrintParam.create ())
                   tau_smaller_simplified ppf)
           else unify_with_accum state prev_unsolved_size unsolved eqs)
-  | Constraint.FreshTauConstraint tau :: eqs ->
+  | Constraint.AbstractTauConstraint tau :: eqs ->
       unify_with_accum state prev_unsolved_size
-        (Constraint.FreshTauConstraint tau :: unsolved)
+        (Constraint.AbstractTauConstraint tau :: unsolved)
         eqs
   | Constraint.TypeConstraint (t1, t2) :: eqs when t1 = t2 ->
       unify_with_accum state prev_unsolved_size unsolved eqs
