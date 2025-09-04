@@ -249,7 +249,7 @@
   return 11
   return 11
   return ()
-  return x
+  return resource_0
   return 42
   return (43, "test")
   ======================================================================
