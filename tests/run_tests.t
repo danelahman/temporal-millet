@@ -133,6 +133,11 @@
   return (Complete (UvCured (Cooled (Fresh (Model "Sword")))), 
           Complete (UvCured (Cooled (Fresh (Model "Hammer")))))
   ======================================================================
+  test_op_handling.mlt
+  ======================================================================
+  return (Complete (UvCured (Cooled (Fresh (Model "Sword")))), 
+          Complete (UvCured (Cooled (Fresh (Model "Hammer")))))
+  ======================================================================
   test_precedence_and_associativity.mlt
   ======================================================================
   return 1

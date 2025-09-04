@@ -4,25 +4,22 @@ type cooled = Cooled of fresh
 type uvCured = UvCured of cooled
 type complete = Complete of uvCured
 
-(* Mock 3D printing operation with signature [7]model -> fresh *)
-let printResinModel model = delay 7 unbox 7 model as
-            printingResult in Fresh printingResult
+(* Mock 3D printing operation with signature model -> [5]fresh # 7 *)
+let printResinModel model = 
+  delay 7;
+  box 5 (Fresh model) as printingResult in 
+  printingResult
 
-(* Mock UV curing operation with signature [10]cooled -> uvCured *)
-let uvCure cooledObject = delay 10 unbox 10 cooledObject as
-            uvCuredObject in UvCured uvCuredObject
+(* Mock UV curing operation with signature cooled -> uvCured # 5 *)
+let uvCure cooledObject = 
+  delay 5;
+  UvCured cooledObject
 
 run
-    let freshSword = box 7 (Model "Sword") as swordModel 
-    in printResinModel swordModel in
-    box 5 freshSword as coolingSword in 
-    let freshHammer = box 7 (Model "Hammer") as hammerModel
-    in printResinModel hammerModel in
-    box 5 freshHammer as coolingHammer in
-    unbox 5 coolingSword as cooledSword in 
-    let curedSword = box 10 (Cooled cooledSword) as cooledSword 
-    in uvCure cooledSword in
-    unbox 5 coolingHammer as cooledHammer in
-    let curedHammer = box 10 (Cooled cooledHammer) as cooledHammer
-    in uvCure cooledHammer in
+    let freshSword = printResinModel (Model "Sword") in
+    let freshHammer = printResinModel (Model "Hammer") in
+    unbox freshSword as cooledSword in 
+    let curedSword = uvCure (Cooled cooledSword) in
+    unbox freshHammer as cooledHammer in
+    let curedHammer = uvCure (Cooled cooledHammer) in
     (Complete curedSword, Complete curedHammer)

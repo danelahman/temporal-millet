@@ -1,0 +1,29 @@
+type model = Model of string
+type fresh = Fresh of model
+type cooled = Cooled of fresh
+type uvCured = UvCured of cooled
+type complete = Complete of uvCured
+
+operation PrintResinModel : model ~> [5]fresh # 7
+operation UvCure : cooled ~> uvCured # 5
+
+let h = 
+  handler
+  | x -> x
+  | PrintResinModel model k ->
+      delay 7;
+      continue k with (box 5 (Fresh model))
+  | UvCure cooled k ->
+      delay 5;
+      continue k with (UvCured cooled)
+
+run
+  handle
+    let freshSword = perform PrintResinModel (Model "Sword") in
+    let freshHammer = perform PrintResinModel (Model "Hammer") in
+    unbox freshSword as cooledSword in 
+    let curedSword = perform UvCure (Cooled cooledSword) in
+    unbox freshHammer as cooledHammer in
+    let curedHammer = perform UvCure (Cooled cooledHammer) in
+    (Complete curedSword, Complete curedHammer)
+  with h
