@@ -3,7 +3,6 @@ module type S = sig
 
   val zero : t
   val add : t -> t -> t
-  val subtract : t -> t -> t
   val greater : t -> t -> bool
 
   val of_int : int -> t
@@ -18,12 +17,6 @@ module NatTau : S = struct
 
   let zero = 0
   let add = ( + )
-
-  let subtract x y =
-    let result = x - y in
-    if result < 0 then invalid_arg "NatTau.subtract: result would be negative"
-    else result
-
   let greater = ( > )
 
   let of_int i =
