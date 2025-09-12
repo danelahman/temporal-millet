@@ -117,8 +117,12 @@ let print_tau (type a) (module Tau : Tau.S with type t = a) tau_pp =
     match tau with
     | TauConst i -> Format.fprintf ppf "%s" (Tau.show i)
     | TauParam p -> tau_pp p ppf
-    | TauAdd (t1, t2) ->
-        Format.fprintf ppf "@[%t + %t@]"
+    | TauSeq (t1, t2) ->
+        Format.fprintf ppf "@[(%t) · (%t)@]"
+          (fun ppf -> aux t1 ppf)
+          (fun ppf -> aux t2 ppf)
+    | TauJoin (t1, t2) ->
+        Format.fprintf ppf "@[(%t) ⊕ (%t)@]"
           (fun ppf -> aux t1 ppf)
           (fun ppf -> aux t2 ppf)
   in

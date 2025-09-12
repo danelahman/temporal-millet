@@ -72,7 +72,7 @@ struct
       | [] ->
           Variable.print key Format.str_formatter;
           raise (VariableNotFound (Format.flush_str_formatter ()))
-      | Tau t :: rest -> go (Ast.TauAdd (acc, t)) rest
+      | Tau t :: rest -> go (Ast.TauSeq (acc, t)) rest
       | VarMap map :: rest -> (
           match VariableMap.find_opt key map with
           | Some _ -> acc
@@ -83,7 +83,7 @@ struct
   let abstract_tau_sum (lst : 'a t) : base_tau =
     let rec sum acc = function
       | [] -> acc
-      | Tau t :: rest -> sum (TauAdd (acc, t)) rest
+      | Tau t :: rest -> sum (TauSeq (acc, t)) rest
       | VarMap _ :: rest -> sum acc rest
     in
     sum (TauConst Base.zero) lst
@@ -93,5 +93,6 @@ struct
     | TauConst c -> c
     | TauParam _ ->
         raise (UnknownValueInEval "TauParam not supported in eval_tau")
-    | TauAdd (t1, t2) -> Base.add (eval_tau t1) (eval_tau t2)
+    | TauSeq (t1, t2) -> Base.sequence (eval_tau t1) (eval_tau t2)
+    | TauJoin (t1, t2) -> Base.join (eval_tau t1) (eval_tau t2)
 end

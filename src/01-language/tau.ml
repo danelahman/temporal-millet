@@ -2,8 +2,9 @@ module type S = sig
   type t
 
   val zero : t
-  val add : t -> t -> t
-  val greater : t -> t -> bool
+  val sequence : t -> t -> t
+  val join : t -> t -> t
+  val contains : t -> t -> bool
 
   val of_int : int -> t
   (** Only necessary because the grammar currently enforces temporal values to
@@ -16,12 +17,16 @@ module NatTau : S = struct
   type t = int
 
   let zero = 0
-  let add = ( + )
-  let greater = ( > )
+  let sequence = ( + )
+
+  let join i j =
+    if i = j then i
+    else failwith "Temporal grades of program branches are not equal"
+
+  let contains = ( <= )
 
   let of_int i =
-    if i < 0 then invalid_arg "NatTau.of_int: expected non-negative integer"
-    else i
+    if i < 0 then failwith "NatTau.of_int: expected non-negative integer" else i
 
   let show = string_of_int
 end

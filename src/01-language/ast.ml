@@ -27,7 +27,8 @@ type operation = OpName.t
 type 'a tau =
   | TauConst of 'a
   | TauParam of tau_param
-  | TauAdd of 'a tau * 'a tau
+  | TauSeq of 'a tau * 'a tau
+  | TauJoin of 'a tau * 'a tau
 
 type 'a ty =
   | TyConst of Const.ty
@@ -104,8 +105,10 @@ let rec substitute_tau subst = function
   | TauConst _ as tau -> tau
   | TauParam tp as tau -> (
       match TauParamMap.find_opt tp subst with None -> tau | Some tau' -> tau')
-  | TauAdd (tau, tau') ->
-      TauAdd (substitute_tau subst tau, substitute_tau subst tau')
+  | TauSeq (tau, tau') ->
+      TauSeq (substitute_tau subst tau, substitute_tau subst tau')
+  | TauJoin (tau, tau') ->
+      TauJoin (substitute_tau subst tau, substitute_tau subst tau')
 
 let rec substitute_ty ty_subst tau_subst = function
   | TyConst _ as ty -> ty
@@ -176,4 +179,5 @@ and free_taus tau =
   match tau with
   | TauConst _ -> TauParamSet.empty
   | TauParam a -> TauParamSet.singleton a
-  | TauAdd (l, r) -> TauParamSet.union (free_taus l) (free_taus r)
+  | TauSeq (tau1, tau2) -> TauParamSet.union (free_taus tau1) (free_taus tau2)
+  | TauJoin (tau1, tau2) -> TauParamSet.union (free_taus tau1) (free_taus tau2)
