@@ -5,6 +5,7 @@ module type S = sig
   val sequence : t -> t -> t
   val join : t -> t -> t
   val contains : t -> t -> bool
+  val compare : t -> t -> int
 
   val of_int : int -> t
   (** Only necessary because the grammar currently enforces temporal values to
@@ -24,6 +25,7 @@ module NatTau : S = struct
     else failwith "Temporal grades of program branches are not equal"
 
   let contains = ( <= )
+  let compare = compare
 
   let of_int i =
     if i < 0 then failwith "NatTau.of_int: expected non-negative integer" else i

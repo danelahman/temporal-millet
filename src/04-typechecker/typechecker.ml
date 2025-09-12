@@ -360,22 +360,6 @@ and infer_computation state = function
       let branches_eqs, branches_tau = fold eqs cases in
       ( CompTy (branch_ty, branch_tau),
         Constraint.TauConstraint (branch_tau, branches_tau) :: branches_eqs )
-  (*
-      let fold (eqs, tau) abs =
-        let ty1', CompTy (branch_ty', branch_tau'), eqs' =
-          infer_abstraction state abs
-        in
-        Constraint.TypeConstraint (ty1, ty1')
-        :: Constraint.TypeConstraint (branch_ty, branch_ty')
-        :: Constraint.TauConstraint (branch_tau, branch_tau')
-        :: eqs'
-        @ eqs
-        ,
-        Ast.TauJoin (tau, branch_tau')
-      in
-      let branches_eqs, branches_tau = List.fold_left fold eqs cases in
-      (CompTy (branch_ty, branch_tau), Constraint.TauConstraint (branch_tau, branches_tau) :: branches_eqs)
-*)
   | Ast.Delay (tau, c) ->
       let state' = extend_temporal state tau in
       let CompTy (ty, tau'), eqs = infer_computation state' c in
@@ -526,8 +510,8 @@ let simplify_comp_ty = function
 
 let compare_tau a b =
   match (a, b) with
-  | Either.Left p1, Either.Left p2 -> compare p1 p2
-  | Either.Right c1, Either.Right c2 -> compare c1 c2
+  | Either.Left p1, Either.Left p2 -> Ast.TauParamModule.compare p1 p2
+  | Either.Right c1, Either.Right c2 -> Tau.compare c1 c2
   | Either.Left _, _ -> -1
   | _, Either.Left _ -> 1
 
@@ -539,9 +523,8 @@ let build_tau_param_list tau =
     | Ast.TauSeq (tau1, tau2) ->
         let acc' = aux acc tau2 in
         aux acc' tau1
-    | Ast.TauJoin (tau1, tau2) ->
-        let acc' = aux acc tau2 in
-        aux acc' tau1
+    | Ast.TauJoin (_tau1, _tau2) ->
+        Error.typing "TODO: implement joins of temporal grades"
   in
   aux [] tau
 
