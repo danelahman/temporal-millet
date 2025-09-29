@@ -648,36 +648,38 @@ let build_tau_from_param_list params =
   | hd :: tl ->
       List.fold_left (fun acc e -> Ast.TauAdd (acc, to_tau e)) (to_tau hd) tl
 
-let rec unify_ty state tau_eqs = function
+let rec unify_ty_constraints state tau_eqs = function
   | [] -> (Ast.TyParamMap.empty, tau_eqs)
-  | (t1, t2) :: ty_eqs when t1 = t2 -> unify_ty state tau_eqs ty_eqs
+  | (t1, t2) :: ty_eqs when t1 = t2 -> unify_ty_constraints state tau_eqs ty_eqs
   | (Ast.TyApply (ty_name1, args1), Ast.TyApply (ty_name2, args2)) :: ty_eqs
     when ty_name1 = ty_name2 ->
       let new_eqs =
         List.map (fun (t1, t2) -> (t1, t2)) (List.combine args1 args2)
       in
-      unify_ty state tau_eqs (new_eqs @ ty_eqs)
+      unify_ty_constraints state tau_eqs (new_eqs @ ty_eqs)
   | (Ast.TyApply (ty_name, args), ty) :: ty_eqs
     when is_transparent_type state ty_name ->
-      unify_ty state tau_eqs ((unfold state ty_name args, ty) :: ty_eqs)
+      unify_ty_constraints state tau_eqs
+        ((unfold state ty_name args, ty) :: ty_eqs)
   | (ty, Ast.TyApply (ty_name, args)) :: ty_eqs
     when is_transparent_type state ty_name ->
-      unify_ty state tau_eqs ((ty, unfold state ty_name args) :: ty_eqs)
+      unify_ty_constraints state tau_eqs
+        ((ty, unfold state ty_name args) :: ty_eqs)
   | (Ast.TyTuple tys1, Ast.TyTuple tys2) :: ty_eqs
     when List.length tys1 = List.length tys2 ->
       let new_eqs =
         List.map (fun (t1, t2) -> (t1, t2)) (List.combine tys1 tys2)
       in
-      unify_ty state tau_eqs (new_eqs @ ty_eqs)
+      unify_ty_constraints state tau_eqs (new_eqs @ ty_eqs)
   | ( Ast.TyArrow (t1, CompTy (t1', tau1')),
       Ast.TyArrow (t2, CompTy (t2', tau2')) )
     :: ty_eqs ->
-      unify_ty state
+      unify_ty_constraints state
         ((tau1', tau2') :: tau_eqs)
         ((t1, t2) :: (t1', t2') :: ty_eqs)
   | (Ast.TyParam a, t) :: ty_eqs when not (occurs_ty a t) ->
       let ty_subst, tau_eqs' =
-        unify_ty state tau_eqs
+        unify_ty_constraints state tau_eqs
           (subst_ty_equations
              (Ast.TyParamMap.singleton a t)
              Ast.TauParamMap.empty ty_eqs)
@@ -685,18 +687,18 @@ let rec unify_ty state tau_eqs = function
       (add_ty_subst a t ty_subst Ast.TauParamMap.empty, tau_eqs')
   | (t, Ast.TyParam a) :: ty_eqs when not (occurs_ty a t) ->
       let ty_subst, tau_eqs' =
-        unify_ty state tau_eqs
+        unify_ty_constraints state tau_eqs
           (subst_ty_equations
              (Ast.TyParamMap.singleton a t)
              Ast.TauParamMap.empty ty_eqs)
       in
       (add_ty_subst a t ty_subst Ast.TauParamMap.empty, tau_eqs')
   | (Ast.TyBox (tau1, ty1), Ast.TyBox (tau2, ty2)) :: ty_eqs ->
-      unify_ty state ((tau1, tau2) :: tau_eqs) ((ty1, ty2) :: ty_eqs)
+      unify_ty_constraints state ((tau1, tau2) :: tau_eqs) ((ty1, ty2) :: ty_eqs)
   | ( Ast.TyHandler (Ast.CompTy (ty1, tau1), Ast.CompTy (ty2, tau2)),
       Ast.TyHandler (Ast.CompTy (ty1', tau1'), Ast.CompTy (ty2', tau2')) )
     :: ty_eqs ->
-      unify_ty state
+      unify_ty_constraints state
         ((tau1, tau1') :: (tau2, tau2') :: tau_eqs)
         ((ty1, ty1') :: (ty2, ty2') :: ty_eqs)
   | (t1, t2) :: _ ->
@@ -706,7 +708,7 @@ let rec unify_ty state tau_eqs = function
         (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t1)
         (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t2)
 
-let rec unify_tau state prev_unsolved_size unsolved = function
+let rec unify_tau_constraints state prev_unsolved_size unsolved = function
   | [] ->
       let current_unsolved_size = List.length unsolved in
       if current_unsolved_size = 0 then
@@ -714,28 +716,29 @@ let rec unify_tau state prev_unsolved_size unsolved = function
         Ast.TauParamMap.empty
       else if current_unsolved_size = prev_unsolved_size then
         Error.typing
-          "Unification stuck - could not solve remaining constraints\n\
-          \            %t" (fun ppf ->
+          "Unification stuck - could not solve remaining constraints %t"
+          (fun ppf ->
             print_tau_eq_constraints unsolved;
             Format.fprintf ppf "%s" "")
       else
         (* Retry with deferred constraints *)
-        unify_tau state current_unsolved_size [] unsolved
+        unify_tau_constraints state current_unsolved_size [] unsolved
   | (tau1, tau2) :: eqs -> (
       let tau1' = simplify_tau tau1 in
       let tau2' = simplify_tau tau2 in
       match (tau1', tau2') with
-      | _ when tau1' = tau2' -> unify_tau state prev_unsolved_size unsolved eqs
+      | _ when tau1' = tau2' ->
+          unify_tau_constraints state prev_unsolved_size unsolved eqs
       | Ast.TauParam tp, tau when not (occurs_tau tp tau) ->
           let tau_subst =
-            unify_tau state prev_unsolved_size
+            unify_tau_constraints state prev_unsolved_size
               (subst_tau_equations (Ast.TauParamMap.singleton tp tau) unsolved)
               (subst_tau_equations (Ast.TauParamMap.singleton tp tau) eqs)
           in
           add_tau_subst tp tau tau_subst
       | tau, Ast.TauParam tp when not (occurs_tau tp tau) ->
           let tau_subst =
-            unify_tau state prev_unsolved_size
+            unify_tau_constraints state prev_unsolved_size
               (subst_tau_equations (Ast.TauParamMap.singleton tp tau) unsolved)
               (subst_tau_equations (Ast.TauParamMap.singleton tp tau) eqs)
           in
@@ -743,7 +746,7 @@ let rec unify_tau state prev_unsolved_size unsolved = function
       | Ast.TauConst z, Ast.TauAdd (t1, t2)
       | Ast.TauAdd (t1, t2), Ast.TauConst z
         when z = Tau.zero ->
-          unify_tau state prev_unsolved_size unsolved
+          unify_tau_constraints state prev_unsolved_size unsolved
             ((t1, Ast.TauConst Tau.zero) :: (t2, Ast.TauConst Tau.zero) :: eqs)
       | t, Ast.TauAdd (t1, t2) | Ast.TauAdd (t1, t2), t ->
           let left = build_sorted_tau_param_list t in
@@ -752,15 +755,17 @@ let rec unify_tau state prev_unsolved_size unsolved = function
           let left_tau = build_tau_from_param_list left' in
           let right_tau = build_tau_from_param_list right' in
           if left_tau = t && right_tau = Ast.TauAdd (t1, t2) then
-            unify_tau state prev_unsolved_size
+            unify_tau_constraints state prev_unsolved_size
               ((left_tau, right_tau) :: unsolved)
               eqs
           else
-            unify_tau state prev_unsolved_size unsolved
+            unify_tau_constraints state prev_unsolved_size unsolved
               ((left_tau, right_tau) :: eqs)
-      | u1, u2 -> unify_tau state prev_unsolved_size ((u1, u2) :: unsolved) eqs)
+      | u1, u2 ->
+          unify_tau_constraints state prev_unsolved_size ((u1, u2) :: unsolved)
+            eqs)
 
-let rec check_tau_ineqs state = function
+let rec check_tau_ineq_constraints state = function
   | [] -> ()
   | (tau_greater_or_equal, tau_smaller) :: tau_ineqs -> (
       let tau_greater_or_equal_simplified = simplify_tau tau_greater_or_equal
@@ -800,7 +805,7 @@ let rec check_tau_ineqs state = function
                   (module Tau)
                   (PrettyPrint.TauPrintParam.create ())
                   tau_smaller_simplified ppf)
-          else check_tau_ineqs state tau_ineqs)
+          else check_tau_ineq_constraints state tau_ineqs)
 
 let rec check_tau_abs_constraints = function
   | [] -> ()
@@ -816,9 +821,9 @@ let rec check_tau_abs_constraints = function
                 tau ppf))
 
 let unify state ty_eqs tau_eqs tau_ineqs tau_abs =
-  let ty_subst, tau_eqs' = unify_ty state [] ty_eqs in
-  let tau_subst = unify_tau state 0 [] (tau_eqs @ tau_eqs') in
-  check_tau_ineqs state (subst_tau_inequations tau_subst tau_ineqs);
+  let ty_subst, tau_eqs' = unify_ty_constraints state [] ty_eqs in
+  let tau_subst = unify_tau_constraints state 0 [] (tau_eqs @ tau_eqs') in
+  check_tau_ineq_constraints state (subst_tau_inequations tau_subst tau_ineqs);
   check_tau_abs_constraints (subst_tau_abstract_constraints tau_subst tau_abs);
   (ty_subst, tau_subst)
 
