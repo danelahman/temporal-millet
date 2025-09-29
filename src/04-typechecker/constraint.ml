@@ -1,7 +1,0 @@
-module Ast = Language.Ast
-
-type 'a t =
-  | TypeConstraint of ('a Ast.ty * 'a Ast.ty)
-  | TauConstraint of ('a Ast.tau * 'a Ast.tau)
-  | TauGeq of ('a Ast.tau * 'a Ast.tau)
-  | AbstractTauConstraint of 'a Ast.tau

@@ -125,23 +125,6 @@ let print_tau_abs_constraints constraints =
          match constraint_ with tau -> print_fresh_tau_constraint tau tau_pp))
     constraints
 
-let print_constraints constraints =
-  let ty_pp = PrettyPrint.TyPrintParam.create () in
-  let tau_pp = PrettyPrint.TauPrintParam.create () in
-  Format.fprintf Format.std_formatter "[%a]"
-    (Format.pp_print_list
-       ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
-       (fun _ppf constraint_ ->
-         match constraint_ with
-         | Constraint.TypeConstraint (t1, t2) ->
-             print_type_constraint t1 t2 ty_pp tau_pp
-         | Constraint.TauConstraint (tau1, tau2) ->
-             print_tau_constraint tau1 tau2 tau_pp
-         | Constraint.TauGeq (tau1, tau2) -> print_tau_geq tau1 tau2 tau_pp
-         | Constraint.AbstractTauConstraint tau ->
-             print_fresh_tau_constraint tau tau_pp))
-    constraints
-
 let rec check_ty state = function
   | Ast.TyConst _ -> ()
   | TyApply (ty_name, tys) ->
@@ -556,23 +539,6 @@ let subst_tau_abstract_constraints tau_subst =
     | tau -> Ast.substitute_tau tau_subst tau
   in
   List.map subst_abstract_constraint
-
-let subst_equations ty_subst tau_subst =
-  let subst_equation = function
-    | Constraint.TypeConstraint (t1, t2) ->
-        Constraint.TypeConstraint
-          ( Ast.substitute_ty ty_subst tau_subst t1,
-            Ast.substitute_ty ty_subst tau_subst t2 )
-    | Constraint.TauConstraint (tau1, tau2) ->
-        Constraint.TauConstraint
-          (Ast.substitute_tau tau_subst tau1, Ast.substitute_tau tau_subst tau2)
-    | Constraint.TauGeq (tau1, tau2) ->
-        Constraint.TauGeq
-          (Ast.substitute_tau tau_subst tau1, Ast.substitute_tau tau_subst tau2)
-    | Constraint.AbstractTauConstraint tau ->
-        AbstractTauConstraint (Ast.substitute_tau tau_subst tau)
-  in
-  List.map subst_equation
 
 let add_ty_subst a ty ty_subst tau_subst =
   Ast.TyParamMap.add a (Ast.substitute_ty ty_subst tau_subst ty) ty_subst
