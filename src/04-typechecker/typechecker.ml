@@ -86,6 +86,45 @@ let print_one_fresh_tau_constraint tau =
   let tau_pp = PrettyPrint.TauPrintParam.create () in
   print_fresh_tau_constraint tau tau_pp
 
+let print_ty_constraints constraints =
+  let ty_pp = PrettyPrint.TyPrintParam.create () in
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
+  Format.fprintf Format.std_formatter "[%a]"
+    (Format.pp_print_list
+       ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
+       (fun _ppf constraint_ ->
+         match constraint_ with
+         | t1, t2 -> print_type_constraint t1 t2 ty_pp tau_pp))
+    constraints
+
+let print_tau_eq_constraints constraints =
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
+  Format.fprintf Format.std_formatter "[%a]"
+    (Format.pp_print_list
+       ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
+       (fun _ppf constraint_ ->
+         match constraint_ with
+         | tau1, tau2 -> print_tau_constraint tau1 tau2 tau_pp))
+    constraints
+
+let print_tau_ineq_constraints constraints =
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
+  Format.fprintf Format.std_formatter "[%a]"
+    (Format.pp_print_list
+       ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
+       (fun _ppf constraint_ ->
+         match constraint_ with tau1, tau2 -> print_tau_geq tau1 tau2 tau_pp))
+    constraints
+
+let print_tau_abs_constraints constraints =
+  let tau_pp = PrettyPrint.TauPrintParam.create () in
+  Format.fprintf Format.std_formatter "[%a]"
+    (Format.pp_print_list
+       ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
+       (fun _ppf constraint_ ->
+         match constraint_ with tau -> print_fresh_tau_constraint tau tau_pp))
+    constraints
+
 let print_constraints constraints =
   let ty_pp = PrettyPrint.TyPrintParam.create () in
   let tau_pp = PrettyPrint.TauPrintParam.create () in
@@ -102,18 +141,6 @@ let print_constraints constraints =
          | Constraint.AbstractTauConstraint tau ->
              print_fresh_tau_constraint tau tau_pp))
     constraints
-
-let rec check_unsolved_constraints = function
-  | [] -> ([], [])
-  | Constraint.AbstractTauConstraint tau :: eqs -> (
-      match tau with
-      | Ast.TauParam _ -> check_unsolved_constraints eqs
-      | _ ->
-          let fs, eqs' = check_unsolved_constraints eqs in
-          (Constraint.AbstractTauConstraint tau :: fs, eqs'))
-  | c :: eqs ->
-      let fs, eqs' = check_unsolved_constraints eqs in
-      (fs, c :: eqs')
 
 let rec check_ty state = function
   | Ast.TyConst _ -> ()
@@ -207,7 +234,7 @@ let rec infer_pattern state = function
       (ty, (x, ty) :: vars, eqs)
   | Ast.PAnnotated (pat, ty) ->
       let ty', vars, eqs = infer_pattern state pat in
-      (ty, vars, Constraint.TypeConstraint (ty, ty') :: eqs)
+      (ty, vars, (ty, ty') :: eqs)
   | Ast.PConst c -> (Ast.TyConst (Const.infer_ty c), [], [])
   | Ast.PNonbinding ->
       let ty = fresh_ty () in
@@ -225,7 +252,7 @@ let rec infer_pattern state = function
       | None, None -> (ty_out, [], [])
       | Some ty_in, Some pat ->
           let ty, vars, eqs = infer_pattern state pat in
-          (ty_out, vars, Constraint.TypeConstraint (ty_in, ty) :: eqs)
+          (ty_out, vars, (ty_in, ty) :: eqs)
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch")
 
@@ -236,127 +263,199 @@ let rec infer_expression state = function
       in
       let ty_subst = refreshing_ty_subst ty_params in
       let tau_subst = refreshing_tau_subst tau_params in
-      (Ast.substitute_ty ty_subst tau_subst ty, [])
-  | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [])
+      (Ast.substitute_ty ty_subst tau_subst ty, [], [], [], [])
+      (* type, type constraints, tau constraints, tau inequational constraints, tau abstractness constraints *)
+  | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [], [], [], [])
   | Ast.Annotated (expr, ty) ->
-      let ty', eqs = infer_expression state expr in
-      (ty, Constraint.TypeConstraint (ty, ty') :: eqs)
-  | Ast.Tuple exprs ->
-      let fold expr (tys, eqs) =
-        let ty', eqs' = infer_expression state expr in
-        (ty' :: tys, eqs' @ eqs)
+      let ty', ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+        infer_expression state expr
       in
-      let tys, eqs = List.fold_right fold exprs ([], []) in
-      (Ast.TyTuple tys, eqs)
+      (ty, (ty, ty') :: ty_eqs, tau_eqs, tau_ineqs, tau_abs)
+  | Ast.Tuple exprs ->
+      let fold expr (tys, ty_eqs, tau_eqs, tau_ineqs, tau_abs) =
+        let ty', ty_eqs', tau_eqs', tau_ineqs', tau_abs' =
+          infer_expression state expr
+        in
+        ( ty' :: tys,
+          ty_eqs' @ ty_eqs,
+          tau_eqs' @ tau_eqs,
+          tau_ineqs' @ tau_ineqs,
+          tau_abs' @ tau_abs )
+      in
+      let tys, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+        List.fold_right fold exprs ([], [], [], [], [])
+      in
+      (Ast.TyTuple tys, ty_eqs, tau_eqs, tau_ineqs, tau_abs)
   | Ast.Lambda abs ->
-      let ty, ty', eqs = infer_abstraction state abs in
-      (Ast.TyArrow (ty, ty'), eqs)
+      let ty, ty', ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+        infer_abstraction state abs
+      in
+      (Ast.TyArrow (ty, ty'), ty_eqs, tau_eqs, tau_ineqs, tau_abs)
   | Ast.PureLambda abs ->
-      let ty, CompTy (ty', tau), eqs = infer_abstraction state abs in
+      let ty, Ast.CompTy (ty', tau), ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+        infer_abstraction state abs
+      in
       ( Ast.TyArrow (ty, CompTy (ty', tau)),
-        Constraint.TauConstraint (tau, TauConst Tau.zero) :: eqs )
+        ty_eqs,
+        (tau, Ast.TauConst Tau.zero) :: tau_eqs,
+        tau_ineqs,
+        tau_abs )
   | Ast.RecLambda (f, abs) ->
       let f_ty = fresh_ty () in
       let state' = extend_variables state [ (f, f_ty) ] in
-      let ty, CompTy (ty', tau), eqs = infer_abstraction state' abs in
+      let ty, CompTy (ty', tau), ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+        infer_abstraction state' abs
+      in
       let out_ty = Ast.TyArrow (ty, CompTy (ty', tau)) in
       ( out_ty,
-        Constraint.TypeConstraint (f_ty, out_ty)
-        :: Constraint.TauConstraint (tau, TauConst Tau.zero)
-        :: eqs )
+        (f_ty, out_ty) :: ty_eqs,
+        (tau, Ast.TauConst Tau.zero) :: tau_eqs,
+        tau_ineqs,
+        tau_abs )
   | Ast.Variant (lbl, expr) -> (
       let ty_in, ty_out = infer_variant state lbl in
       match (ty_in, expr) with
-      | None, None -> (ty_out, [])
+      | None, None -> (ty_out, [], [], [], [])
       | Some ty_in, Some expr ->
-          let ty, eqs = infer_expression state expr in
-          (ty_out, Constraint.TypeConstraint (ty_in, ty) :: eqs)
+          let ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+            infer_expression state expr
+          in
+          (ty_out, (ty_in, ty) :: ty_eqs, tau_eqs, tau_ineqs, tau_abs)
       | None, Some _ | Some _, None ->
           Error.typing "Variant optional argument mismatch")
   | Ast.Handler (ret_case, op_cases) ->
       let arg_tau = fresh_tau () in
       let state' = extend_temporal state arg_tau in
-      let arg_ty, CompTy (ret_ty, ret_tau), eqs =
+      let ( arg_ty,
+            Ast.CompTy (ret_ty, ret_tau),
+            ty_eqs,
+            tau_eqs,
+            tau_ineqs,
+            tau_abs ) =
         infer_abstraction state' ret_case
       in
-      let eqs' =
+      let ty_eqs', tau_eqs', tau_ineqs', tau_abs' =
         Ast.OpNameMap.fold
-          (fun op op_case eqs'' ->
+          (fun op op_case (ty_eqs'', tau_eqs'', tau_ineqs'', tau_abs'') ->
             let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
             match op_sig with
             | None -> Error.typing "Case for an unknown operation."
             | Some (param_ty, arity_ty, op_tau) ->
-                let op_args_ty, CompTy (op_case_ty, op_case_tau), op_eqs =
+                let ( op_args_ty,
+                      Ast.CompTy (op_case_ty, op_case_tau),
+                      op_ty_eqs,
+                      op_tau_eqs,
+                      op_tau_ineqs,
+                      op_tau_abs ) =
                   infer_abstraction state op_case
                 in
                 let tau = fresh_tau () in
-                let op_eqs' =
-                  Constraint.AbstractTauConstraint tau
-                  :: Constraint.TypeConstraint (op_case_ty, ret_ty)
-                  :: Constraint.TauConstraint
-                       (op_case_tau, Ast.TauAdd (op_tau, tau))
-                  :: Constraint.TypeConstraint
-                       ( op_args_ty,
-                         Ast.TyTuple
-                           [
-                             param_ty;
-                             Ast.TyBox
-                               ( op_tau,
-                                 Ast.TyArrow (arity_ty, CompTy (ret_ty, tau)) );
-                           ] )
-                  :: op_eqs
+                let op_ty_eqs' =
+                  (op_case_ty, ret_ty)
+                  :: ( op_args_ty,
+                       Ast.TyTuple
+                         [
+                           param_ty;
+                           Ast.TyBox
+                             ( op_tau,
+                               Ast.TyArrow (arity_ty, CompTy (ret_ty, tau)) );
+                         ] )
+                  :: op_ty_eqs
                 in
-                op_eqs' @ eqs'')
-          op_cases []
+                let op_tau_eqs' =
+                  (op_case_tau, Ast.TauAdd (op_tau, tau)) :: op_tau_eqs
+                in
+                let op_tau_ineqs' = op_tau_ineqs in
+                let op_tau_abs' = tau :: op_tau_abs in
+                ( op_ty_eqs' @ ty_eqs'',
+                  op_tau_eqs' @ tau_eqs'',
+                  op_tau_ineqs' @ tau_ineqs'',
+                  op_tau_abs' @ tau_abs'' ))
+          op_cases ([], [], [], [])
       in
       ( Ast.TyHandler (CompTy (arg_ty, arg_tau), CompTy (ret_ty, ret_tau)),
-        eqs @ eqs' )
+        ty_eqs @ ty_eqs',
+        tau_eqs @ tau_eqs',
+        tau_ineqs @ tau_ineqs',
+        tau_abs @ tau_abs' )
 
 and infer_computation state = function
   | Ast.Return expr ->
-      let ty, eqs = infer_expression state expr in
-      (Ast.CompTy (ty, Ast.TauConst Tau.zero), eqs)
+      let ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+        infer_expression state expr
+      in
+      ( Ast.CompTy (ty, Ast.TauConst Tau.zero),
+        ty_eqs,
+        tau_eqs,
+        tau_ineqs,
+        tau_abs )
   | Ast.Do (comp1, comp2) ->
-      let CompTy (ty1, tau1), eqs1 = infer_computation state comp1 in
+      let CompTy (ty1, tau1), ty_eqs1, tau_eqs1, tau_ineqs1, tau_abs1 =
+        infer_computation state comp1
+      in
       let comp_tau = fresh_tau () in
       let state' = extend_temporal state comp_tau in
-      let ty1', CompTy (ty2, tau2), eqs2 = infer_abstraction state' comp2 in
+      let ty1', Ast.CompTy (ty2, tau2), ty_eqs2, tau_eqs2, tau_ineqs2, tau_abs2
+          =
+        infer_abstraction state' comp2
+      in
       ( CompTy (ty2, Ast.TauAdd (comp_tau, tau2)),
-        Constraint.TypeConstraint (ty1, ty1')
-        :: Constraint.TauConstraint (tau1, comp_tau)
-        :: eqs1
-        @ eqs2 )
+        ((ty1, ty1') :: ty_eqs1) @ ty_eqs2,
+        ((tau1, comp_tau) :: tau_eqs1) @ tau_eqs2,
+        tau_ineqs1 @ tau_ineqs2,
+        tau_abs1 @ tau_abs2 )
   | Ast.Apply (e1, e2) ->
-      let t1, eqs1 = infer_expression state e1
-      and t2, eqs2 = infer_expression state e2
+      let t1, ty_eqs1, tau_eqs1, tau_ineqs1, tau_abs1 =
+        infer_expression state e1
+      and t2, ty_eqs2, tau_eqs2, tau_ineqs2, tau_abs2 =
+        infer_expression state e2
       and a = fresh_comp_ty () in
-      (a, (Constraint.TypeConstraint (t1, Ast.TyArrow (t2, a)) :: eqs1) @ eqs2)
+      ( a,
+        ((t1, Ast.TyArrow (t2, a)) :: ty_eqs1) @ ty_eqs2,
+        tau_eqs1 @ tau_eqs2,
+        tau_ineqs1 @ tau_ineqs2,
+        tau_abs1 @ tau_abs2 )
   | Ast.Match (e, cases) ->
-      let ty1, eqs = infer_expression state e
+      let ty1, ty_eqs, tau_eqs, tau_ineqs, tau_abs = infer_expression state e
       and branch_comp_ty = fresh_comp_ty () in
       let (CompTy (branch_ty, branch_tau)) = branch_comp_ty in
-      let fold eqs abs =
-        let ty1', CompTy (branch_ty', branch_tau'), eqs' =
+      let fold (ty_eqs, tau_eqs, tau_ineqs, tau_abs) abs =
+        let ( ty1',
+              CompTy (branch_ty', branch_tau'),
+              ty_eqs',
+              tau_eqs',
+              tau_ineqs',
+              tau_abs' ) =
           infer_abstraction state abs
         in
-        Constraint.TypeConstraint (ty1, ty1')
-        :: Constraint.TypeConstraint (branch_ty, branch_ty')
-        :: Constraint.TauConstraint (branch_tau, branch_tau')
-        :: eqs'
-        @ eqs
+        ( ((ty1, ty1') :: (branch_ty, branch_ty') :: ty_eqs') @ ty_eqs,
+          ((branch_tau, branch_tau') :: tau_eqs') @ tau_eqs,
+          tau_ineqs' @ tau_ineqs,
+          tau_abs' @ tau_abs )
       in
-      (branch_comp_ty, List.fold_left fold eqs cases)
+      let ty_eqs'', tau_eqs'', tau_ineqs'', tau_abs'' =
+        List.fold_left fold (ty_eqs, tau_eqs, tau_ineqs, tau_abs) cases
+      in
+      (branch_comp_ty, ty_eqs'', tau_eqs'', tau_ineqs'', tau_abs'')
   | Ast.Delay (tau, c) ->
       let state' = extend_temporal state tau in
-      let CompTy (ty, tau'), eqs = infer_computation state' c in
-      (CompTy (ty, Ast.TauAdd (tau, tau')), eqs)
+      let CompTy (ty, tau'), ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+        infer_computation state' c
+      in
+      (CompTy (ty, Ast.TauAdd (tau, tau')), ty_eqs, tau_eqs, tau_ineqs, tau_abs)
   | Ast.Box (tau, e, abs) ->
       let state_ahead = extend_temporal state tau in
-      let value_ty, eqs = infer_expression state_ahead e in
-      let value_ty', comp_ty, eqs' = infer_abstraction state abs in
+      let value_ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+        infer_expression state_ahead e
+      in
+      let value_ty', comp_ty, ty_eqs', tau_eqs', tau_ineqs', tau_abs' =
+        infer_abstraction state abs
+      in
       ( comp_ty,
-        (Constraint.TypeConstraint (Ast.TyBox (tau, value_ty), value_ty') :: eqs)
-        @ eqs' )
+        ((Ast.TyBox (tau, value_ty), value_ty') :: ty_eqs) @ ty_eqs',
+        tau_eqs @ tau_eqs',
+        tau_ineqs @ tau_ineqs',
+        tau_abs @ tau_abs' )
   | Ast.Unbox (e, abs) ->
       let abstract_context_tau =
         ContextHolderModule.abstract_tau_sum state.variables
@@ -371,46 +470,92 @@ and infer_computation state = function
       let sum_taus_added_after =
         ContextHolderModule.sum_taus_added_after var state.variables
       in
-      let boxed_ty, eqs = infer_expression state e in
-      let value_ty, comp_ty, eqs' = infer_abstraction state abs in
+      let boxed_ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+        infer_expression state e
+      in
+      let value_ty, comp_ty, ty_eqs', tau_eqs', tau_ineqs', tau_abs' =
+        infer_abstraction state abs
+      in
       let tau = fresh_tau () in
       ( comp_ty,
-        Constraint.TypeConstraint (Ast.TyBox (tau, value_ty), boxed_ty)
-        :: Constraint.TauGeq (abstract_context_tau, tau)
-        :: Constraint.TauGeq (sum_taus_added_after, tau)
-        :: eqs
-        @ eqs' )
+        ((Ast.TyBox (tau, value_ty), boxed_ty) :: ty_eqs) @ ty_eqs',
+        tau_eqs @ tau_eqs',
+        ((abstract_context_tau, tau) :: (sum_taus_added_after, tau) :: tau_ineqs)
+        @ tau_ineqs',
+        tau_abs @ tau_abs' )
   | Ast.Perform (op, e, abs) -> (
       let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
       match op_sig with
       | None -> Error.typing "Unknown operation call."
       | Some (param_ty, arity_ty, op_tau) ->
-          let value_ty, eqs = infer_expression state e in
+          let value_ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+            infer_expression state e
+          in
           let state_ahead = extend_temporal state op_tau in
-          let value_ty', CompTy (cont_ty, cont_tau), eqs' =
+          let ( value_ty',
+                CompTy (cont_ty, cont_tau),
+                ty_eqs',
+                tau_eqs',
+                tau_ineqs',
+                tau_abs' ) =
             infer_abstraction state_ahead abs
           in
           ( CompTy (cont_ty, Ast.TauAdd (op_tau, cont_tau)),
-            Constraint.TypeConstraint (value_ty, param_ty)
-            :: Constraint.TypeConstraint (value_ty', arity_ty)
-            :: eqs
-            @ eqs' ))
+            ((value_ty, param_ty) :: (value_ty', arity_ty) :: ty_eqs) @ ty_eqs',
+            tau_eqs @ tau_eqs',
+            tau_ineqs @ tau_ineqs',
+            tau_abs @ tau_abs' ))
   | Ast.Handle (c, h) ->
-      let CompTy (ty, tau), eqs = infer_computation state c in
-      let ty', eqs' = infer_expression state h in
+      let CompTy (ty, tau), ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+        infer_computation state c
+      in
+      let ty', ty_eqs', tau_eqs', tau_ineqs', tau_abs' =
+        infer_expression state h
+      in
       let ty'' = fresh_ty () in
       let tau'' = fresh_tau () in
       ( CompTy (ty'', Ast.TauAdd (tau, tau'')),
-        Constraint.TypeConstraint
-          (ty', TyHandler (CompTy (ty, tau), CompTy (ty'', tau'')))
-        :: eqs
-        @ eqs' )
+        ((ty', Ast.TyHandler (CompTy (ty, tau), CompTy (ty'', tau''))) :: ty_eqs)
+        @ ty_eqs',
+        tau_eqs @ tau_eqs',
+        tau_ineqs @ tau_ineqs',
+        tau_abs @ tau_abs' )
 
 and infer_abstraction state (pat, comp) =
-  let ty, vars, eqs = infer_pattern state pat in
+  let ty, vars, ty_eqs = infer_pattern state pat in
   let state' = extend_variables state vars in
-  let ty', eqs' = infer_computation state' comp in
-  (ty, ty', eqs @ eqs')
+  let ty', ty_eqs', tau_eqs', tau_ineqs', tau_abs' =
+    infer_computation state' comp
+  in
+  (ty, ty', ty_eqs @ ty_eqs', tau_eqs', tau_ineqs', tau_abs')
+
+let subst_ty_equations ty_subst tau_subst =
+  let subst_ty_equation = function
+    | t1, t2 ->
+        ( Ast.substitute_ty ty_subst tau_subst t1,
+          Ast.substitute_ty ty_subst tau_subst t2 )
+  in
+  List.map subst_ty_equation
+
+let subst_tau_equations tau_subst =
+  let subst_tau_equation = function
+    | tau1, tau2 ->
+        (Ast.substitute_tau tau_subst tau1, Ast.substitute_tau tau_subst tau2)
+  in
+  List.map subst_tau_equation
+
+let subst_tau_inequations tau_subst =
+  let subst_inequation = function
+    | tau1, tau2 ->
+        (Ast.substitute_tau tau_subst tau1, Ast.substitute_tau tau_subst tau2)
+  in
+  List.map subst_inequation
+
+let subst_tau_abstract_constraints tau_subst =
+  let subst_abstract_constraint = function
+    | tau -> Ast.substitute_tau tau_subst tau
+  in
+  List.map subst_abstract_constraint
 
 let subst_equations ty_subst tau_subst =
   let subst_equation = function
@@ -537,63 +682,103 @@ let build_tau_from_param_list params =
   | hd :: tl ->
       List.fold_left (fun acc e -> Ast.TauAdd (acc, to_tau e)) (to_tau hd) tl
 
-let rec unify_with_accum state prev_unsolved_size unsolved = function
+let rec unify_ty state tau_eqs = function
+  | [] -> (Ast.TyParamMap.empty, tau_eqs)
+  | (t1, t2) :: ty_eqs when t1 = t2 -> unify_ty state tau_eqs ty_eqs
+  | (Ast.TyApply (ty_name1, args1), Ast.TyApply (ty_name2, args2)) :: ty_eqs
+    when ty_name1 = ty_name2 ->
+      let new_eqs =
+        List.map (fun (t1, t2) -> (t1, t2)) (List.combine args1 args2)
+      in
+      unify_ty state tau_eqs (new_eqs @ ty_eqs)
+  | (Ast.TyApply (ty_name, args), ty) :: ty_eqs
+    when is_transparent_type state ty_name ->
+      unify_ty state tau_eqs ((unfold state ty_name args, ty) :: ty_eqs)
+  | (ty, Ast.TyApply (ty_name, args)) :: ty_eqs
+    when is_transparent_type state ty_name ->
+      unify_ty state tau_eqs ((ty, unfold state ty_name args) :: ty_eqs)
+  | (Ast.TyTuple tys1, Ast.TyTuple tys2) :: ty_eqs
+    when List.length tys1 = List.length tys2 ->
+      let new_eqs =
+        List.map (fun (t1, t2) -> (t1, t2)) (List.combine tys1 tys2)
+      in
+      unify_ty state tau_eqs (new_eqs @ ty_eqs)
+  | ( Ast.TyArrow (t1, CompTy (t1', tau1')),
+      Ast.TyArrow (t2, CompTy (t2', tau2')) )
+    :: ty_eqs ->
+      unify_ty state
+        ((tau1', tau2') :: tau_eqs)
+        ((t1, t2) :: (t1', t2') :: ty_eqs)
+  | (Ast.TyParam a, t) :: ty_eqs when not (occurs_ty a t) ->
+      let ty_subst, tau_eqs' =
+        unify_ty state tau_eqs
+          (subst_ty_equations
+             (Ast.TyParamMap.singleton a t)
+             Ast.TauParamMap.empty ty_eqs)
+      in
+      (add_ty_subst a t ty_subst Ast.TauParamMap.empty, tau_eqs')
+  | (t, Ast.TyParam a) :: ty_eqs when not (occurs_ty a t) ->
+      let ty_subst, tau_eqs' =
+        unify_ty state tau_eqs
+          (subst_ty_equations
+             (Ast.TyParamMap.singleton a t)
+             Ast.TauParamMap.empty ty_eqs)
+      in
+      (add_ty_subst a t ty_subst Ast.TauParamMap.empty, tau_eqs')
+  | (Ast.TyBox (tau1, ty1), Ast.TyBox (tau2, ty2)) :: ty_eqs ->
+      unify_ty state ((tau1, tau2) :: tau_eqs) ((ty1, ty2) :: ty_eqs)
+  | ( Ast.TyHandler (Ast.CompTy (ty1, tau1), Ast.CompTy (ty2, tau2)),
+      Ast.TyHandler (Ast.CompTy (ty1', tau1'), Ast.CompTy (ty2', tau2')) )
+    :: ty_eqs ->
+      unify_ty state
+        ((tau1, tau1') :: (tau2, tau2') :: tau_eqs)
+        ((ty1, ty1') :: (ty2, ty2') :: ty_eqs)
+  | (t1, t2) :: _ ->
+      let ty_pp = PrettyPrint.TyPrintParam.create () in
+      let tau_pp = PrettyPrint.TauPrintParam.create () in
+      Error.typing "Cannot unify types %t = %t"
+        (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t1)
+        (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t2)
+
+let rec unify_tau state prev_unsolved_size unsolved = function
   | [] ->
       let current_unsolved_size = List.length unsolved in
       if current_unsolved_size = 0 then
         (* All constraints solved *)
-        (Ast.TyParamMap.empty, Ast.TauParamMap.empty)
+        Ast.TauParamMap.empty
       else if current_unsolved_size = prev_unsolved_size then
-        let fs, eqs = check_unsolved_constraints unsolved in
-        if List.length fs == 0 && List.length eqs == 0 then
-          (* Only unsolved constraints were satisfied freshness constraints *)
-          (Ast.TyParamMap.empty, Ast.TauParamMap.empty)
-        else
-          (* Unsatisfied freshness constraints or unsolved ordinary constraints remain *)
-          Error.typing
-            "Unification stuck - could not solve remaining constraints or \
-             freshness constraints violated %t" (fun ppf ->
-              print_constraints fs;
-              print_constraints eqs;
-              Format.fprintf ppf "%s" "")
+        Error.typing
+          "Unification stuck - could not solve remaining constraints\n\
+          \            %t" (fun ppf ->
+            print_tau_eq_constraints unsolved;
+            Format.fprintf ppf "%s" "")
       else
         (* Retry with deferred constraints *)
-        unify_with_accum state current_unsolved_size [] unsolved
-  | Constraint.TauConstraint (tau1, tau2) :: eqs -> (
+        unify_tau state current_unsolved_size [] unsolved
+  | (tau1, tau2) :: eqs -> (
       let tau1' = simplify_tau tau1 in
       let tau2' = simplify_tau tau2 in
       match (tau1', tau2') with
-      | _ when tau1' = tau2' ->
-          unify_with_accum state prev_unsolved_size unsolved eqs
+      | _ when tau1' = tau2' -> unify_tau state prev_unsolved_size unsolved eqs
       | Ast.TauParam tp, tau when not (occurs_tau tp tau) ->
-          let ty_subst, tau_subst =
-            unify_with_accum state prev_unsolved_size
-              (subst_equations Ast.TyParamMap.empty
-                 (Ast.TauParamMap.singleton tp tau)
-                 unsolved)
-              (subst_equations Ast.TyParamMap.empty
-                 (Ast.TauParamMap.singleton tp tau)
-                 eqs)
+          let tau_subst =
+            unify_tau state prev_unsolved_size
+              (subst_tau_equations (Ast.TauParamMap.singleton tp tau) unsolved)
+              (subst_tau_equations (Ast.TauParamMap.singleton tp tau) eqs)
           in
-          (ty_subst, add_tau_subst tp tau tau_subst)
+          add_tau_subst tp tau tau_subst
       | tau, Ast.TauParam tp when not (occurs_tau tp tau) ->
-          let ty_subst, tau_subst =
-            unify_with_accum state prev_unsolved_size
-              (subst_equations Ast.TyParamMap.empty
-                 (Ast.TauParamMap.singleton tp tau)
-                 unsolved)
-              (subst_equations Ast.TyParamMap.empty
-                 (Ast.TauParamMap.singleton tp tau)
-                 eqs)
+          let tau_subst =
+            unify_tau state prev_unsolved_size
+              (subst_tau_equations (Ast.TauParamMap.singleton tp tau) unsolved)
+              (subst_tau_equations (Ast.TauParamMap.singleton tp tau) eqs)
           in
-          (ty_subst, add_tau_subst tp tau tau_subst)
+          add_tau_subst tp tau tau_subst
       | Ast.TauConst z, Ast.TauAdd (t1, t2)
       | Ast.TauAdd (t1, t2), Ast.TauConst z
         when z = Tau.zero ->
-          unify_with_accum state prev_unsolved_size unsolved
-            (Constraint.TauConstraint (t1, Ast.TauConst Tau.zero)
-            :: Constraint.TauConstraint (t2, Ast.TauConst Tau.zero)
-            :: eqs)
+          unify_tau state prev_unsolved_size unsolved
+            ((t1, Ast.TauConst Tau.zero) :: (t2, Ast.TauConst Tau.zero) :: eqs)
       | t, Ast.TauAdd (t1, t2) | Ast.TauAdd (t1, t2), t ->
           let left = build_sorted_tau_param_list t in
           let right = build_sorted_tau_param_list (Ast.TauAdd (t1, t2)) in
@@ -601,17 +786,17 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
           let left_tau = build_tau_from_param_list left' in
           let right_tau = build_tau_from_param_list right' in
           if left_tau = t && right_tau = Ast.TauAdd (t1, t2) then
-            unify_with_accum state prev_unsolved_size
-              (Constraint.TauConstraint (left_tau, right_tau) :: unsolved)
+            unify_tau state prev_unsolved_size
+              ((left_tau, right_tau) :: unsolved)
               eqs
           else
-            unify_with_accum state prev_unsolved_size unsolved
-              (Constraint.TauConstraint (left_tau, right_tau) :: eqs)
-      | u1, u2 ->
-          unify_with_accum state prev_unsolved_size
-            (Constraint.TauConstraint (u1, u2) :: unsolved)
-            eqs)
-  | Constraint.TauGeq (tau_greater_or_equal, tau_smaller) :: eqs -> (
+            unify_tau state prev_unsolved_size unsolved
+              ((left_tau, right_tau) :: eqs)
+      | u1, u2 -> unify_tau state prev_unsolved_size ((u1, u2) :: unsolved) eqs)
+
+let rec check_tau_ineqs state = function
+  | [] -> ()
+  | (tau_greater_or_equal, tau_smaller) :: tau_ineqs -> (
       let tau_greater_or_equal_simplified = simplify_tau tau_greater_or_equal
       and tau_smaller_simplified = simplify_tau tau_smaller in
 
@@ -625,11 +810,17 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
 
       match maybe_tau_vals with
       | None ->
-          unify_with_accum state prev_unsolved_size
-            (Constraint.TauGeq
-               (tau_greater_or_equal_simplified, tau_smaller_simplified)
-            :: unsolved)
-            eqs
+          Error.typing "Cannot compare non-ground temporal values %t >= %t"
+            (fun ppf ->
+              PrettyPrint.print_tau
+                (module Tau)
+                (PrettyPrint.TauPrintParam.create ())
+                tau_greater_or_equal_simplified ppf)
+            (fun ppf ->
+              PrettyPrint.print_tau
+                (module Tau)
+                (PrettyPrint.TauPrintParam.create ())
+                tau_smaller_simplified ppf)
       | Some (tau_greater_or_equal_val, tau_smaller_val) ->
           if tau_smaller_val > tau_greater_or_equal_val then
             Error.typing "Cannot unify temporal values %t >= %t"
@@ -643,100 +834,33 @@ let rec unify_with_accum state prev_unsolved_size unsolved = function
                   (module Tau)
                   (PrettyPrint.TauPrintParam.create ())
                   tau_smaller_simplified ppf)
-          else unify_with_accum state prev_unsolved_size unsolved eqs)
-  | Constraint.AbstractTauConstraint tau :: eqs ->
-      unify_with_accum state prev_unsolved_size
-        (Constraint.AbstractTauConstraint tau :: unsolved)
-        eqs
-  | Constraint.TypeConstraint (t1, t2) :: eqs when t1 = t2 ->
-      unify_with_accum state prev_unsolved_size unsolved eqs
-  | Constraint.TypeConstraint
-      (Ast.TyApply (ty_name1, args1), Ast.TyApply (ty_name2, args2))
-    :: eqs
-    when ty_name1 = ty_name2 ->
-      let new_eqs =
-        List.map
-          (fun (t1, t2) -> Constraint.TypeConstraint (t1, t2))
-          (List.combine args1 args2)
-      in
-      unify_with_accum state prev_unsolved_size unsolved (new_eqs @ eqs)
-  | Constraint.TypeConstraint (Ast.TyApply (ty_name, args), ty) :: eqs
-    when is_transparent_type state ty_name ->
-      unify_with_accum state prev_unsolved_size unsolved
-        (Constraint.TypeConstraint (unfold state ty_name args, ty) :: eqs)
-  | Constraint.TypeConstraint (ty, Ast.TyApply (ty_name, args)) :: eqs
-    when is_transparent_type state ty_name ->
-      unify_with_accum state prev_unsolved_size unsolved
-        (Constraint.TypeConstraint (ty, unfold state ty_name args) :: eqs)
-  | Constraint.TypeConstraint (Ast.TyTuple tys1, Ast.TyTuple tys2) :: eqs
-    when List.length tys1 = List.length tys2 ->
-      let new_eqs =
-        List.map
-          (fun (t1, t2) -> Constraint.TypeConstraint (t1, t2))
-          (List.combine tys1 tys2)
-      in
-      unify_with_accum state prev_unsolved_size unsolved (new_eqs @ eqs)
-  | Constraint.TypeConstraint
-      ( Ast.TyArrow (t1, CompTy (t1', tau1')),
-        Ast.TyArrow (t2, CompTy (t2', tau2')) )
-    :: eqs ->
-      unify_with_accum state prev_unsolved_size unsolved
-        (Constraint.TypeConstraint (t1, t2)
-        :: Constraint.TypeConstraint (t1', t2')
-        :: Constraint.TauConstraint (tau1', tau2')
-        :: eqs)
-  | Constraint.TypeConstraint (Ast.TyParam a, t) :: eqs when not (occurs_ty a t)
-    ->
-      let ty_subst, tau_subst =
-        unify_with_accum state prev_unsolved_size
-          (subst_equations
-             (Ast.TyParamMap.singleton a t)
-             Ast.TauParamMap.empty unsolved)
-          (subst_equations
-             (Ast.TyParamMap.singleton a t)
-             Ast.TauParamMap.empty eqs)
-      in
-      (add_ty_subst a t ty_subst tau_subst, tau_subst)
-  | Constraint.TypeConstraint (t, Ast.TyParam a) :: eqs when not (occurs_ty a t)
-    ->
-      let ty_subst, tau_subst =
-        unify_with_accum state prev_unsolved_size
-          (subst_equations
-             (Ast.TyParamMap.singleton a t)
-             Ast.TauParamMap.empty unsolved)
-          (subst_equations
-             (Ast.TyParamMap.singleton a t)
-             Ast.TauParamMap.empty eqs)
-      in
-      (add_ty_subst a t ty_subst tau_subst, tau_subst)
-  | Constraint.TypeConstraint (Ast.TyBox (tau1, ty1), Ast.TyBox (tau2, ty2))
-    :: eqs ->
-      unify_with_accum state prev_unsolved_size unsolved
-        (Constraint.TypeConstraint (ty1, ty2)
-        :: Constraint.TauConstraint (tau1, tau2)
-        :: eqs)
-  | Constraint.TypeConstraint
-      ( Ast.TyHandler (Ast.CompTy (ty1, tau1), Ast.CompTy (ty2, tau2)),
-        Ast.TyHandler (Ast.CompTy (ty1', tau1'), Ast.CompTy (ty2', tau2')) )
-    :: eqs ->
-      unify_with_accum state prev_unsolved_size unsolved
-        (Constraint.TypeConstraint (ty1, ty1')
-        :: Constraint.TypeConstraint (ty2, ty2')
-        :: Constraint.TauConstraint (tau1, tau1')
-        :: Constraint.TauConstraint (tau2, tau2')
-        :: eqs)
-  | Constraint.TypeConstraint (t1, t2) :: _ ->
-      let ty_pp = PrettyPrint.TyPrintParam.create () in
-      let tau_pp = PrettyPrint.TauPrintParam.create () in
-      Error.typing "Cannot unify types %t = %t"
-        (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t1)
-        (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t2)
+          else check_tau_ineqs state tau_ineqs)
 
-let unify state constraints = unify_with_accum state 0 [] constraints
+let rec check_tau_abs_constraints = function
+  | [] -> ()
+  | tau :: tau_abs -> (
+      match tau with
+      | Ast.TauParam _ -> check_tau_abs_constraints tau_abs
+      | _ ->
+          Error.typing "Temporal value is not in an abstract form %t"
+            (fun ppf ->
+              PrettyPrint.print_tau
+                (module Tau)
+                (PrettyPrint.TauPrintParam.create ())
+                tau ppf))
+
+let unify state ty_eqs tau_eqs tau_ineqs tau_abs =
+  let ty_subst, tau_eqs' = unify_ty state [] ty_eqs in
+  let tau_subst = unify_tau state 0 [] (tau_eqs @ tau_eqs') in
+  check_tau_ineqs state (subst_tau_inequations tau_subst tau_ineqs);
+  check_tau_abs_constraints (subst_tau_abstract_constraints tau_subst tau_abs);
+  (ty_subst, tau_subst)
 
 let infer state e =
-  let comp_ty, eqs = infer_computation state e in
-  let ty_subst, tau_subst = unify state eqs in
+  let comp_ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
+    infer_computation state e
+  in
+  let ty_subst, tau_subst = unify state ty_eqs tau_eqs tau_ineqs tau_abs in
   let comp_ty' = Ast.substitute_comp_ty ty_subst tau_subst comp_ty in
   simplify_comp_ty comp_ty'
 
@@ -747,8 +871,8 @@ let add_external_function x ty_sch state =
   }
 
 let add_top_definition state x expr =
-  let ty, eqs = infer_expression state expr in
-  let ty_subst, tau_subst = unify state eqs in
+  let ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs = infer_expression state expr in
+  let ty_subst, tau_subst = unify state ty_eqs tau_eqs tau_ineqs tau_abs in
   let ty' = Ast.substitute_ty ty_subst tau_subst ty in
   let ty'' = simplify_ty ty' in
   let free_vars, free_taus = Ast.free_vars ty'' in
