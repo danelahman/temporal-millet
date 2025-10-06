@@ -700,7 +700,9 @@ let simplify_comp_ty = function
 
 (* TODO: Currently some duplications between simplification and normalisation. Should be both folded into the latter. *)
 let rec normalise_tau tau =
-  build_sorted_summed_tau_param_lists tau |> build_tau_from_param_lists
+  build_sorted_summed_tau_param_lists tau
+  |> List.sort_uniq (List.compare compare_tau)
+  |> build_tau_from_param_lists
 
 and normalise_ty ty =
   match ty with
@@ -935,7 +937,7 @@ let infer state e =
   in
   let ty_subst, tau_subst = unify state ty_eqs tau_eqs tau_ineqs tau_abs in
   let comp_ty' = Ast.substitute_comp_ty ty_subst tau_subst comp_ty in
-  simplify_comp_ty (normalise_comp_ty comp_ty')
+  normalise_comp_ty comp_ty'
 
 let add_external_function x ty_sch state =
   {
@@ -948,12 +950,11 @@ let add_top_definition state x expr =
   let ty_subst, tau_subst = unify state ty_eqs tau_eqs tau_ineqs tau_abs in
   let ty' = Ast.substitute_ty ty_subst tau_subst ty in
   let ty'' = normalise_ty ty' in
-  let ty''' = simplify_ty ty'' in
-  let free_vars, free_taus = Ast.free_vars ty''' in
+  let free_vars, free_taus = Ast.free_vars ty'' in
   let ty_sch =
     ( free_vars |> Ast.TyParamSet.elements,
       free_taus |> Ast.TauParamSet.elements,
-      ty''' )
+      ty'' )
   in
   add_external_function x ty_sch state
 
