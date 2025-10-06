@@ -440,9 +440,6 @@ and infer_computation state = function
         tau_ineqs @ tau_ineqs',
         tau_abs @ tau_abs' )
   | Ast.Unbox (e, abs) ->
-      let abstract_context_tau =
-        ContextHolderModule.abstract_tau_sum state.variables
-      in
       let rec findVar e =
         match e with
         | Ast.Var x -> x
@@ -463,8 +460,7 @@ and infer_computation state = function
       ( comp_ty,
         ((Ast.TyBox (tau, value_ty), boxed_ty) :: ty_eqs) @ ty_eqs',
         tau_eqs @ tau_eqs',
-        ((abstract_context_tau, tau) :: (sum_taus_added_after, tau) :: tau_ineqs)
-        @ tau_ineqs',
+        ((sum_taus_added_after, tau) :: tau_ineqs) @ tau_ineqs',
         tau_abs @ tau_abs' )
   | Ast.Perform (op, e, abs) -> (
       let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
