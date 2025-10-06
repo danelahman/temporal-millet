@@ -332,7 +332,7 @@ let print_vars_and_exprs tau_module print_var_and_expr
 let print_variable_context tau_module ctx =
   let print_var_and_ty ty_pp tau_pp (variable, (ty_params, tau_params, ty)) ppf
       =
-    Format.fprintf ppf "@[<h>%t -> %t, %t %t@]@." (Variable.print variable)
+    Format.fprintf ppf "@[<h>%t : %t, %t %t@]@." (Variable.print variable)
       (print_ty_params ty_pp ty_params)
       (print_tau_params tau_pp tau_params)
       (print_ty tau_module ty_pp tau_pp ty)

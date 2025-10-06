@@ -674,6 +674,7 @@ let rec simplify_tau tau =
       let t1' = simplify_tau t1 in
       let t2' = simplify_tau t2 in
       match (t1', t2') with
+      | _, _ when t1' = t2' -> t1'
       | Ast.TauConst z, _ when z = Tau.zero -> Ast.TauConst z
       | _, Ast.TauConst z when z = Tau.zero -> Ast.TauConst z
       | Ast.TauConst t1, Ast.TauConst t2 -> Ast.TauConst (Tau.meet t1 t2)
@@ -912,27 +913,18 @@ let rec check_tau_abs_constraints = function
                 tau ppf))
 
 let unify state ty_eqs tau_eqs tau_ineqs tau_abs =
-  let _ty_pp = PrettyPrint.TyPrintParam.create () in
-  let _tau_pp = PrettyPrint.TauPrintParam.create () in
+  (* let _ty_pp = PrettyPrint.TyPrintParam.create () in
+  let _tau_pp = PrettyPrint.TauPrintParam.create () in *)
   let ty_subst, tau_eqs' = unify_ty_constraints state [] ty_eqs in
-
-  (* print_type_constraints ~ty_pp ~tau_pp ty_eqs; *)
-  (* print_tau_eq_constraints ~tau_pp (tau_eqs @ tau_eqs'); *)
-  (* print_tau_ineq_constraints ~tau_pp tau_ineqs; *)
   let tau_subst = unify_tau_constraints state 0 [] (tau_eqs @ tau_eqs') in
   let ty_subst' =
     Ast.TyParamMap.map
       (fun ty -> Ast.substitute_ty ty_subst tau_subst ty)
       ty_subst
   in
-
-  (* Ast.TauParamMap.iter (fun p t -> print_tau_subst ~tau_pp p t) tau_subst; *)
   let tau_ineqs' =
     split_tau_ineq_constraints (subst_tau_inequations tau_subst tau_ineqs)
   in
-
-  (* print_tau_ineq_constraints ~tau_pp (subst_tau_inequations tau_subst tau_ineqs); *)
-  (* print_tau_ineq_constraints ~tau_pp tau_ineqs'; *)
   check_tau_ineq_constraints state tau_ineqs';
   check_tau_abs_constraints (subst_tau_abstract_constraints tau_subst tau_abs);
   (ty_subst', tau_subst)
