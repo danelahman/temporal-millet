@@ -699,10 +699,17 @@ let simplify_comp_ty = function
   | Ast.CompTy (ty, tau) -> Ast.CompTy (simplify_ty ty, simplify_tau tau)
 
 (* TODO: Currently some duplications between simplification and normalisation. Should be both folded into the latter. *)
+let rec apply_meets_in_tau_lists = function
+  | [] -> []
+  | [ tau ] -> [ tau ]
+  | [ Either.Right t1 ] :: [ Either.Right t2 ] :: taus ->
+      apply_meets_in_tau_lists ([ Either.Right (Tau.meet t1 t2) ] :: taus)
+  | tau :: taus -> tau :: apply_meets_in_tau_lists taus
+
 let rec normalise_tau tau =
   build_sorted_summed_tau_param_lists tau
   |> List.sort_uniq (List.compare compare_tau)
-  |> build_tau_from_param_lists
+  |> apply_meets_in_tau_lists |> build_tau_from_param_lists
 
 and normalise_ty ty =
   match ty with

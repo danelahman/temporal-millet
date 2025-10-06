@@ -16,7 +16,8 @@ let h =
 
 let h' =
   handler
-  | x -> x * x
+  | x -> 
+    if true then x * x else (delay 1; x + x)
   | Get x k -> 
       delay 71;
       continue k with 42
