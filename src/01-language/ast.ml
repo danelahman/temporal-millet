@@ -28,6 +28,7 @@ type 'a tau =
   | TauConst of 'a
   | TauParam of tau_param
   | TauAdd of 'a tau * 'a tau
+  | TauMeet of 'a tau * 'a tau
 
 type 'a ty =
   | TyConst of Const.ty
@@ -106,6 +107,8 @@ let rec substitute_tau subst = function
       match TauParamMap.find_opt tp subst with None -> tau | Some tau' -> tau')
   | TauAdd (tau, tau') ->
       TauAdd (substitute_tau subst tau, substitute_tau subst tau')
+  | TauMeet (tau, tau') ->
+      TauMeet (substitute_tau subst tau, substitute_tau subst tau')
 
 let rec substitute_ty ty_subst tau_subst = function
   | TyConst _ as ty -> ty
@@ -177,3 +180,4 @@ and free_taus tau =
   | TauConst _ -> TauParamSet.empty
   | TauParam a -> TauParamSet.singleton a
   | TauAdd (l, r) -> TauParamSet.union (free_taus l) (free_taus r)
+  | TauMeet (l, r) -> TauParamSet.union (free_taus l) (free_taus r)

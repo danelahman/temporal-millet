@@ -50,79 +50,69 @@ let initial_state =
     op_signatures = Ast.OpNameMap.empty;
   }
 
-let print_type_constraint t1 t2 ty_pp tau_pp =
+let print_tau_subst ?(tau_pp = PrettyPrint.TauPrintParam.create ()) p tau =
+  Format.printf "TauConstraint(%t ↦ %t)"
+    (PrettyPrint.print_tau (module Tau) tau_pp (Ast.TauParam p))
+    (PrettyPrint.print_tau (module Tau) tau_pp tau)
+
+let print_type_constraint ?(ty_pp = PrettyPrint.TyPrintParam.create ())
+    ?(tau_pp = PrettyPrint.TauPrintParam.create ()) t1 t2 =
   Format.printf "TypeConstraint(%t = %t)"
     (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t1)
     (PrettyPrint.print_ty (module Tau) ty_pp tau_pp t2)
 
-let print_one_type_constraint t1 t2 =
-  let ty_pp = PrettyPrint.TyPrintParam.create () in
-  let tau_pp = PrettyPrint.TauPrintParam.create () in
-  print_type_constraint t1 t2 ty_pp tau_pp
-
-let print_tau_constraint tau1 tau2 tau_pp =
+let print_tau_constraint ?(tau_pp = PrettyPrint.TauPrintParam.create ()) tau1
+    tau2 =
   Format.printf "TauConstraint(%t = %t)"
     (PrettyPrint.print_tau (module Tau) tau_pp tau1)
     (PrettyPrint.print_tau (module Tau) tau_pp tau2)
 
-let print_one_tau_constraint tau1 tau2 =
-  let tau_pp = PrettyPrint.TauPrintParam.create () in
-  print_tau_constraint tau1 tau2 tau_pp
-
-let print_tau_geq tau1 tau2 tau_pp =
+let print_tau_geq ?(tau_pp = PrettyPrint.TauPrintParam.create ()) tau1 tau2 =
   Format.printf "TauGeq(%t >= %t)"
     (PrettyPrint.print_tau (module Tau) tau_pp tau1)
     (PrettyPrint.print_tau (module Tau) tau_pp tau2)
 
-let print_one_tau_geq tau1 tau2 =
-  let tau_pp = PrettyPrint.TauPrintParam.create () in
-  print_tau_geq tau1 tau2 tau_pp
-
-let print_fresh_tau_constraint tau tau_pp =
+let print_fresh_tau_constraint ?(tau_pp = PrettyPrint.TauPrintParam.create ())
+    tau =
   Format.printf "FreshTauConstraint(%t)"
     (PrettyPrint.print_tau (module Tau) tau_pp tau)
 
-let print_one_fresh_tau_constraint tau =
-  let tau_pp = PrettyPrint.TauPrintParam.create () in
-  print_fresh_tau_constraint tau tau_pp
-
-let print_ty_constraints constraints =
-  let ty_pp = PrettyPrint.TyPrintParam.create () in
-  let tau_pp = PrettyPrint.TauPrintParam.create () in
-  Format.fprintf Format.std_formatter "[%a]"
+let print_type_constraints ?(ty_pp = PrettyPrint.TyPrintParam.create ())
+    ?(tau_pp = PrettyPrint.TauPrintParam.create ()) constraints =
+  Format.fprintf Format.std_formatter "[@[<hov>%a@]]@."
     (Format.pp_print_list
-       ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
+       ~pp_sep:(fun ppf () -> Format.fprintf ppf ";@ ")
        (fun _ppf constraint_ ->
          match constraint_ with
-         | t1, t2 -> print_type_constraint t1 t2 ty_pp tau_pp))
+         | t1, t2 -> print_type_constraint t1 t2 ~ty_pp ~tau_pp))
     constraints
 
-let print_tau_eq_constraints constraints =
-  let tau_pp = PrettyPrint.TauPrintParam.create () in
-  Format.fprintf Format.std_formatter "[%a]"
+let print_tau_eq_constraints ?(tau_pp = PrettyPrint.TauPrintParam.create ())
+    constraints =
+  Format.fprintf Format.std_formatter "[@[<hov>%a@]]@."
     (Format.pp_print_list
-       ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
+       ~pp_sep:(fun ppf () -> Format.fprintf ppf ";@ ")
        (fun _ppf constraint_ ->
          match constraint_ with
-         | tau1, tau2 -> print_tau_constraint tau1 tau2 tau_pp))
+         | tau1, tau2 -> print_tau_constraint tau1 tau2 ~tau_pp))
     constraints
 
-let print_tau_ineq_constraints constraints =
-  let tau_pp = PrettyPrint.TauPrintParam.create () in
-  Format.fprintf Format.std_formatter "[%a]"
+let print_tau_ineq_constraints ?(tau_pp = PrettyPrint.TauPrintParam.create ())
+    constraints =
+  Format.fprintf Format.std_formatter "[@[<hov>%a@]]@."
     (Format.pp_print_list
-       ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
+       ~pp_sep:(fun ppf () -> Format.fprintf ppf ";@ ")
        (fun _ppf constraint_ ->
-         match constraint_ with tau1, tau2 -> print_tau_geq tau1 tau2 tau_pp))
+         match constraint_ with tau1, tau2 -> print_tau_geq tau1 tau2 ~tau_pp))
     constraints
 
-let print_tau_abs_constraints constraints =
-  let tau_pp = PrettyPrint.TauPrintParam.create () in
-  Format.fprintf Format.std_formatter "[%a]"
+let print_tau_abs_constraints ?(tau_pp = PrettyPrint.TauPrintParam.create ())
+    constraints =
+  Format.fprintf Format.std_formatter "[@[<hov>%a@]]@."
     (Format.pp_print_list
-       ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
+       ~pp_sep:(fun ppf () -> Format.fprintf ppf ";@ ")
        (fun _ppf constraint_ ->
-         match constraint_ with tau -> print_fresh_tau_constraint tau tau_pp))
+         match constraint_ with tau -> print_fresh_tau_constraint tau ~tau_pp))
     constraints
 
 let rec check_ty state = function
@@ -189,6 +179,11 @@ let refreshing_tau_subst params =
       let tau = fresh_tau () in
       Ast.TauParamMap.add param tau subst)
     Ast.TauParamMap.empty params
+
+let build_from_list f_nil f_cons params =
+  match params with
+  | [] -> f_nil
+  | hd :: tl -> List.fold_left (fun acc e -> f_cons acc e) hd tl
 
 let infer_variant state lbl =
   let rec find = function
@@ -400,9 +395,8 @@ and infer_computation state = function
         tau_abs1 @ tau_abs2 )
   | Ast.Match (e, cases) ->
       let ty1, ty_eqs, tau_eqs, tau_ineqs, tau_abs = infer_expression state e
-      and branch_comp_ty = fresh_comp_ty () in
-      let (CompTy (branch_ty, branch_tau)) = branch_comp_ty in
-      let fold (ty_eqs, tau_eqs, tau_ineqs, tau_abs) abs =
+      and branch_ty = fresh_ty () in
+      let fold (taus, ty_eqs, tau_eqs, tau_ineqs, tau_abs) abs =
         let ( ty1',
               CompTy (branch_ty', branch_tau'),
               ty_eqs',
@@ -411,15 +405,24 @@ and infer_computation state = function
               tau_abs' ) =
           infer_abstraction state abs
         in
-        ( ((ty1, ty1') :: (branch_ty, branch_ty') :: ty_eqs') @ ty_eqs,
-          ((branch_tau, branch_tau') :: tau_eqs') @ tau_eqs,
+        ( branch_tau' :: taus,
+          ((ty1, ty1') :: (branch_ty, branch_ty') :: ty_eqs') @ ty_eqs,
+          tau_eqs' @ tau_eqs,
           tau_ineqs' @ tau_ineqs,
           tau_abs' @ tau_abs )
       in
-      let ty_eqs'', tau_eqs'', tau_ineqs'', tau_abs'' =
-        List.fold_left fold (ty_eqs, tau_eqs, tau_ineqs, tau_abs) cases
+      let taus'', ty_eqs'', tau_eqs'', tau_ineqs'', tau_abs'' =
+        List.fold_left fold ([], ty_eqs, tau_eqs, tau_ineqs, tau_abs) cases
       in
-      (branch_comp_ty, ty_eqs'', tau_eqs'', tau_ineqs'', tau_abs'')
+      ( CompTy
+          ( branch_ty,
+            build_from_list (Ast.TauConst Tau.zero)
+              (fun acc e -> Ast.TauMeet (acc, e))
+              taus'' ),
+        ty_eqs'',
+        tau_eqs'',
+        tau_ineqs'',
+        tau_abs'' )
   | Ast.Delay (tau, c) ->
       let state' = extend_temporal state tau in
       let CompTy (ty, tau'), ty_eqs, tau_eqs, tau_ineqs, tau_abs =
@@ -556,6 +559,7 @@ let rec occurs_tau a = function
   | Ast.TauParam a' -> a = a'
   | Ast.TauConst _ -> false
   | Ast.TauAdd (tau, tau') -> occurs_tau a tau || occurs_tau a tau'
+  | Ast.TauMeet (tau, tau') -> occurs_tau a tau || occurs_tau a tau'
 
 let is_transparent_type state ty_name =
   match Ast.TyNameMap.find ty_name state.type_definitions with
@@ -572,34 +576,6 @@ let unfold state ty_name args =
       let tau_subst = refreshing_tau_subst [] in
       Ast.substitute_ty ty_subst tau_subst ty
 
-let rec simplify_tau tau =
-  match tau with
-  | Ast.TauAdd (t1, t2) -> (
-      let t1' = simplify_tau t1 in
-      let t2' = simplify_tau t2 in
-      match (t1', t2') with
-      | Ast.TauConst c1, Ast.TauConst c2 -> Ast.TauConst (Tau.add c1 c2)
-      | (Ast.TauConst z, t | t, Ast.TauConst z) when z = Tau.zero -> t
-      | _ -> Ast.TauAdd (t1', t2'))
-  | _ -> tau
-
-and simplify_ty ty =
-  match ty with
-  | Ast.TyConst t -> Ast.TyConst t
-  | TyApply (ty_name, ty_list) -> TyApply (ty_name, List.map simplify_ty ty_list)
-  | TyParam ty_param -> TyParam ty_param
-  | TyArrow (ty, Ast.CompTy (ty', tau')) ->
-      TyArrow (simplify_ty ty, Ast.CompTy (simplify_ty ty', simplify_tau tau'))
-  | TyTuple ty_list -> TyTuple (List.map simplify_ty ty_list)
-  | TyBox (tau, ty) -> TyBox (simplify_tau tau, simplify_ty ty)
-  | TyHandler (Ast.CompTy (ty1, tau1), Ast.CompTy (ty2, tau2)) ->
-      TyHandler
-        ( Ast.CompTy (simplify_ty ty1, simplify_tau tau1),
-          Ast.CompTy (simplify_ty ty2, simplify_tau tau2) )
-
-let simplify_comp_ty = function
-  | Ast.CompTy (ty, tau) -> Ast.CompTy (simplify_ty ty, simplify_tau tau)
-
 let compare_tau a b =
   match (a, b) with
   | Either.Left p1, Either.Left p2 -> compare p1 p2
@@ -615,11 +591,42 @@ let build_tau_param_list tau =
     | Ast.TauAdd (tau1, tau2) ->
         let acc' = aux acc tau2 in
         aux acc' tau1
+    | Ast.TauMeet (_tau1, _tau2) ->
+        let tau_pp = PrettyPrint.TauPrintParam.create () in
+        Error.typing "Expected a meet-free temporal grade %t"
+          (PrettyPrint.print_tau (module Tau) tau_pp tau)
   in
   aux [] tau
 
-let build_sorted_tau_param_list tau =
+let rec sum_sorted_tau_param_list_constants = function
+  | [] -> []
+  | Either.Left t :: tl ->
+      Either.Left t :: sum_sorted_tau_param_list_constants tl
+  | Either.Right c :: Either.Right c' :: tl ->
+      sum_sorted_tau_param_list_constants (Either.Right (Tau.add c c') :: tl)
+  | Either.Right c :: tl ->
+      Either.Right c :: sum_sorted_tau_param_list_constants tl
+
+let build_sorted_summed_tau_param_list tau =
   build_tau_param_list tau |> List.sort compare_tau
+  |> sum_sorted_tau_param_list_constants
+
+let build_tau_param_lists tau =
+  let rec aux accs tau =
+    match tau with
+    | Ast.TauParam t -> List.map (fun acc -> Either.Left t :: acc) accs
+    | Ast.TauConst c -> List.map (fun acc -> Either.Right c :: acc) accs
+    | Ast.TauAdd (tau1, tau2) ->
+        let accs' = aux accs tau2 in
+        aux accs' tau1
+    | Ast.TauMeet (tau1, tau2) -> aux accs tau1 @ aux accs tau2
+  in
+  aux [ [] ] tau
+
+let build_sorted_summed_tau_param_lists tau =
+  build_tau_param_lists tau
+  |> List.map (fun tau' -> List.sort compare_tau tau')
+  |> List.map (fun tau' -> sum_sorted_tau_param_list_constants tau')
 
 let cancel_common_elements left right =
   let rec aux l r acc_left acc_right =
@@ -643,6 +650,75 @@ let build_tau_from_param_list params =
   | [] -> Ast.TauConst Tau.zero
   | hd :: tl ->
       List.fold_left (fun acc e -> Ast.TauAdd (acc, to_tau e)) (to_tau hd) tl
+
+let build_tau_from_param_lists = function
+  | [] -> Ast.TauConst Tau.zero
+  | tau :: taus ->
+      List.fold_left
+        (fun acc x -> Ast.TauMeet (acc, build_tau_from_param_list x))
+        (build_tau_from_param_list tau)
+        taus
+
+(* TODO: Currently some duplications between simplification and normalisation. Should be both folded into the latter. *)
+let rec simplify_tau tau =
+  match tau with
+  | Ast.TauAdd (t1, t2) -> (
+      let t1' = simplify_tau t1 in
+      let t2' = simplify_tau t2 in
+      match (t1', t2') with
+      | Ast.TauConst c1, Ast.TauConst c2 -> Ast.TauConst (Tau.add c1 c2)
+      | Ast.TauConst z, t when z = Tau.zero -> t
+      | t, Ast.TauConst z when z = Tau.zero -> t
+      | _ -> Ast.TauAdd (t1', t2'))
+  | Ast.TauMeet (t1, t2) -> (
+      let t1' = simplify_tau t1 in
+      let t2' = simplify_tau t2 in
+      match (t1', t2') with
+      | Ast.TauConst z, _ when z = Tau.zero -> Ast.TauConst z
+      | _, Ast.TauConst z when z = Tau.zero -> Ast.TauConst z
+      | Ast.TauConst t1, Ast.TauConst t2 -> Ast.TauConst (Tau.meet t1 t2)
+      | _ -> Ast.TauMeet (t1', t2'))
+  | _ -> tau
+
+and simplify_ty ty =
+  match ty with
+  | Ast.TyConst t -> Ast.TyConst t
+  | TyApply (ty_name, ty_list) -> TyApply (ty_name, List.map simplify_ty ty_list)
+  | TyParam ty_param -> TyParam ty_param
+  | TyArrow (ty, Ast.CompTy (ty', tau')) ->
+      TyArrow (simplify_ty ty, Ast.CompTy (simplify_ty ty', simplify_tau tau'))
+  | TyTuple ty_list -> TyTuple (List.map simplify_ty ty_list)
+  | TyBox (tau, ty) -> TyBox (simplify_tau tau, simplify_ty ty)
+  | TyHandler (Ast.CompTy (ty1, tau1), Ast.CompTy (ty2, tau2)) ->
+      TyHandler
+        ( Ast.CompTy (simplify_ty ty1, simplify_tau tau1),
+          Ast.CompTy (simplify_ty ty2, simplify_tau tau2) )
+
+let simplify_comp_ty = function
+  | Ast.CompTy (ty, tau) -> Ast.CompTy (simplify_ty ty, simplify_tau tau)
+
+(* TODO: Currently some duplications between simplification and normalisation. Should be both folded into the latter. *)
+let rec normalise_tau tau =
+  build_sorted_summed_tau_param_lists tau |> build_tau_from_param_lists
+
+and normalise_ty ty =
+  match ty with
+  | Ast.TyConst t -> Ast.TyConst t
+  | TyApply (ty_name, ty_list) ->
+      TyApply (ty_name, List.map normalise_ty ty_list)
+  | TyParam ty_param -> TyParam ty_param
+  | TyArrow (ty, Ast.CompTy (ty', tau')) ->
+      TyArrow
+        (normalise_ty ty, Ast.CompTy (normalise_ty ty', normalise_tau tau'))
+  | TyTuple ty_list -> TyTuple (List.map normalise_ty ty_list)
+  | TyBox (tau, ty) -> TyBox (normalise_tau tau, normalise_ty ty)
+  | TyHandler (Ast.CompTy (ty1, tau1), Ast.CompTy (ty2, tau2)) ->
+      TyHandler
+        ( Ast.CompTy (normalise_ty ty1, normalise_tau tau1),
+          Ast.CompTy (normalise_ty ty2, normalise_tau tau2) )
+
+let normalise_comp_ty = function
+  | Ast.CompTy (ty, tau) -> Ast.CompTy (normalise_ty ty, normalise_tau tau)
 
 let rec unify_ty_constraints state tau_eqs = function
   | [] -> (Ast.TyParamMap.empty, tau_eqs)
@@ -745,8 +821,10 @@ let rec unify_tau_constraints state prev_unsolved_size unsolved = function
           unify_tau_constraints state prev_unsolved_size unsolved
             ((t1, Ast.TauConst Tau.zero) :: (t2, Ast.TauConst Tau.zero) :: eqs)
       | t, Ast.TauAdd (t1, t2) | Ast.TauAdd (t1, t2), t ->
-          let left = build_sorted_tau_param_list t in
-          let right = build_sorted_tau_param_list (Ast.TauAdd (t1, t2)) in
+          let left = build_sorted_summed_tau_param_list t in
+          let right =
+            build_sorted_summed_tau_param_list (Ast.TauAdd (t1, t2))
+          in
           let left', right' = cancel_common_elements left right in
           let left_tau = build_tau_from_param_list left' in
           let right_tau = build_tau_from_param_list right' in
@@ -761,23 +839,40 @@ let rec unify_tau_constraints state prev_unsolved_size unsolved = function
           unify_tau_constraints state prev_unsolved_size ((u1, u2) :: unsolved)
             eqs)
 
+let rec split_tau_ineq_constraints = function
+  | [] -> []
+  | (tau_greater_or_equal, tau_smaller) :: tau_ineqs ->
+      let taus = build_sorted_summed_tau_param_lists tau_greater_or_equal in
+      let tau_ineqs' =
+        List.map (fun tau -> (build_tau_from_param_list tau, tau_smaller)) taus
+      in
+      tau_ineqs' @ split_tau_ineq_constraints tau_ineqs
+
 let rec check_tau_ineq_constraints state = function
   | [] -> ()
   | (tau_greater_or_equal, tau_smaller) :: tau_ineqs -> (
       let tau_greater_or_equal_simplified = simplify_tau tau_greater_or_equal
       and tau_smaller_simplified = simplify_tau tau_smaller in
 
-      let maybe_tau_vals =
-        try
-          Some
-            ( ContextHolderModule.eval_tau tau_greater_or_equal_simplified,
-              ContextHolderModule.eval_tau tau_smaller_simplified )
+      let tau_greater_or_equal_val =
+        let tau_list =
+          build_sorted_summed_tau_param_list tau_greater_or_equal_simplified
+        in
+        if List.length tau_list = 0 then Tau.zero
+        else
+          match List.nth tau_list (List.length tau_list - 1) with
+          | Either.Left _ -> Tau.zero
+          | Either.Right c -> c
+      in
+
+      let maybe_tau_smaller =
+        try Some (ContextHolderModule.eval_tau tau_smaller_simplified)
         with _exn -> None
       in
 
-      match maybe_tau_vals with
+      match maybe_tau_smaller with
       | None ->
-          Error.typing "Cannot compare non-ground temporal values %t >= %t"
+          Error.typing "Cannot compare temporal values %t >= %t"
             (fun ppf ->
               PrettyPrint.print_tau
                 (module Tau)
@@ -788,7 +883,7 @@ let rec check_tau_ineq_constraints state = function
                 (module Tau)
                 (PrettyPrint.TauPrintParam.create ())
                 tau_smaller_simplified ppf)
-      | Some (tau_greater_or_equal_val, tau_smaller_val) ->
+      | Some tau_smaller_val ->
           if tau_smaller_val > tau_greater_or_equal_val then
             Error.typing "Cannot unify temporal values %t >= %t"
               (fun ppf ->
@@ -817,11 +912,30 @@ let rec check_tau_abs_constraints = function
                 tau ppf))
 
 let unify state ty_eqs tau_eqs tau_ineqs tau_abs =
+  let _ty_pp = PrettyPrint.TyPrintParam.create () in
+  let _tau_pp = PrettyPrint.TauPrintParam.create () in
   let ty_subst, tau_eqs' = unify_ty_constraints state [] ty_eqs in
+
+  (* print_type_constraints ~ty_pp ~tau_pp ty_eqs; *)
+  (* print_tau_eq_constraints ~tau_pp (tau_eqs @ tau_eqs'); *)
+  (* print_tau_ineq_constraints ~tau_pp tau_ineqs; *)
   let tau_subst = unify_tau_constraints state 0 [] (tau_eqs @ tau_eqs') in
-  check_tau_ineq_constraints state (subst_tau_inequations tau_subst tau_ineqs);
+  let ty_subst' =
+    Ast.TyParamMap.map
+      (fun ty -> Ast.substitute_ty ty_subst tau_subst ty)
+      ty_subst
+  in
+
+  (* Ast.TauParamMap.iter (fun p t -> print_tau_subst ~tau_pp p t) tau_subst; *)
+  let tau_ineqs' =
+    split_tau_ineq_constraints (subst_tau_inequations tau_subst tau_ineqs)
+  in
+
+  (* print_tau_ineq_constraints ~tau_pp (subst_tau_inequations tau_subst tau_ineqs); *)
+  (* print_tau_ineq_constraints ~tau_pp tau_ineqs'; *)
+  check_tau_ineq_constraints state tau_ineqs';
   check_tau_abs_constraints (subst_tau_abstract_constraints tau_subst tau_abs);
-  (ty_subst, tau_subst)
+  (ty_subst', tau_subst)
 
 let infer state e =
   let comp_ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
@@ -829,7 +943,7 @@ let infer state e =
   in
   let ty_subst, tau_subst = unify state ty_eqs tau_eqs tau_ineqs tau_abs in
   let comp_ty' = Ast.substitute_comp_ty ty_subst tau_subst comp_ty in
-  simplify_comp_ty comp_ty'
+  simplify_comp_ty (normalise_comp_ty comp_ty')
 
 let add_external_function x ty_sch state =
   {
@@ -841,12 +955,13 @@ let add_top_definition state x expr =
   let ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs = infer_expression state expr in
   let ty_subst, tau_subst = unify state ty_eqs tau_eqs tau_ineqs tau_abs in
   let ty' = Ast.substitute_ty ty_subst tau_subst ty in
-  let ty'' = simplify_ty ty' in
-  let free_vars, free_taus = Ast.free_vars ty'' in
+  let ty'' = normalise_ty ty' in
+  let ty''' = simplify_ty ty'' in
+  let free_vars, free_taus = Ast.free_vars ty''' in
   let ty_sch =
     ( free_vars |> Ast.TyParamSet.elements,
       free_taus |> Ast.TauParamSet.elements,
-      ty'' )
+      ty''' )
   in
   add_external_function x ty_sch state
 

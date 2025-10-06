@@ -94,4 +94,5 @@ struct
     | TauParam _ ->
         raise (UnknownValueInEval "TauParam not supported in eval_tau")
     | TauAdd (t1, t2) -> Base.add (eval_tau t1) (eval_tau t2)
+    | TauMeet (t1, t2) -> Base.meet (eval_tau t1) (eval_tau t2)
 end
