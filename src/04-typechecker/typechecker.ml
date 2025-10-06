@@ -699,17 +699,10 @@ let simplify_comp_ty = function
   | Ast.CompTy (ty, tau) -> Ast.CompTy (simplify_ty ty, simplify_tau tau)
 
 (* TODO: Currently some duplications between simplification and normalisation. Should be both folded into the latter. *)
-let rec apply_meets_in_tau_lists = function
-  | [] -> []
-  | [ tau ] -> [ tau ]
-  | [ Either.Right t1 ] :: [ Either.Right t2 ] :: taus ->
-      apply_meets_in_tau_lists ([ Either.Right (Tau.meet t1 t2) ] :: taus)
-  | tau :: taus -> tau :: apply_meets_in_tau_lists taus
-
 let rec normalise_tau tau =
   build_sorted_summed_tau_param_lists tau
   |> List.sort_uniq (List.compare compare_tau)
-  |> apply_meets_in_tau_lists |> build_tau_from_param_lists
+  |> build_tau_from_param_lists
 
 and normalise_ty ty =
   match ty with
@@ -944,7 +937,7 @@ let infer state e =
   in
   let ty_subst, tau_subst = unify state ty_eqs tau_eqs tau_ineqs tau_abs in
   let comp_ty' = Ast.substitute_comp_ty ty_subst tau_subst comp_ty in
-  normalise_comp_ty comp_ty'
+  simplify_comp_ty (normalise_comp_ty comp_ty')
 
 let add_external_function x ty_sch state =
   {
@@ -955,13 +948,14 @@ let add_external_function x ty_sch state =
 let add_top_definition state x expr =
   let ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs = infer_expression state expr in
   let ty_subst, tau_subst = unify state ty_eqs tau_eqs tau_ineqs tau_abs in
-  let ty' = Ast.substitute_ty ty_subst tau_subst ty in
-  let ty'' = normalise_ty ty' in
-  let free_vars, free_taus = Ast.free_vars ty'' in
+  let ty' =
+    simplify_ty (normalise_ty (Ast.substitute_ty ty_subst tau_subst ty))
+  in
+  let free_vars, free_taus = Ast.free_vars ty' in
   let ty_sch =
     ( free_vars |> Ast.TyParamSet.elements,
       free_taus |> Ast.TauParamSet.elements,
-      ty'' )
+      ty' )
   in
   add_external_function x ty_sch state
 
