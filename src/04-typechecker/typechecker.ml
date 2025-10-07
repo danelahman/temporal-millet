@@ -440,9 +440,6 @@ and infer_computation state = function
         tau_ineqs @ tau_ineqs',
         tau_abs @ tau_abs' )
   | Ast.Unbox (e, abs) ->
-      let abstract_context_tau =
-        ContextHolderModule.abstract_tau_sum state.variables
-      in
       let rec findVar e =
         match e with
         | Ast.Var x -> x
@@ -463,8 +460,7 @@ and infer_computation state = function
       ( comp_ty,
         ((Ast.TyBox (tau, value_ty), boxed_ty) :: ty_eqs) @ ty_eqs',
         tau_eqs @ tau_eqs',
-        ((abstract_context_tau, tau) :: (sum_taus_added_after, tau) :: tau_ineqs)
-        @ tau_ineqs',
+        ((sum_taus_added_after, tau) :: tau_ineqs) @ tau_ineqs',
         tau_abs @ tau_abs' )
   | Ast.Perform (op, e, abs) -> (
       let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
@@ -821,11 +817,18 @@ let rec check_tau_abs_constraints = function
                 tau ppf))
 
 let unify state ty_eqs tau_eqs tau_ineqs tau_abs =
+  print_ty_constraints ty_eqs;
+  print_tau_eq_constraints tau_eqs;
   let ty_subst, tau_eqs' = unify_ty_constraints state [] ty_eqs in
   let tau_subst = unify_tau_constraints state 0 [] (tau_eqs @ tau_eqs') in
+  let ty_subst' =
+    Ast.TyParamMap.map
+      (fun ty -> Ast.substitute_ty ty_subst tau_subst ty)
+      ty_subst
+  in
   check_tau_ineq_constraints state (subst_tau_inequations tau_subst tau_ineqs);
   check_tau_abs_constraints (subst_tau_abstract_constraints tau_subst tau_abs);
-  (ty_subst, tau_subst)
+  (ty_subst', tau_subst)
 
 let infer state e =
   let comp_ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
