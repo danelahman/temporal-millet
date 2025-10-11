@@ -1,0 +1,93 @@
+type part     = Part of string
+type product  = Product of part * part * part
+type cleaned  = Cleaned of part
+type painted  = Painted of cleaned
+type polished = Polished of part
+
+operation Disassemble : product ~> part * part * part # 1
+operation CleanTwo    : part * part ~> ([1]cleaned) * ([3]cleaned) # 2
+operation Clean       : part ~> cleaned # 1
+operation PaintTwo    : cleaned * cleaned ~> ([2]painted) * ([3]painted) # 4
+operation PaintLeft   : cleaned ~> [2]painted # 1
+operation PaintRight  : cleaned ~> [3]painted # 2
+operation Polish      : part ~> [2]polished # 3
+operation Assemble    : polished * painted * painted ~> product # 5
+
+let clean_handler = 
+  handler 
+  | x -> x
+  | Clean p k ->
+      delay 1;
+      continue k with (Cleaned p)
+
+let clean_two_handler =
+  handler
+  | x -> x
+  | CleanTwo (ldoor, rdoor) k ->
+      let cl_ldoor = perform Clean ldoor in
+      let cl_rdoor = perform Clean rdoor in
+      continue k with ((box 1 cl_ldoor),(box 3 cl_rdoor))
+
+let paint_handler = 
+  handler
+  | x -> x
+  | PaintLeft ldoor k ->
+      delay 1;
+      continue k with (box 2 (Painted ldoor))
+  | PaintRight rdoor k ->
+      delay 2;
+      continue k with (box 3 (Painted rdoor))
+
+let paint_two_handler =
+  handler
+  | x -> x
+  | PaintTwo (ldoor, rdoor) k -> 
+      let boxed_cl_ldoor = perform PaintLeft ldoor in
+      delay 1;
+      let boxed_cl_rdoor = perform PaintRight rdoor in
+      continue k with (boxed_cl_ldoor,boxed_cl_rdoor)
+
+let polish_handler =
+  handler
+  | x -> x
+  | Polish body k ->
+      let boxed_pl_body = box 2 (Polished body) in
+      delay 3;
+      continue k with boxed_pl_body
+
+let disassemble_assemble_handler =
+  handler
+  | x -> x
+  | Disassemble (Product (body, ldoor, rdoor)) k ->
+      delay 1;
+      continue k with (body, ldoor, rdoor)
+  | Assemble ((Polished body), (Painted (Cleaned ldoor)), (Painted (Cleaned rdoor))) k ->
+      delay 5;
+      continue k with (Product (body, ldoor, rdoor))
+
+let prog () =
+  let (body,ldoor,rdoor) = 
+    perform Disassemble (Product ((Part "body"), (Part "left_door"), (Part "right_door"))) in
+  let (boxed_cl_ldoor,boxed_cl_rdoor) = 
+    perform CleanTwo (ldoor,rdoor) in
+  let boxed_pl_body = 
+    perform Polish body in
+  let (boxed_pt_ldoor,boxed_pt_rdoor) = 
+    perform PaintTwo ((unbox boxed_cl_ldoor),(unbox boxed_cl_rdoor)) in
+  delay 4;
+  perform Assemble ((unbox boxed_pl_body), (unbox boxed_pt_ldoor), (unbox boxed_pt_rdoor))
+
+run
+  handle
+    handle
+      handle
+        handle
+          handle 
+            handle 
+              prog ()
+            with clean_two_handler
+          with paint_two_handler
+        with clean_handler
+      with paint_handler
+    with polish_handler
+  with disassemble_assemble_handler
