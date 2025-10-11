@@ -36,6 +36,13 @@ let binary_float_op_ty tau =
       ( Ast.TyTuple [ Ast.TyConst Const.FloatTy; Ast.TyConst Const.FloatTy ],
         Ast.CompTy (Ast.TyConst Const.FloatTy, tau) ) )
 
+let binary_string_op_ty tau =
+  ( [],
+    [],
+    Ast.TyArrow
+      ( Ast.TyTuple [ Ast.TyConst Const.StringTy; Ast.TyConst Const.StringTy ],
+        Ast.CompTy (Ast.TyConst Const.StringTy, tau) ) )
+
 let comparison_ty tau =
   poly_type (fun a ->
       Ast.TyArrow
@@ -60,6 +67,7 @@ let primitive_type_scheme = function
   | Primitives.FloatDiv -> binary_float_op_ty (Ast.TauConst Tau.zero)
   | Primitives.FloatPow -> binary_float_op_ty (Ast.TauConst Tau.zero)
   | Primitives.FloatNeg -> unary_float_op_ty (Ast.TauConst Tau.zero)
+  | Primitives.StringCat -> binary_string_op_ty (Ast.TauConst Tau.zero)
   | Primitives.ToString ->
       poly_type (fun a ->
           Ast.TyArrow

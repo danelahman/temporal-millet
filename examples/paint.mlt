@@ -16,9 +16,9 @@ operation Assemble    : polished * painted * painted ~> product # 5
 let clean_handler = 
   handler 
   | x -> x
-  | Clean p k ->
+  | Clean (Part p) k ->
       delay 1;
-      continue k with (Cleaned p)
+      continue k with (Cleaned (Part (cat ("cleaned_", p))))
 
 let clean_two_handler =
   handler
@@ -31,12 +31,12 @@ let clean_two_handler =
 let paint_handler = 
   handler
   | x -> x
-  | PaintLeft ldoor k ->
+  | PaintLeft (Cleaned (Part ldoor)) k ->
       delay 1;
-      continue k with (box 2 (Painted ldoor))
-  | PaintRight rdoor k ->
+      continue k with (box 2 (Painted (Cleaned (Part (cat ("painted_",ldoor))))))
+  | PaintRight (Cleaned (Part rdoor)) k ->
       delay 2;
-      continue k with (box 3 (Painted rdoor))
+      continue k with (box 3 (Painted (Cleaned (Part (cat ("painted_",rdoor))))))
 
 let paint_two_handler =
   handler
@@ -50,8 +50,8 @@ let paint_two_handler =
 let polish_handler =
   handler
   | x -> x
-  | Polish body k ->
-      let boxed_pl_body = box 2 (Polished body) in
+  | Polish (Part body) k ->
+      let boxed_pl_body = box 2 (Polished (Part (cat ("polished_",body)))) in
       delay 3;
       continue k with boxed_pl_body
 
@@ -67,7 +67,7 @@ let disassemble_assemble_handler =
 
 let prog () =
   let (body,ldoor,rdoor) = 
-    perform Disassemble (Product ((Part "body"), (Part "left_door"), (Part "right_door"))) in
+    perform Disassemble (Product ((Part "body"), (Part ("left_door")), (Part "right_door"))) in
   let (boxed_cl_ldoor,boxed_cl_rdoor) = 
     perform CleanTwo (ldoor,rdoor) in
   let boxed_pl_body = 

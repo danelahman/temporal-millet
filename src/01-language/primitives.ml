@@ -17,6 +17,7 @@ type primitive =
   | FloatDiv
   | FloatPow
   | FloatNeg
+  | StringCat
   | ToString
 
 (* Keep this list up to date with the type above, otherwise the missing primitives will not be loaded *)
@@ -40,6 +41,7 @@ let primitives =
     FloatDiv;
     FloatPow;
     FloatNeg;
+    StringCat;
     ToString;
   ]
 
@@ -62,4 +64,5 @@ let primitive_name = function
   | FloatDiv -> "__float_div__"
   | FloatPow -> "__float_pow__"
   | FloatNeg -> "__float_neg__"
+  | StringCat -> "__string_cat__"
   | ToString -> "to_string"

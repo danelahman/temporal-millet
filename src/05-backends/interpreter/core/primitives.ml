@@ -23,6 +23,12 @@ let get_float = function
       Error.runtime "Float expected but got %t"
         (PrettyPrint.print_expression (module Tau) expr)
 
+let get_string = function
+  | Ast.Const (Const.String n) -> n
+  | expr ->
+      Error.runtime "String expected but got %t"
+        (PrettyPrint.print_expression (module Tau) expr)
+
 let int_to f expr =
   let n = get_int expr in
   f n
@@ -58,6 +64,18 @@ let float_to_float f =
 
 let float_float_to_float f =
   float_float_to (fun n1 n2 -> Ast.Return (Ast.Const (Const.Float (f n1 n2))))
+
+let string_string_to f expr =
+  binary_function
+    (fun expr1 expr2 ->
+      let n1 = get_string expr1 in
+      let n2 = get_string expr2 in
+      f n1 n2)
+    expr
+
+let string_string_to_string f =
+  string_string_to (fun n1 n2 ->
+      Ast.Return (Ast.Const (Const.String (f n1 n2))))
 
 let rec comparable_expression = function
   | Ast.Var _ -> true
@@ -99,6 +117,7 @@ let primitive_function = function
   | Primitives.FloatDiv -> float_float_to_float ( /. )
   | Primitives.FloatPow -> float_float_to_float ( ** )
   | Primitives.FloatNeg -> float_to_float ( ~-. )
+  | Primitives.StringCat -> string_string_to_string String.cat
   | Primitives.ToString ->
       fun expr ->
         Ast.Return

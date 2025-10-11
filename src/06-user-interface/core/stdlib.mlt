@@ -135,3 +135,7 @@ let fst (x, _) = x
 let snd (_, y) = y
   
 let return x = x
+
+(* Strings *)
+
+let cat = __string_cat__
