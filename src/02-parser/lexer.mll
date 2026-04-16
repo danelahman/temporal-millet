@@ -1,5 +1,5 @@
 {
-  open Grammar
+  open Token
   open Utils
 
   module StringMap = Map.Make (String)

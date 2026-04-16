@@ -240,7 +240,7 @@ let run_view (run_model : Model.run_model) =
   view_contents
     [
       Model.Backend.view_run_state run_model.run_state
-        (Option.map (fun step -> step.WebInterpreter.label) selected_step);
+        (Option.map (fun step -> step.Model.Backend.label) selected_step);
     ]
     [ view_steps run_model steps ]
 

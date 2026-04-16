@@ -5,18 +5,20 @@ module Ast = Language.Ast
 open Backend
 
 module Loader (Backend : Backend.S) = struct
+  module D = Desugarer.Make (Backend.Tau)
+  module TC = Typechecker.Make (Backend.Tau)
+  module G = Parser.Grammar.Make (Backend.Tau)
+
   type state = {
-    desugarer : Desugarer.state;
+    desugarer : D.state;
     backend : Backend.load_state;
-    typechecker : Typechecker.state;
+    typechecker : TC.state;
   }
 
   let load_primitive state prim =
     let x = Ast.Variable.fresh (Language.Primitives.primitive_name prim) in
-    let desugarer_state' = Desugarer.load_primitive state.desugarer x prim in
-    let typechecker_state' =
-      Typechecker.load_primitive state.typechecker x prim
-    in
+    let desugarer_state' = D.load_primitive state.desugarer x prim in
+    let typechecker_state' = TC.load_primitive state.typechecker x prim in
     let backend_state' = Backend.load_primitive state.backend x prim in
     {
       desugarer = desugarer_state';
@@ -27,8 +29,8 @@ module Loader (Backend : Backend.S) = struct
   let initial_state =
     let initial_state_without_primitives =
       {
-        desugarer = Desugarer.initial_state;
-        typechecker = Typechecker.initial_state;
+        desugarer = D.initial_state;
+        typechecker = TC.initial_state;
         backend = Backend.initial_load_state;
       }
     in
@@ -37,8 +39,8 @@ module Loader (Backend : Backend.S) = struct
       Language.Primitives.primitives
 
   let parse_commands lexbuf =
-    try Parser.Grammar.commands Parser.Lexer.token lexbuf with
-    | Parser.Grammar.Error ->
+    try G.commands Parser.Lexer.token lexbuf with
+    | G.Error ->
         Error.syntax
           ~loc:(Location.of_lexeme (Lexing.lexeme_start_p lexbuf))
           "parser error"
@@ -50,7 +52,7 @@ module Loader (Backend : Backend.S) = struct
   let execute_command state = function
     | Ast.TyDef ty_defs ->
         let typechecker_state' =
-          Typechecker.add_type_definitions state.typechecker ty_defs
+          TC.add_type_definitions state.typechecker ty_defs
         in
         let backend_state' = Backend.load_ty_def state.backend ty_defs in
         {
@@ -60,8 +62,7 @@ module Loader (Backend : Backend.S) = struct
         }
     | Ast.OpSig (op, ty1, ty2, tau) ->
         let typechecker_state' =
-          Typechecker.add_operation_signature state.typechecker
-            (op, ty1, ty2, tau)
+          TC.add_operation_signature state.typechecker (op, ty1, ty2, tau)
         in
         let _evaluation_environment_state' = state.backend in
         {
@@ -71,7 +72,7 @@ module Loader (Backend : Backend.S) = struct
         }
     | Ast.TopLet (x, expr) ->
         let typechecker_state' =
-          Typechecker.add_top_definition state.typechecker x expr
+          TC.add_top_definition state.typechecker x expr
         in
         let backend_state' = Backend.load_top_let state.backend x expr in
         {
@@ -80,13 +81,13 @@ module Loader (Backend : Backend.S) = struct
           backend = backend_state';
         }
     | Ast.TopDo comp ->
-        let _ = Typechecker.infer state.typechecker comp in
+        let _ = TC.infer state.typechecker comp in
         let backend_state' = Backend.load_top_do state.backend comp in
         { state with backend = backend_state' }
 
   let load_commands state cmds =
     let desugarer_state', cmds' =
-      List.fold_map Desugarer.desugar_command state.desugarer cmds
+      List.fold_map D.desugar_command state.desugarer cmds
     in
     let state' = { state with desugarer = desugarer_state' } in
     List.fold_left execute_command state' cmds'

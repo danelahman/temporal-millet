@@ -1,1 +1,1 @@
-include CliBackend.S
+module Make (Tau : Language.Tau.S) : CliBackend.S with module Tau = Tau

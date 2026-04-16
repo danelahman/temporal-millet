@@ -1,19 +1,30 @@
 module Ast = Language.Ast
-module Tau = Language.Tau.TauImpl
-module Context = Language.Context
 module Primitives = Language.Primitives
 
-module ContextHolderModule =
-  Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (Tau)
-
 module type S = sig
+  module Tau : Language.Tau.S
+
   type load_state
 
   type evaluation_environment = {
-    state : (Tau.t Ast.tau * Tau.t Ast.expression) ContextHolderModule.t;
-    variables : Tau.t Ast.expression ContextHolderModule.t;
+    state :
+      ( Ast.Variable.t,
+        (Tau.t Ast.tau * Tau.t Ast.expression) Ast.VariableMap.t,
+        Tau.t Ast.tau )
+      Ast.context_elem_ty
+      list;
+    variables :
+      ( Ast.Variable.t,
+        Tau.t Ast.expression Ast.VariableMap.t,
+        Tau.t Ast.tau )
+      Ast.context_elem_ty
+      list;
     builtin_functions :
-      (Tau.t Ast.expression -> Tau.t Ast.computation) ContextHolderModule.t;
+      ( Ast.Variable.t,
+        (Tau.t Ast.expression -> Tau.t Ast.computation) Ast.VariableMap.t,
+        Tau.t Ast.tau )
+      Ast.context_elem_ty
+      list;
     resource_counter : int;
     op_signatures : Tau.t Ast.tau Ast.OpNameMap.t;
   }

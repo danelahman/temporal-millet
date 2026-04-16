@@ -3,6 +3,8 @@
   open Utils
 %}
 
+%parameter<Tau : Language.Tau.S>
+
 %token LPAREN RPAREN LBRACK RBRACK
 %token COLON COMMA SEMI EQUAL CONS
 %token BEGIN END
@@ -40,8 +42,8 @@
 %left  INFIXOP3 STAR MOD LAND LOR LXOR
 %right INFIXOP4 LSL LSR ASR
 
-%start <SugaredAst.term> payload
-%start <SugaredAst.command list> commands
+%start <Tau.t SugaredAst.term> payload
+%start <Tau.t SugaredAst.command list> commands
 
 %%
 
@@ -60,8 +62,8 @@ command: mark_position(plain_command) { $1 }
 plain_command:
   | TYPE defs = separated_nonempty_list(AND, ty_def)
     { TyDef defs }
-  | OPERATION op = UNAME COLON ty1 = ty SIGARROW ty2 = ty HASH tau = INT
-    { OpSig (op, ty1, ty2, tau) }
+  | OPERATION op = UNAME COLON ty1 = ty SIGARROW ty2 = ty HASH grade = tau_grade
+    { OpSig (op, ty1, ty2, grade) }
   | LET x = ident t = lambdas0(EQUAL)
     { TopLet (x, t) }
   | LET REC def = let_rec_def
@@ -91,12 +93,12 @@ plain_term:
     { Let ({it= PNonbinding; at= t1.at}, t1, t2) }
   | IF t_cond = comma_term THEN t_true = term ELSE t_false = term
     { Conditional (t_cond, t_true, t_false) }
-  | DELAY tau = INT
-    { Delay tau }
-  | BOX tau = INT e = term AS p = pattern IN c = term
-    { Box (tau, e, (p, c)) }
-  | BOX tau = INT e = term
-    { GenBox (tau, e) }
+  | DELAY grade = INT
+    { Delay grade }
+  | BOX grade = tau_grade e = term AS p = pattern IN c = term
+    { Box (grade, e, (p, c)) }
+  | BOX grade = tau_grade e = term
+    { GenBox (grade, e) }
   | UNBOX e = term AS p = pattern IN c = term
     { Unbox (e, (p, c)) }
   | UNBOX e = term
@@ -402,10 +404,10 @@ defined_ty:
 
 ty: mark_position(plain_ty) { $1 }
 plain_ty:
-  | t1 = ty_apply ARROW t2 = ty HASH tau = INT
-    { TyArrow (t1, CompTy (t2, tau)) }
+  | t1 = ty_apply ARROW t2 = ty HASH grade = tau_grade
+    { TyArrow (t1, CompTy (t2, grade)) }
   | t1 = ty_apply ARROW t2 = ty
-    { TyArrow (t1, CompTy (t2, 0)) }
+    { TyArrow (t1, CompTy (t2, Tau.zero)) }
   | t = plain_prod_ty
     { t }
 
@@ -432,8 +434,8 @@ plain_simple_ty:
     { TyApply (t, []) }
   | t = PARAM
     { TyParam t }
-  | LBRACK tau = INT RBRACK ty = ty
-    { TyBox (tau, ty) }
+  | LBRACK grade = tau_grade RBRACK ty = ty
+    { TyBox (grade, ty) }
   | LPAREN t = ty RPAREN
     { t.it }
 
@@ -442,5 +444,9 @@ sum_case:
     { (lbl, None) }
   | lbl = UNAME OF t = ty
     { (lbl, Some t) }
+
+tau_grade:
+  | n = INT { Tau.of_lit (Language.Tau.Int n) }
+  | LPAREN n = INT COMMA m = INT RPAREN { Tau.of_lit (Language.Tau.Pair (n, m)) }
 
 %%

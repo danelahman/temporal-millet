@@ -1,1 +1,1 @@
-include WebBackend.S
+module Make (Tau : Language.Tau.S) : WebBackend.S with module Tau = Tau

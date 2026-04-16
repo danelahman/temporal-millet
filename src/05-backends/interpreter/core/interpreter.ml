@@ -1,517 +1,539 @@
 module Error = Utils.Error
 module Ast = Language.Ast
-module Tau = Language.Tau.TauImpl
 module Const = Language.Const
 module Context = Language.Context
 module PrettyPrint = Language.PrettyPrint
 
-module ContextHolderModule =
-  Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (Tau)
+module Types = struct
+  type computation_redex =
+    | Match
+    | ApplyFun
+    | DoReturn
+    | DoOp
+    | Delay
+    | Box
+    | Unbox
+    | HandleReturn
+    | HandleOp
 
-type evaluation_environment = {
-  state : (Tau.t Ast.tau * Tau.t Ast.expression) ContextHolderModule.t;
-  variables : Tau.t Ast.expression ContextHolderModule.t;
-  builtin_functions :
-    (Tau.t Ast.expression -> Tau.t Ast.computation) ContextHolderModule.t;
-  resource_counter : int;
-  op_signatures : Tau.t Ast.tau Ast.OpNameMap.t;
-}
+  type computation_reduction =
+    | DoCtx of computation_reduction
+    | HandleCtx of computation_reduction
+    | ComputationRedex of computation_redex
 
-let initial_environment =
-  {
-    state = ContextHolderModule.empty;
-    variables = ContextHolderModule.empty;
-    builtin_functions = ContextHolderModule.empty;
-    resource_counter = 0;
-    op_signatures = Ast.OpNameMap.empty;
+  type step_label = ComputationReduction of computation_reduction | Return
+end
+
+module Make (T : Language.Tau.S) = struct
+  module Tau = T
+
+  module ContextHolderModule =
+    Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (Tau)
+
+  module P = Primitives.Make (Tau)
+  include Types
+
+  type evaluation_environment = {
+    state : (Tau.t Ast.tau * Tau.t Ast.expression) ContextHolderModule.t;
+    variables : Tau.t Ast.expression ContextHolderModule.t;
+    builtin_functions :
+      (Tau.t Ast.expression -> Tau.t Ast.computation) ContextHolderModule.t;
+    resource_counter : int;
+    op_signatures : Tau.t Ast.tau Ast.OpNameMap.t;
   }
 
-exception PatternMismatch
+  let initial_environment =
+    {
+      state = ContextHolderModule.empty;
+      variables = ContextHolderModule.empty;
+      builtin_functions = ContextHolderModule.empty;
+      resource_counter = 0;
+      op_signatures = Ast.OpNameMap.empty;
+    }
 
-type computation_redex =
-  | Match
-  | ApplyFun
-  | DoReturn
-  | DoOp
-  | Delay
-  | Box
-  | Unbox
-  | HandleReturn
-  | HandleOp
+  exception PatternMismatch
 
-type computation_reduction =
-  | DoCtx of computation_reduction
-  | HandleCtx of computation_reduction
-  | ComputationRedex of computation_redex
+  let rec eval_tuple (env : evaluation_environment) = function
+    | Ast.Tuple exprs -> exprs
+    | Ast.Var x ->
+        eval_tuple env (ContextHolderModule.find_variable x env.variables)
+    | expr ->
+        Error.runtime "Tuple expected but got %t"
+          (PrettyPrint.print_expression (module Tau) expr)
 
-let rec eval_tuple (env : evaluation_environment) = function
-  | Ast.Tuple exprs -> exprs
-  | Ast.Var x ->
-      eval_tuple env (ContextHolderModule.find_variable x env.variables)
-  | expr ->
-      Error.runtime "Tuple expected but got %t"
-        (PrettyPrint.print_expression (module Tau) expr)
+  let rec eval_variant (env : evaluation_environment) = function
+    | Ast.Variant (lbl, expr) -> (lbl, expr)
+    | Ast.Var x ->
+        eval_variant env (ContextHolderModule.find_variable x env.variables)
+    | expr ->
+        Error.runtime "Variant expected but got %t"
+          (PrettyPrint.print_expression (module Tau) expr)
 
-let rec eval_variant (env : evaluation_environment) = function
-  | Ast.Variant (lbl, expr) -> (lbl, expr)
-  | Ast.Var x ->
-      eval_variant env (ContextHolderModule.find_variable x env.variables)
-  | expr ->
-      Error.runtime "Variant expected but got %t"
-        (PrettyPrint.print_expression (module Tau) expr)
+  let rec eval_const (env : evaluation_environment) = function
+    | Ast.Const c -> c
+    | Ast.Var x ->
+        eval_const env (ContextHolderModule.find_variable x env.variables)
+    | expr ->
+        Error.runtime "Const expected but got %t"
+          (PrettyPrint.print_expression (module Tau) expr)
 
-let rec eval_const (env : evaluation_environment) = function
-  | Ast.Const c -> c
-  | Ast.Var x ->
-      eval_const env (ContextHolderModule.find_variable x env.variables)
-  | expr ->
-      Error.runtime "Const expected but got %t"
-        (PrettyPrint.print_expression (module Tau) expr)
+  let rec match_pattern_with_expression env pat expr =
+    match pat with
+    | Ast.PVar x -> Ast.VariableMap.singleton x expr
+    | Ast.PAnnotated (pat, _) -> match_pattern_with_expression env pat expr
+    | Ast.PAs (pat, x) ->
+        let subst = match_pattern_with_expression env pat expr in
+        Ast.VariableMap.add x expr subst
+    | Ast.PTuple pats ->
+        let exprs = eval_tuple env expr in
+        List.fold_left2
+          (fun subst pat expr ->
+            let subst' = match_pattern_with_expression env pat expr in
+            Ast.VariableMap.union (fun _ _ _ -> assert false) subst subst')
+          Ast.VariableMap.empty pats exprs
+    | Ast.PVariant (label, pat) -> (
+        match (pat, eval_variant env expr) with
+        | None, (label', None) when label = label' -> Ast.VariableMap.empty
+        | Some pat, (label', Some expr) when label = label' ->
+            match_pattern_with_expression env pat expr
+        | _, _ -> raise PatternMismatch)
+    | Ast.PConst c when Const.equal c (eval_const env expr) ->
+        Ast.VariableMap.empty
+    | Ast.PNonbinding -> Ast.VariableMap.empty
+    | _ -> raise PatternMismatch
 
-let rec match_pattern_with_expression env pat expr =
-  match pat with
-  | Ast.PVar x -> Ast.VariableMap.singleton x expr
-  | Ast.PAnnotated (pat, _) -> match_pattern_with_expression env pat expr
-  | Ast.PAs (pat, x) ->
-      let subst = match_pattern_with_expression env pat expr in
-      Ast.VariableMap.add x expr subst
-  | Ast.PTuple pats ->
-      let exprs = eval_tuple env expr in
-      List.fold_left2
-        (fun subst pat expr ->
-          let subst' = match_pattern_with_expression env pat expr in
-          Ast.VariableMap.union (fun _ _ _ -> assert false) subst subst')
-        Ast.VariableMap.empty pats exprs
-  | Ast.PVariant (label, pat) -> (
-      match (pat, eval_variant env expr) with
-      | None, (label', None) when label = label' -> Ast.VariableMap.empty
-      | Some pat, (label', Some expr) when label = label' ->
-          match_pattern_with_expression env pat expr
-      | _, _ -> raise PatternMismatch)
-  | Ast.PConst c when Const.equal c (eval_const env expr) ->
-      Ast.VariableMap.empty
-  | Ast.PNonbinding -> Ast.VariableMap.empty
-  | _ -> raise PatternMismatch
+  let rec remove_pattern_bound_variables subst = function
+    | Ast.PVar x -> Ast.VariableMap.remove x subst
+    | Ast.PAnnotated (pat, _) -> remove_pattern_bound_variables subst pat
+    | Ast.PAs (pat, x) ->
+        let subst = remove_pattern_bound_variables subst pat in
+        Ast.VariableMap.remove x subst
+    | Ast.PTuple pats ->
+        List.fold_left remove_pattern_bound_variables subst pats
+    | Ast.PVariant (_, None) -> subst
+    | Ast.PVariant (_, Some pat) -> remove_pattern_bound_variables subst pat
+    | Ast.PConst _ -> subst
+    | Ast.PNonbinding -> subst
 
-let rec remove_pattern_bound_variables subst = function
-  | Ast.PVar x -> Ast.VariableMap.remove x subst
-  | Ast.PAnnotated (pat, _) -> remove_pattern_bound_variables subst pat
-  | Ast.PAs (pat, x) ->
-      let subst = remove_pattern_bound_variables subst pat in
-      Ast.VariableMap.remove x subst
-  | Ast.PTuple pats -> List.fold_left remove_pattern_bound_variables subst pats
-  | Ast.PVariant (_, None) -> subst
-  | Ast.PVariant (_, Some pat) -> remove_pattern_bound_variables subst pat
-  | Ast.PConst _ -> subst
-  | Ast.PNonbinding -> subst
-
-let rec refresh_pattern = function
-  | Ast.PVar x ->
-      let x' = Ast.Variable.refresh x in
-      (Ast.PVar x', [ (x, x') ])
-  | Ast.PAnnotated (pat, _) -> refresh_pattern pat
-  | Ast.PAs (pat, x) ->
-      let pat', vars = refresh_pattern pat in
-      let x' = Ast.Variable.refresh x in
-      (Ast.PAs (pat', x'), (x, x') :: vars)
-  | Ast.PTuple pats ->
-      let fold pat (pats', vars) =
-        let pat', vars' = refresh_pattern pat in
-        (pat' :: pats', vars' @ vars)
-      in
-      let pats', vars = List.fold_right fold pats ([], []) in
-      (Ast.PTuple pats', vars)
-  | Ast.PVariant (lbl, Some pat) ->
-      let pat', vars = refresh_pattern pat in
-      (PVariant (lbl, Some pat'), vars)
-  | (PVariant (_, None) | PConst _ | PNonbinding) as pat -> (pat, [])
-
-(** | Ast.Handler ((y, ret_case), op_cases) -> let y' = Ast.Variable.refresh y
-    in let ret_case' = refresh_computation ((y, y') :: vars) ret_case in let
-    op_cases' = Ast.OpNameMap.map (fun (x, k, op_case) -> let x' =
-    Ast.Variable.refresh x in let k' = Ast.Variable.refresh k in let op_case' =
-    refresh_computation ((x, x') :: (k, k') :: vars) op_case in (x', k',
-    op_case')) op_cases in Ast.Handler ((y', ret_case'), op_cases') *)
-let rec refresh_expression vars = function
-  | Ast.Var x as expr -> (
-      match List.assoc_opt x vars with None -> expr | Some x' -> Var x')
-  | Ast.Const _ as expr -> expr
-  | Ast.Annotated (expr, ty) -> Ast.Annotated (refresh_expression vars expr, ty)
-  | Ast.Tuple exprs -> Ast.Tuple (List.map (refresh_expression vars) exprs)
-  | Ast.Variant (label, expr) ->
-      Ast.Variant (label, Option.map (refresh_expression vars) expr)
-  | Ast.Lambda abs -> Ast.Lambda (refresh_abstraction vars abs)
-  | Ast.PureLambda abs -> Ast.PureLambda (refresh_abstraction vars abs)
-  | Ast.RecLambda (x, abs) ->
-      let x' = Ast.Variable.refresh x in
-      Ast.RecLambda (x', refresh_abstraction ((x, x') :: vars) abs)
-  | Ast.Handler (ret_case, op_cases) ->
-      let ret_case' = refresh_abstraction vars ret_case in
-      let op_cases' =
-        Ast.OpNameMap.map
-          (fun op_case -> refresh_abstraction vars op_case)
-          op_cases
-      in
-      Ast.Handler (ret_case', op_cases')
-
-and refresh_computation vars = function
-  | Ast.Return expr -> Ast.Return (refresh_expression vars expr)
-  | Ast.Do (comp, abs) ->
-      Ast.Do (refresh_computation vars comp, refresh_abstraction vars abs)
-  | Ast.Match (expr, cases) ->
-      Ast.Match
-        (refresh_expression vars expr, List.map (refresh_abstraction vars) cases)
-  | Ast.Apply (expr1, expr2) ->
-      Ast.Apply (refresh_expression vars expr1, refresh_expression vars expr2)
-  | Ast.Delay (tau, c) -> Ast.Delay (tau, refresh_computation vars c)
-  | Ast.Box (tau, e, abs) ->
-      let e' = refresh_expression vars e in
-      let abs' = refresh_abstraction vars abs in
-      Ast.Box (tau, e', abs')
-  | Ast.Unbox (e, abs) ->
-      let e' = refresh_expression vars e in
-      let abs' = refresh_abstraction vars abs in
-      Ast.Unbox (e', abs')
-  | Ast.Perform (op, e, abs) ->
-      let e' = refresh_expression vars e in
-      let abs' = refresh_abstraction vars abs in
-      Ast.Perform (op, e', abs')
-  | Ast.Handle (c, h) ->
-      let c' = refresh_computation vars c in
-      let h' = refresh_expression vars h in
-      Ast.Handle (c', h')
-
-and refresh_abstraction vars (pat, comp) =
-  let pat', vars' = refresh_pattern pat in
-  (pat', refresh_computation (vars @ vars') comp)
-
-let rec substitute_expression subst = function
-  | Ast.Var x as expr -> (
-      match Ast.VariableMap.find_opt x subst with
-      | None -> expr
-      | Some expr -> expr)
-  | Ast.Const _ as expr -> expr
-  | Ast.Annotated (expr, ty) -> Annotated (substitute_expression subst expr, ty)
-  | Ast.Tuple exprs -> Tuple (List.map (substitute_expression subst) exprs)
-  | Ast.Variant (label, expr) ->
-      Variant (label, Option.map (substitute_expression subst) expr)
-  | Ast.Lambda abs -> Lambda (substitute_abstraction subst abs)
-  | Ast.PureLambda abs -> PureLambda (substitute_abstraction subst abs)
-  | Ast.RecLambda (x, abs) -> RecLambda (x, substitute_abstraction subst abs)
-  | Ast.Handler (ret_case, op_cases) ->
-      Ast.Handler
-        ( substitute_abstraction subst ret_case,
-          Ast.OpNameMap.map
-            (fun op_case -> substitute_abstraction subst op_case)
-            op_cases )
-
-and substitute_computation subst = function
-  | Ast.Return expr -> Ast.Return (substitute_expression subst expr)
-  | Ast.Do (comp, abs) ->
-      Ast.Do
-        (substitute_computation subst comp, substitute_abstraction subst abs)
-  | Ast.Match (expr, cases) ->
-      Ast.Match
-        ( substitute_expression subst expr,
-          List.map (substitute_abstraction subst) cases )
-  | Ast.Apply (expr1, expr2) ->
-      Ast.Apply
-        (substitute_expression subst expr1, substitute_expression subst expr2)
-  | Ast.Delay (tau, c) -> Ast.Delay (tau, substitute_computation subst c)
-  | Ast.Box (tau, e, abs) ->
-      Ast.Box
-        (tau, substitute_expression subst e, substitute_abstraction subst abs)
-  | Ast.Unbox (e, abs) ->
-      Ast.Unbox (substitute_expression subst e, substitute_abstraction subst abs)
-  | Ast.Perform (op, e, abs) ->
-      Ast.Perform
-        (op, substitute_expression subst e, substitute_abstraction subst abs)
-  | Ast.Handle (c, h) ->
-      Ast.Handle (substitute_computation subst c, substitute_expression subst h)
-
-and substitute_abstraction subst (pat, comp) =
-  let subst' = remove_pattern_bound_variables subst pat in
-  (pat, substitute_computation subst' comp)
-
-let substitute subst comp =
-  let subst = Ast.VariableMap.map (refresh_expression []) subst in
-  substitute_computation subst comp
-
-let rec eval_function env = function
-  | Ast.Lambda (pat, comp) ->
-      fun arg ->
-        let subst = match_pattern_with_expression env pat arg in
-        substitute subst comp
-  | Ast.PureLambda (pat, comp) ->
-      fun arg ->
-        let subst = match_pattern_with_expression env pat arg in
-        substitute subst comp
-  | Ast.RecLambda (f, (pat, comp)) as expr ->
-      fun arg ->
-        let subst =
-          match_pattern_with_expression env pat arg
-          |> Ast.VariableMap.add f expr
+  let rec refresh_pattern = function
+    | Ast.PVar x ->
+        let x' = Ast.Variable.refresh x in
+        (Ast.PVar x', [ (x, x') ])
+    | Ast.PAnnotated (pat, _) -> refresh_pattern pat
+    | Ast.PAs (pat, x) ->
+        let pat', vars = refresh_pattern pat in
+        let x' = Ast.Variable.refresh x in
+        (Ast.PAs (pat', x'), (x, x') :: vars)
+    | Ast.PTuple pats ->
+        let fold pat (pats', vars) =
+          let pat', vars' = refresh_pattern pat in
+          (pat' :: pats', vars' @ vars)
         in
-        substitute subst comp
-  | Ast.Var x -> (
-      match ContextHolderModule.find_variable_opt x env.variables with
-      | Some expr -> eval_function env expr
-      | None -> ContextHolderModule.find_variable x env.builtin_functions)
-  | expr ->
-      Error.runtime "Function expected but got %t"
-        (PrettyPrint.print_expression (module Tau) expr)
+        let pats', vars = List.fold_right fold pats ([], []) in
+        (Ast.PTuple pats', vars)
+    | Ast.PVariant (lbl, Some pat) ->
+        let pat', vars = refresh_pattern pat in
+        (PVariant (lbl, Some pat'), vars)
+    | (PVariant (_, None) | PConst _ | PNonbinding) as pat -> (pat, [])
 
-let rec eval_handler env = function
-  | Ast.Handler (ret_case, op_cases) -> (ret_case, op_cases)
-  | Ast.Var x -> (
-      match ContextHolderModule.find_variable_opt x env.variables with
-      | Some expr -> eval_handler env expr
-      | None ->
-          Error.runtime "Handler expected but did not find it from environment")
-  | expr ->
-      Error.runtime "Handler expected but got %t"
-        (PrettyPrint.print_expression (module Tau) expr)
+  (** | Ast.Handler ((y, ret_case), op_cases) -> let y' = Ast.Variable.refresh y
+      in let ret_case' = refresh_computation ((y, y') :: vars) ret_case in let
+      op_cases' = Ast.OpNameMap.map (fun (x, k, op_case) -> let x' =
+      Ast.Variable.refresh x in let k' = Ast.Variable.refresh k in let op_case'
+      = refresh_computation ((x, x') :: (k, k') :: vars) op_case in (x', k',
+      op_case')) op_cases in Ast.Handler ((y', ret_case'), op_cases') *)
+  let rec refresh_expression vars = function
+    | Ast.Var x as expr -> (
+        match List.assoc_opt x vars with None -> expr | Some x' -> Var x')
+    | Ast.Const _ as expr -> expr
+    | Ast.Annotated (expr, ty) ->
+        Ast.Annotated (refresh_expression vars expr, ty)
+    | Ast.Tuple exprs -> Ast.Tuple (List.map (refresh_expression vars) exprs)
+    | Ast.Variant (label, expr) ->
+        Ast.Variant (label, Option.map (refresh_expression vars) expr)
+    | Ast.Lambda abs -> Ast.Lambda (refresh_abstraction vars abs)
+    | Ast.PureLambda abs -> Ast.PureLambda (refresh_abstraction vars abs)
+    | Ast.RecLambda (x, abs) ->
+        let x' = Ast.Variable.refresh x in
+        Ast.RecLambda (x', refresh_abstraction ((x, x') :: vars) abs)
+    | Ast.Handler (ret_case, op_cases) ->
+        let ret_case' = refresh_abstraction vars ret_case in
+        let op_cases' =
+          Ast.OpNameMap.map
+            (fun op_case -> refresh_abstraction vars op_case)
+            op_cases
+        in
+        Ast.Handler (ret_case', op_cases')
 
-let step_in_context step env redCtx ctx term =
-  let terms' = step env term in
-  List.map
-    (fun (env, red, term') -> (env, redCtx red, fun () -> ctx (term' ())))
-    terms'
+  and refresh_computation vars = function
+    | Ast.Return expr -> Ast.Return (refresh_expression vars expr)
+    | Ast.Do (comp, abs) ->
+        Ast.Do (refresh_computation vars comp, refresh_abstraction vars abs)
+    | Ast.Match (expr, cases) ->
+        Ast.Match
+          ( refresh_expression vars expr,
+            List.map (refresh_abstraction vars) cases )
+    | Ast.Apply (expr1, expr2) ->
+        Ast.Apply (refresh_expression vars expr1, refresh_expression vars expr2)
+    | Ast.Delay (tau, c) -> Ast.Delay (tau, refresh_computation vars c)
+    | Ast.Box (tau, e, abs) ->
+        let e' = refresh_expression vars e in
+        let abs' = refresh_abstraction vars abs in
+        Ast.Box (tau, e', abs')
+    | Ast.Unbox (e, abs) ->
+        let e' = refresh_expression vars e in
+        let abs' = refresh_abstraction vars abs in
+        Ast.Unbox (e', abs')
+    | Ast.Perform (op, e, abs) ->
+        let e' = refresh_expression vars e in
+        let abs' = refresh_abstraction vars abs in
+        Ast.Perform (op, e', abs')
+    | Ast.Handle (c, h) ->
+        let c' = refresh_computation vars c in
+        let h' = refresh_expression vars h in
+        Ast.Handle (c', h')
 
-let rec step_computation env = function
-  | Ast.Return _ -> []
-  | Ast.Match (expr, cases) ->
-      let rec find_case = function
-        | (env, pat, comp) :: cases -> (
-            match match_pattern_with_expression env pat expr with
-            | subst ->
-                [
-                  (env, ComputationRedex Match, fun () -> substitute subst comp);
-                ]
-            | exception PatternMismatch -> find_case cases)
-        | [] -> []
-      in
-      let cases' =
-        List.map
-          (fun (pat, comp) ->
-            let pat', vars = refresh_pattern pat in
-            let comp' = refresh_computation vars comp in
-            (env, pat', comp'))
-          cases
-      in
-      find_case cases'
-  | Ast.Apply (expr1, expr2) ->
-      let f = eval_function env expr1 in
-      [ (env, ComputationRedex ApplyFun, fun () -> f expr2) ]
-  | Ast.Do (comp1, comp2) -> (
-      let comps1' =
-        step_in_context step_computation env
-          (fun red -> DoCtx red)
-          (fun comp1' -> Ast.Do (comp1', comp2))
-          comp1
-      in
-      match comp1 with
-      | Ast.Return expr ->
-          let pat, comp2' = comp2 in
-          let subst = match_pattern_with_expression env pat expr in
-          (env, ComputationRedex DoReturn, fun () -> substitute subst comp2')
-          :: comps1'
-      | Ast.Perform (op, expr, (pat, cont)) ->
-          ( env,
-            ComputationRedex DoOp,
-            fun () -> Ast.Perform (op, expr, (pat, Ast.Do (cont, comp2))) )
-          :: comps1'
-      | _ -> comps1')
-  | Ast.Delay (tau, comp) ->
-      let env' =
-        { env with state = ContextHolderModule.add_temp tau env.state }
-      in
-      [ (env', ComputationRedex Delay, fun () -> comp) ]
-  | Ast.Box (tau, expr, (pat, comp)) ->
-      let rec doBox tau expr pat comp =
-        match pat with
-        | Ast.PVar x ->
-            let resource_counter = env.resource_counter in
-            (* let x' =
+  and refresh_abstraction vars (pat, comp) =
+    let pat', vars' = refresh_pattern pat in
+    (pat', refresh_computation (vars @ vars') comp)
+
+  let rec substitute_expression subst = function
+    | Ast.Var x as expr -> (
+        match Ast.VariableMap.find_opt x subst with
+        | None -> expr
+        | Some expr -> expr)
+    | Ast.Const _ as expr -> expr
+    | Ast.Annotated (expr, ty) ->
+        Annotated (substitute_expression subst expr, ty)
+    | Ast.Tuple exprs -> Tuple (List.map (substitute_expression subst) exprs)
+    | Ast.Variant (label, expr) ->
+        Variant (label, Option.map (substitute_expression subst) expr)
+    | Ast.Lambda abs -> Lambda (substitute_abstraction subst abs)
+    | Ast.PureLambda abs -> PureLambda (substitute_abstraction subst abs)
+    | Ast.RecLambda (x, abs) -> RecLambda (x, substitute_abstraction subst abs)
+    | Ast.Handler (ret_case, op_cases) ->
+        Ast.Handler
+          ( substitute_abstraction subst ret_case,
+            Ast.OpNameMap.map
+              (fun op_case -> substitute_abstraction subst op_case)
+              op_cases )
+
+  and substitute_computation subst = function
+    | Ast.Return expr -> Ast.Return (substitute_expression subst expr)
+    | Ast.Do (comp, abs) ->
+        Ast.Do
+          (substitute_computation subst comp, substitute_abstraction subst abs)
+    | Ast.Match (expr, cases) ->
+        Ast.Match
+          ( substitute_expression subst expr,
+            List.map (substitute_abstraction subst) cases )
+    | Ast.Apply (expr1, expr2) ->
+        Ast.Apply
+          (substitute_expression subst expr1, substitute_expression subst expr2)
+    | Ast.Delay (tau, c) -> Ast.Delay (tau, substitute_computation subst c)
+    | Ast.Box (tau, e, abs) ->
+        Ast.Box
+          (tau, substitute_expression subst e, substitute_abstraction subst abs)
+    | Ast.Unbox (e, abs) ->
+        Ast.Unbox
+          (substitute_expression subst e, substitute_abstraction subst abs)
+    | Ast.Perform (op, e, abs) ->
+        Ast.Perform
+          (op, substitute_expression subst e, substitute_abstraction subst abs)
+    | Ast.Handle (c, h) ->
+        Ast.Handle
+          (substitute_computation subst c, substitute_expression subst h)
+
+  and substitute_abstraction subst (pat, comp) =
+    let subst' = remove_pattern_bound_variables subst pat in
+    (pat, substitute_computation subst' comp)
+
+  let substitute subst comp =
+    let subst = Ast.VariableMap.map (refresh_expression []) subst in
+    substitute_computation subst comp
+
+  let rec eval_function env = function
+    | Ast.Lambda (pat, comp) ->
+        fun arg ->
+          let subst = match_pattern_with_expression env pat arg in
+          substitute subst comp
+    | Ast.PureLambda (pat, comp) ->
+        fun arg ->
+          let subst = match_pattern_with_expression env pat arg in
+          substitute subst comp
+    | Ast.RecLambda (f, (pat, comp)) as expr ->
+        fun arg ->
+          let subst =
+            match_pattern_with_expression env pat arg
+            |> Ast.VariableMap.add f expr
+          in
+          substitute subst comp
+    | Ast.Var x -> (
+        match ContextHolderModule.find_variable_opt x env.variables with
+        | Some expr -> eval_function env expr
+        | None -> ContextHolderModule.find_variable x env.builtin_functions)
+    | expr ->
+        Error.runtime "Function expected but got %t"
+          (PrettyPrint.print_expression (module Tau) expr)
+
+  let rec eval_handler env = function
+    | Ast.Handler (ret_case, op_cases) -> (ret_case, op_cases)
+    | Ast.Var x -> (
+        match ContextHolderModule.find_variable_opt x env.variables with
+        | Some expr -> eval_handler env expr
+        | None ->
+            Error.runtime
+              "Handler expected but did not find it from environment")
+    | expr ->
+        Error.runtime "Handler expected but got %t"
+          (PrettyPrint.print_expression (module Tau) expr)
+
+  let step_in_context step env redCtx ctx term =
+    let terms' = step env term in
+    List.map
+      (fun (env, red, term') -> (env, redCtx red, fun () -> ctx (term' ())))
+      terms'
+
+  let rec step_computation env = function
+    | Ast.Return _ -> []
+    | Ast.Match (expr, cases) ->
+        let rec find_case = function
+          | (env, pat, comp) :: cases -> (
+              match match_pattern_with_expression env pat expr with
+              | subst ->
+                  [
+                    ( env,
+                      ComputationRedex Match,
+                      fun () -> substitute subst comp );
+                  ]
+              | exception PatternMismatch -> find_case cases)
+          | [] -> []
+        in
+        let cases' =
+          List.map
+            (fun (pat, comp) ->
+              let pat', vars = refresh_pattern pat in
+              let comp' = refresh_computation vars comp in
+              (env, pat', comp'))
+            cases
+        in
+        find_case cases'
+    | Ast.Apply (expr1, expr2) ->
+        let f = eval_function env expr1 in
+        [ (env, ComputationRedex ApplyFun, fun () -> f expr2) ]
+    | Ast.Do (comp1, comp2) -> (
+        let comps1' =
+          step_in_context step_computation env
+            (fun red -> DoCtx red)
+            (fun comp1' -> Ast.Do (comp1', comp2))
+            comp1
+        in
+        match comp1 with
+        | Ast.Return expr ->
+            let pat, comp2' = comp2 in
+            let subst = match_pattern_with_expression env pat expr in
+            (env, ComputationRedex DoReturn, fun () -> substitute subst comp2')
+            :: comps1'
+        | Ast.Perform (op, expr, (pat, cont)) ->
+            ( env,
+              ComputationRedex DoOp,
+              fun () -> Ast.Perform (op, expr, (pat, Ast.Do (cont, comp2))) )
+            :: comps1'
+        | _ -> comps1')
+    | Ast.Delay (tau, comp) ->
+        let env' =
+          { env with state = ContextHolderModule.add_temp tau env.state }
+        in
+        [ (env', ComputationRedex Delay, fun () -> comp) ]
+    | Ast.Box (tau, expr, (pat, comp)) ->
+        let rec doBox tau expr pat comp =
+          match pat with
+          | Ast.PVar x ->
+              let resource_counter = env.resource_counter in
+              (* let x' =
               Ast.Variable.fresh
                 (Ast.Variable.string_of x ^ string_of_int resource_counter) *)
-            let x' =
-              Ast.Variable.fresh ("resource_" ^ string_of_int resource_counter)
-            in
-            let state' =
-              ContextHolderModule.add_variable x' (tau, expr) env.state
-            in
-            let env' =
-              {
-                env with
-                state = state';
-                resource_counter = resource_counter + 1;
-              }
-            in
-            [
-              ( env',
-                ComputationRedex Box,
-                fun () -> refresh_computation [ (x, x') ] comp );
-            ]
-        | Ast.PAnnotated (pat', _) -> doBox tau expr pat' comp
-        | _ ->
-            Error.runtime "Box expected a variable but got pattern %t"
-              (PrettyPrint.print_pattern pat)
-      in
-      doBox tau expr pat comp
-  | Ast.Unbox (expr, (pat, comp)) ->
-      let rec doUnbox expr pat comp =
-        match expr with
-        | Ast.Var x ->
-            let _tau', expr' = ContextHolderModule.find_variable x env.state in
-            let subst = match_pattern_with_expression env pat expr' in
-            [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
-        | Ast.Annotated (expr', _) -> doUnbox expr' pat comp
-        | _ ->
-            Error.runtime "Unbox expected a variable but got expression %t"
-              (PrettyPrint.print_expression (module Tau) expr)
-      in
-      doUnbox expr pat comp
-  | Ast.Perform _ -> []
-  (* (op, _expr, (_pat, _comp)) ->
-      Error.runtime "Unhandled operation %t" (Ast.OpName.print op) *)
-  | Ast.Handle (comp, handler) -> (
-      let comps' =
-        step_in_context step_computation env
-          (fun red -> DoCtx red)
-          (fun comp' -> Ast.Handle (comp', handler))
-          comp
-      in
-      let (pat, ret_comp), op_cases = eval_handler env handler in
-      match comp with
-      | Ast.Return expr ->
-          let subst = match_pattern_with_expression env pat expr in
-          ( env,
-            ComputationRedex HandleReturn,
-            fun () -> substitute subst ret_comp )
-          :: comps'
-      | Ast.Perform (op, expr, (op_pat, op_cont)) -> (
-          let op_case = Ast.OpNameMap.find_opt op op_cases in
-          match op_case with
-          | Some (Ast.PTuple [ op_arg_pat; op_cont_pat ], op_case) -> (
-              let op_sig = Ast.OpNameMap.find_opt op env.op_signatures in
-              match op_sig with
-              | Some tau ->
-                  let resource_counter = env.resource_counter in
-                  let x =
-                    Ast.Variable.fresh
-                      ("resource_" ^ string_of_int resource_counter)
-                  in
-                  let env' =
-                    { env with resource_counter = resource_counter + 1 }
-                  in
-                  let arg_subst =
-                    match_pattern_with_expression env' op_arg_pat expr
-                  in
-                  let cont_subst =
-                    match_pattern_with_expression env' op_cont_pat (Ast.Var x)
-                  in
-                  ( env',
-                    ComputationRedex HandleOp,
-                    fun () ->
-                      Ast.Box
-                        ( tau,
-                          Ast.Lambda (op_pat, Ast.Handle (op_cont, handler)),
-                          ( Ast.PVar x,
-                            substitute cont_subst (substitute arg_subst op_case)
-                          ) ) )
-                  :: comps'
-              | None ->
-                  Error.runtime
-                    "TODO: Operation signature not found in runtime state")
-          | Some _ -> Error.runtime "TODO: Operation case not in correct format"
+              let x' =
+                Ast.Variable.fresh ("resource_" ^ string_of_int resource_counter)
+              in
+              let state' =
+                ContextHolderModule.add_variable x' (tau, expr) env.state
+              in
+              let env' =
+                {
+                  env with
+                  state = state';
+                  resource_counter = resource_counter + 1;
+                }
+              in
+              [
+                ( env',
+                  ComputationRedex Box,
+                  fun () -> refresh_computation [ (x, x') ] comp );
+              ]
+          | Ast.PAnnotated (pat', _) -> doBox tau expr pat' comp
           | _ ->
-              ( env,
-                ComputationRedex HandleOp,
-                fun () ->
-                  Ast.Perform (op, expr, (op_pat, Ast.Handle (op_cont, handler)))
-              )
-              :: comps')
-      | _ -> comps')
+              Error.runtime "Box expected a variable but got pattern %t"
+                (PrettyPrint.print_pattern pat)
+        in
+        doBox tau expr pat comp
+    | Ast.Unbox (expr, (pat, comp)) ->
+        let rec doUnbox expr pat comp =
+          match expr with
+          | Ast.Var x ->
+              let _tau', expr' =
+                ContextHolderModule.find_variable x env.state
+              in
+              let subst = match_pattern_with_expression env pat expr' in
+              [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
+          | Ast.Annotated (expr', _) -> doUnbox expr' pat comp
+          | _ ->
+              Error.runtime "Unbox expected a variable but got expression %t"
+                (PrettyPrint.print_expression (module Tau) expr)
+        in
+        doUnbox expr pat comp
+    | Ast.Perform _ -> []
+    (* (op, _expr, (_pat, _comp)) ->
+      Error.runtime "Unhandled operation %t" (Ast.OpName.print op) *)
+    | Ast.Handle (comp, handler) -> (
+        let comps' =
+          step_in_context step_computation env
+            (fun red -> DoCtx red)
+            (fun comp' -> Ast.Handle (comp', handler))
+            comp
+        in
+        let (pat, ret_comp), op_cases = eval_handler env handler in
+        match comp with
+        | Ast.Return expr ->
+            let subst = match_pattern_with_expression env pat expr in
+            ( env,
+              ComputationRedex HandleReturn,
+              fun () -> substitute subst ret_comp )
+            :: comps'
+        | Ast.Perform (op, expr, (op_pat, op_cont)) -> (
+            let op_case = Ast.OpNameMap.find_opt op op_cases in
+            match op_case with
+            | Some (Ast.PTuple [ op_arg_pat; op_cont_pat ], op_case) -> (
+                let op_sig = Ast.OpNameMap.find_opt op env.op_signatures in
+                match op_sig with
+                | Some tau ->
+                    let resource_counter = env.resource_counter in
+                    let x =
+                      Ast.Variable.fresh
+                        ("resource_" ^ string_of_int resource_counter)
+                    in
+                    let env' =
+                      { env with resource_counter = resource_counter + 1 }
+                    in
+                    let arg_subst =
+                      match_pattern_with_expression env' op_arg_pat expr
+                    in
+                    let cont_subst =
+                      match_pattern_with_expression env' op_cont_pat (Ast.Var x)
+                    in
+                    ( env',
+                      ComputationRedex HandleOp,
+                      fun () ->
+                        Ast.Box
+                          ( tau,
+                            Ast.Lambda (op_pat, Ast.Handle (op_cont, handler)),
+                            ( Ast.PVar x,
+                              substitute cont_subst
+                                (substitute arg_subst op_case) ) ) )
+                    :: comps'
+                | None ->
+                    Error.runtime
+                      "TODO: Operation signature not found in runtime state")
+            | Some _ ->
+                Error.runtime "TODO: Operation case not in correct format"
+            | _ ->
+                ( env,
+                  ComputationRedex HandleOp,
+                  fun () ->
+                    Ast.Perform
+                      (op, expr, (op_pat, Ast.Handle (op_cont, handler))) )
+                :: comps')
+        | _ -> comps')
 
-type load_state = {
-  environment : evaluation_environment;
-  computations : Tau.t Ast.computation list;
-}
-
-let initial_load_state =
-  { environment = initial_environment; computations = [] }
-
-let load_primitive load_state x prim =
-  {
-    load_state with
-    environment =
-      {
-        load_state.environment with
-        builtin_functions =
-          ContextHolderModule.add_variable x
-            (Primitives.primitive_function prim)
-            load_state.environment.builtin_functions;
-      };
+  type load_state = {
+    environment : evaluation_environment;
+    computations : Tau.t Ast.computation list;
   }
 
-let load_ty_def load_state _ = load_state
+  let initial_load_state =
+    { environment = initial_environment; computations = [] }
 
-let load_top_let load_state x expr =
-  {
-    load_state with
-    environment =
-      {
-        load_state.environment with
-        variables =
-          ContextHolderModule.add_variable x expr
-            load_state.environment.variables;
-      };
-  }
-
-let load_top_do load_state comp =
-  { load_state with computations = load_state.computations @ [ comp ] }
-
-let load_op_sig load_state op tau =
-  {
-    load_state with
-    environment =
-      {
-        load_state.environment with
-        op_signatures =
-          Ast.OpNameMap.add op tau load_state.environment.op_signatures;
-      };
-  }
-
-type run_state = load_state
-type step_label = ComputationReduction of computation_reduction | Return
-
-type step = {
-  environment : evaluation_environment;
-  label : step_label;
-  next_state : unit -> run_state;
-}
-
-let run load_state = load_state
-
-let steps = function
-  | { computations = []; _ } -> []
-  | { computations = Ast.Return _ :: comps; environment } ->
-      [
+  let load_primitive load_state x prim =
+    {
+      load_state with
+      environment =
         {
-          environment;
-          label = Return;
-          next_state = (fun () -> { computations = comps; environment });
+          load_state.environment with
+          builtin_functions =
+            ContextHolderModule.add_variable x
+              (P.primitive_function prim)
+              load_state.environment.builtin_functions;
         };
-      ]
-  | { computations = comp :: comps; environment } ->
-      List.map
-        (fun (env, red, comp') ->
+    }
+
+  let load_ty_def load_state _ = load_state
+
+  let load_top_let load_state x expr =
+    {
+      load_state with
+      environment =
+        {
+          load_state.environment with
+          variables =
+            ContextHolderModule.add_variable x expr
+              load_state.environment.variables;
+        };
+    }
+
+  let load_top_do load_state comp =
+    { load_state with computations = load_state.computations @ [ comp ] }
+
+  let load_op_sig load_state op tau =
+    {
+      load_state with
+      environment =
+        {
+          load_state.environment with
+          op_signatures =
+            Ast.OpNameMap.add op tau load_state.environment.op_signatures;
+        };
+    }
+
+  type run_state = load_state
+  type step_label = ComputationReduction of computation_reduction | Return
+
+  type step = {
+    environment : evaluation_environment;
+    label : step_label;
+    next_state : unit -> run_state;
+  }
+
+  let run load_state = load_state
+
+  let steps = function
+    | { computations = []; _ } -> []
+    | { computations = Ast.Return _ :: comps; environment } ->
+        [
           {
-            environment = env;
-            label = ComputationReduction red;
-            next_state =
-              (fun () ->
-                { computations = comp' () :: comps; environment = env });
-          })
-        (step_computation environment comp)
+            environment;
+            label = Return;
+            next_state = (fun () -> { computations = comps; environment });
+          };
+        ]
+    | { computations = comp :: comps; environment } ->
+        List.map
+          (fun (env, red, comp') ->
+            {
+              environment = env;
+              label = ComputationReduction red;
+              next_state =
+                (fun () ->
+                  { computations = comp' () :: comps; environment = env });
+            })
+          (step_computation environment comp)
+end

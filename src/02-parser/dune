@@ -6,4 +6,4 @@
 
 (menhir
  (modules grammar)
- (flags --explain --dump --cmly --automaton-graph))
+ (flags --explain --dump --cmly --automaton-graph --external-tokens Token))

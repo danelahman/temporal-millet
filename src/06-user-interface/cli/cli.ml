@@ -1,6 +1,6 @@
 module Error = Utils.Error
-module Backend = CliInterpreter
-module Tau = Language.Tau.TauImpl
+module Backend = CliInterpreter.Make (Language.Tau.NatTau)
+module Tau = Backend.Tau
 module PrettyPrint = Language.PrettyPrint
 module Loader = Loader.Loader (Backend)
 
