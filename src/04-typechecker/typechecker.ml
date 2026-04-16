@@ -838,8 +838,6 @@ module Make (Tau : Language.Tau.S) = struct
                   tau ppf))
 
   let unify state ty_eqs tau_eqs tau_ineqs tau_abs =
-    print_ty_constraints ty_eqs;
-    print_tau_eq_constraints tau_eqs;
     let ty_subst, tau_eqs' = unify_ty_constraints state [] ty_eqs in
     let tau_subst = unify_tau_constraints state 0 [] (tau_eqs @ tau_eqs') in
     let ty_subst' =
