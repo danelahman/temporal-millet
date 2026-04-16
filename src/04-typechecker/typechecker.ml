@@ -243,6 +243,13 @@ module Make (Tau : Language.Tau.S) = struct
         | None, Some _ | Some _, None ->
             Error.typing "Variant optional argument mismatch")
 
+  (** Returns:
+      + inferred value type
+      + equational constraints between types
+      + equational constraints between taus
+      + inequational constraints between taus
+      + list of abstractly quantified taus (in operation cases of effect
+        handlers) *)
   let rec infer_expression state = function
     | Ast.Var x ->
         let ty_params, tau_params, ty =
@@ -257,7 +264,10 @@ module Make (Tau : Language.Tau.S) = struct
           [],
           [],
           (* [ (sum_taus_added_after, Ast.TauConst Tau.zero) ], *)
-          (* TODO: For correctness, need to check that variables are used in sub-tau of the zero-tau. *)
+          (* TODO: For correctness of typechecking in the presence of possibly expiring resources, 
+                   need to check that variables are used in sub-tau of the zero-tau. *)
+          (* TODO: To instead include this above among tau equations, 
+                   we would additionally need sub-typing/sub-effecting/sub-resourceing. *)
           [],
           [] )
         (* type, type constraints, tau constraints, tau inequational constraints, tau abstractness constraints *)
@@ -375,6 +385,13 @@ module Make (Tau : Language.Tau.S) = struct
           tau_ineqs @ tau_ineqs',
           tau_abs @ tau_abs' )
 
+  (** Returns:
+      + inferred computation type
+      + equational constraints between types
+      + equational constraints between taus
+      + inequational constraints between taus
+      + list of abstractly quantified taus (in operation cases of effect
+        handlers) *)
   and infer_computation state = function
     | Ast.Return expr ->
         let ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
