@@ -39,3 +39,29 @@ module NatTau : S = struct
 
   let show = string_of_int
 end
+
+module IntervalTau : S = struct
+  type t = int * int
+
+  let zero = (0, 0)
+  let add (n, m) (k, l) = (n + k, m + l)
+
+  (** sub-interval order > *)
+  let greater (n, m) (k, l) = k > n && m > l
+
+  let of_lit = function
+    | Int _ -> invalid_arg "IntervalTau.of_lit: pair literal expected"
+    | Pair (n, m) ->
+        if n < 0 then
+          invalid_arg "IntervalTau.of_lit: interval endpoint negative"
+        else if n > m then
+          invalid_arg "IntervalTau.of_lit: non-well-formed interval"
+        else (n, m)
+
+  let of_nat n =
+    if n < 0 then
+      invalid_arg "IntervalTau.of_nat: expected non-negative integer"
+    else (n, n)
+
+  let show (n, m) = "[" ^ string_of_int n ^ "," ^ string_of_int m ^ "]"
+end
