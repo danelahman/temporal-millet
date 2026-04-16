@@ -73,7 +73,7 @@ module Make (Tau : Language.Tau.S) = struct
     print_tau_constraint tau1 tau2 tau_pp
 
   let print_tau_geq tau1 tau2 tau_pp =
-    Format.printf "TauGeq(%t >= %t)"
+    Format.printf "TauGeq(%t <= %t)"
       (PrettyPrint.print_tau (module Tau) tau_pp tau1)
       (PrettyPrint.print_tau (module Tau) tau_pp tau2)
 
@@ -248,9 +248,18 @@ module Make (Tau : Language.Tau.S) = struct
         let ty_params, tau_params, ty =
           ContextHolderModule.find_variable x state.variables
         in
+        let _sum_taus_added_after =
+          ContextHolderModule.sum_taus_added_after x state.variables
+        in
         let ty_subst = refreshing_ty_subst ty_params in
         let tau_subst = refreshing_tau_subst tau_params in
-        (Ast.substitute_ty ty_subst tau_subst ty, [], [], [], [])
+        ( Ast.substitute_ty ty_subst tau_subst ty,
+          [],
+          [],
+          (* [ (sum_taus_added_after, Ast.TauConst Tau.zero) ], *)
+          (* TODO: For correctness, need to check that variables are used in sub-tau of the zero-tau. *)
+          [],
+          [] )
         (* type, type constraints, tau constraints, tau inequational constraints, tau abstractness constraints *)
     | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [], [], [], [])
     | Ast.Annotated (expr, ty) ->
@@ -472,7 +481,7 @@ module Make (Tau : Language.Tau.S) = struct
         ( comp_ty,
           ((Ast.TyBox (tau, value_ty), boxed_ty) :: ty_eqs) @ ty_eqs',
           tau_eqs @ tau_eqs',
-          ((sum_taus_added_after, tau) :: tau_ineqs) @ tau_ineqs',
+          ((tau, sum_taus_added_after) :: tau_ineqs) @ tau_ineqs',
           tau_abs @ tau_abs' )
     | Ast.Perform (op, e, abs) -> (
         let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
@@ -784,44 +793,46 @@ module Make (Tau : Language.Tau.S) = struct
 
   let rec check_tau_ineq_constraints state = function
     | [] -> ()
-    | (tau_greater_or_equal, tau_smaller) :: tau_ineqs -> (
-        let tau_greater_or_equal_simplified = simplify_tau tau_greater_or_equal
-        and tau_smaller_simplified = simplify_tau tau_smaller in
+    | (tau_smaller, tau_greater_or_equal) :: tau_ineqs -> (
+        let tau_smaller_simplified = simplify_tau tau_smaller
+        and tau_greater_or_equal_simplified =
+          simplify_tau tau_greater_or_equal
+        in
 
         let maybe_tau_vals =
           try
             Some
-              ( ContextHolderModule.eval_tau tau_greater_or_equal_simplified,
-                ContextHolderModule.eval_tau tau_smaller_simplified )
+              ( ContextHolderModule.eval_tau tau_smaller_simplified,
+                ContextHolderModule.eval_tau tau_greater_or_equal_simplified )
           with _exn -> None
         in
 
         match maybe_tau_vals with
         | None ->
-            Error.typing "Cannot compare non-ground temporal values %t >= %t"
-              (fun ppf ->
-                PrettyPrint.print_tau
-                  (module Tau)
-                  (PrettyPrint.TauPrintParam.create ())
-                  tau_greater_or_equal_simplified ppf)
+            Error.typing "Cannot compare non-ground temporal values %t <= %t"
               (fun ppf ->
                 PrettyPrint.print_tau
                   (module Tau)
                   (PrettyPrint.TauPrintParam.create ())
                   tau_smaller_simplified ppf)
-        | Some (tau_greater_or_equal_val, tau_smaller_val) ->
-            if tau_smaller_val > tau_greater_or_equal_val then
-              Error.typing "Cannot unify temporal values %t >= %t"
-                (fun ppf ->
-                  PrettyPrint.print_tau
-                    (module Tau)
-                    (PrettyPrint.TauPrintParam.create ())
-                    tau_greater_or_equal_simplified ppf)
+              (fun ppf ->
+                PrettyPrint.print_tau
+                  (module Tau)
+                  (PrettyPrint.TauPrintParam.create ())
+                  tau_greater_or_equal_simplified ppf)
+        | Some (tau_smaller_val, tau_greater_or_equal_val) ->
+            if Tau.is_sub_tau tau_smaller_val tau_greater_or_equal_val then
+              Error.typing "Cannot unify temporal values %t <= %t"
                 (fun ppf ->
                   PrettyPrint.print_tau
                     (module Tau)
                     (PrettyPrint.TauPrintParam.create ())
                     tau_smaller_simplified ppf)
+                (fun ppf ->
+                  PrettyPrint.print_tau
+                    (module Tau)
+                    (PrettyPrint.TauPrintParam.create ())
+                    tau_greater_or_equal_simplified ppf)
             else check_tau_ineq_constraints state tau_ineqs)
 
   let rec check_tau_abs_constraints = function
