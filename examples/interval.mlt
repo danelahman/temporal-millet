@@ -7,7 +7,7 @@ let foo1 () =
   1
 
 (* Should be accepted by the typechecker. *)
-let foo1 () = 
+let foo2 () = 
   box (1,4) 1 as r in
   let _ = delay 1 in
   let _ = delay 2 in
