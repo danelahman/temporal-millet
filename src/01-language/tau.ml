@@ -27,10 +27,7 @@ module NatTau : S = struct
 
   let zero = 0
   let add = ( + )
-
-  (** sub-interval order for one-sided intervals, (n, +inf) is sub-interval of
-      (k, +inf), i.e., n > k *)
-  let is_sub_tau = ( <= )
+  let is_sub_tau = ( >= )
 
   let of_lit = function
     | Int n ->

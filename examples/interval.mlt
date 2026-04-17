@@ -55,3 +55,7 @@ let foo6 () =
   unbox r' as y in 
   y + 1
 *)
+
+run foo1 ()
+run foo2 ()
+run foo3 ()
