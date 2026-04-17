@@ -1,12 +1,25 @@
-(* Is correctly accepted by the typechecker. *)
-let foo () = 
-  let r = box (1,4) 1 in
-  delay 3; 
-  unbox r as y in 
+(* Should be accepted by the typechecker. *)
+let foo1 () = 
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  unbox r as y in
+  1
+
+(* Should be accepted by the typechecker. *)
+let foo1 () = 
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  unbox r as y in
   y + 1
 
+(* TODO: *)
+(* [TauGeq((3,3) <= (1,4)); TauGeq((3,3) <= (0,0))] *)
+(* Unclear why the use of y induces (3,3) <= (0,0) constraint here?!?  *)
+
 (*
-(* Correctly gets rejected by the typechecker. *)
+(* Should get rejected by the typechecker. *)
 let bar () = 
   let r = box (1,4) 1 in
   delay 5;
@@ -14,7 +27,8 @@ let bar () =
   y + 1
 *)
 
-(* TODO: Is incorrectly accepted by the typechecker. *)
+(* Should get rejected by the typechecker. *)
+(*
 let fez () =
   let r = box (1,4) 1 in
   delay 3;
@@ -22,3 +36,4 @@ let fez () =
   delay 3;
   unbox r' as y in 
   y + 1
+*)

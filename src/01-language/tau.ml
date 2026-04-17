@@ -30,7 +30,7 @@ module NatTau : S = struct
 
   (** sub-interval order for one-sided intervals, (n, +inf) is sub-interval of
       (k, +inf), i.e., n > k *)
-  let is_sub_tau = ( < )
+  let is_sub_tau = ( <= )
 
   let of_lit = function
     | Int n ->
@@ -52,7 +52,7 @@ module IntervalTau : S = struct
   let add (n, m) (k, l) = (n + k, m + l)
 
   (** sub-interval order, (n, m) is sub-interval of (k, l) *)
-  let is_sub_tau (n, m) (k, l) = n > k && l > m
+  let is_sub_tau (n, m) (k, l) = n >= k && l >= m
 
   let of_lit = function
     | Int _ -> invalid_arg "IntervalTau.of_lit: pair literal expected"

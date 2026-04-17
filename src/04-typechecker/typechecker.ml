@@ -89,9 +89,7 @@ module Make (Tau : Language.Tau.S) = struct
     let tau_pp = PrettyPrint.TauPrintParam.create () in
     print_fresh_tau_constraint tau tau_pp
 
-  let print_ty_constraints constraints =
-    let ty_pp = PrettyPrint.TyPrintParam.create () in
-    let tau_pp = PrettyPrint.TauPrintParam.create () in
+  let print_ty_constraints_pp ty_pp tau_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
       (Format.pp_print_list
          ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
@@ -100,8 +98,12 @@ module Make (Tau : Language.Tau.S) = struct
            | t1, t2 -> print_type_constraint t1 t2 ty_pp tau_pp))
       constraints
 
-  let print_tau_eq_constraints constraints =
+  let print_ty_constraints constraints =
+    let ty_pp = PrettyPrint.TyPrintParam.create () in
     let tau_pp = PrettyPrint.TauPrintParam.create () in
+    print_ty_constraints_pp ty_pp tau_pp constraints
+
+  let print_tau_eq_constraints_pp tau_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
       (Format.pp_print_list
          ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
@@ -110,8 +112,11 @@ module Make (Tau : Language.Tau.S) = struct
            | tau1, tau2 -> print_tau_constraint tau1 tau2 tau_pp))
       constraints
 
-  let print_tau_ineq_constraints constraints =
+  let print_tau_eq_constraints constraints =
     let tau_pp = PrettyPrint.TauPrintParam.create () in
+    print_tau_eq_constraints_pp tau_pp constraints
+
+  let print_tau_ineq_constraints_pp tau_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
       (Format.pp_print_list
          ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
@@ -119,14 +124,21 @@ module Make (Tau : Language.Tau.S) = struct
            match constraint_ with tau1, tau2 -> print_tau_geq tau1 tau2 tau_pp))
       constraints
 
-  let print_tau_abs_constraints constraints =
+  let print_tau_ineq_constraints constraints =
     let tau_pp = PrettyPrint.TauPrintParam.create () in
+    print_tau_ineq_constraints_pp tau_pp constraints
+
+  let print_tau_abs_constraints_pp tau_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
       (Format.pp_print_list
          ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
          (fun _ppf constraint_ ->
            match constraint_ with tau -> print_fresh_tau_constraint tau tau_pp))
       constraints
+
+  let print_tau_abs_constraints constraints =
+    let tau_pp = PrettyPrint.TauPrintParam.create () in
+    print_tau_abs_constraints_pp tau_pp constraints
 
   let rec check_ty state = function
     | Ast.TyConst _ -> ()
@@ -255,7 +267,7 @@ module Make (Tau : Language.Tau.S) = struct
         let ty_params, tau_params, ty =
           ContextHolderModule.find_variable x state.variables
         in
-        let _sum_taus_added_after =
+        let sum_taus_added_after =
           ContextHolderModule.sum_taus_added_after x state.variables
         in
         let ty_subst = refreshing_ty_subst ty_params in
@@ -263,12 +275,12 @@ module Make (Tau : Language.Tau.S) = struct
         ( Ast.substitute_ty ty_subst tau_subst ty,
           [],
           [],
-          (* [ (sum_taus_added_after, Ast.TauConst Tau.zero) ], *)
+          [ (sum_taus_added_after, Ast.TauConst Tau.zero) ],
           (* TODO: For correctness of typechecking in the presence of possibly expiring resources, 
                    need to check that variables are used in sub-tau of the zero-tau. *)
           (* TODO: To instead include this above among tau equations, 
                    we would additionally need sub-typing/sub-effecting/sub-resourceing. *)
-          [],
+          (* [], *)
           [] )
         (* type, type constraints, tau constraints, tau inequational constraints, tau abstractness constraints *)
     | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [], [], [], [])
@@ -484,22 +496,25 @@ module Make (Tau : Language.Tau.S) = struct
           | Ast.Annotated (e', _) -> findVar e'
           | _ -> Error.typing "Unboxing requires a variable."
         in
-        let var = findVar e in
-        let sum_taus_added_after =
-          ContextHolderModule.sum_taus_added_after var state.variables
+        let x = findVar e in
+        let ty_params, tau_params, ty =
+          ContextHolderModule.find_variable x state.variables
         in
-        let boxed_ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
-          infer_expression state e
-        in
-        let value_ty, comp_ty, ty_eqs', tau_eqs', tau_ineqs', tau_abs' =
+        let ty_subst = refreshing_ty_subst ty_params in
+        let tau_subst = refreshing_tau_subst tau_params in
+        let boxed_ty = Ast.substitute_ty ty_subst tau_subst ty in
+        let value_ty, comp_ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
           infer_abstraction state abs
+        in
+        let sum_taus_added_after =
+          ContextHolderModule.sum_taus_added_after x state.variables
         in
         let tau = fresh_tau () in
         ( comp_ty,
-          ((Ast.TyBox (tau, value_ty), boxed_ty) :: ty_eqs) @ ty_eqs',
-          tau_eqs @ tau_eqs',
-          ((sum_taus_added_after, tau) :: tau_ineqs) @ tau_ineqs',
-          tau_abs @ tau_abs' )
+          [ (Ast.TyBox (tau, value_ty), boxed_ty) ] @ ty_eqs,
+          tau_eqs,
+          [ (sum_taus_added_after, tau) ] @ tau_ineqs,
+          tau_abs )
     | Ast.Perform (op, e, abs) -> (
         let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
         match op_sig with
@@ -791,7 +806,7 @@ module Make (Tau : Language.Tau.S) = struct
           when z = Tau.zero ->
             unify_tau_constraints state prev_unsolved_size unsolved
               ((t1, Ast.TauConst Tau.zero) :: (t2, Ast.TauConst Tau.zero) :: eqs)
-        | t, Ast.TauAdd (t1, t2) | Ast.TauAdd (t1, t2), t ->
+        | t, Ast.TauAdd (t1, t2) ->
             let left = build_sorted_tau_param_list t in
             let right = build_sorted_tau_param_list (Ast.TauAdd (t1, t2)) in
             let left', right' = cancel_common_elements left right in
@@ -804,9 +819,93 @@ module Make (Tau : Language.Tau.S) = struct
             else
               unify_tau_constraints state prev_unsolved_size unsolved
                 ((left_tau, right_tau) :: eqs)
+        | Ast.TauAdd (t1, t2), t ->
+            let left = build_sorted_tau_param_list t in
+            let right = build_sorted_tau_param_list (Ast.TauAdd (t1, t2)) in
+            let left', right' = cancel_common_elements left right in
+            let left_tau = build_tau_from_param_list left' in
+            let right_tau = build_tau_from_param_list right' in
+            if left_tau = Ast.TauAdd (t1, t2) && right_tau = t then
+              unify_tau_constraints state prev_unsolved_size
+                ((left_tau, right_tau) :: unsolved)
+                eqs
+            else
+              unify_tau_constraints state prev_unsolved_size unsolved
+                ((left_tau, right_tau) :: eqs)
         | u1, u2 ->
             unify_tau_constraints state prev_unsolved_size
               ((u1, u2) :: unsolved) eqs)
+
+  let rec unify_tau_ineq_constraints state prev_unsolved_size unsolved =
+    function
+    | [] ->
+        let current_unsolved_size = List.length unsolved in
+        if current_unsolved_size = prev_unsolved_size then
+          (Ast.TauParamMap.empty, unsolved)
+        else
+          (* Retry with deferred constraints *)
+          unify_tau_ineq_constraints state current_unsolved_size [] unsolved
+    | (tau1, tau2) :: ineqs -> (
+        let tau1' = simplify_tau tau1 in
+        let tau2' = simplify_tau tau2 in
+        match (tau1', tau2') with
+        | _ when tau1' = tau2' ->
+            unify_tau_ineq_constraints state prev_unsolved_size unsolved ineqs
+        | Ast.TauParam tp, tau
+          when (not (occurs_tau tp tau)) && tau2' = Ast.TauConst Tau.zero ->
+            let tau_subst, unsolved' =
+              unify_tau_ineq_constraints state prev_unsolved_size
+                (subst_tau_equations
+                   (Ast.TauParamMap.singleton tp tau)
+                   unsolved)
+                (subst_tau_equations (Ast.TauParamMap.singleton tp tau) ineqs)
+            in
+            (add_tau_subst tp tau tau_subst, unsolved')
+        (* | tau, Ast.TauParam tp when not (occurs_tau tp tau) ->
+            let tau_subst, unsolved' =
+              unify_tau_ineq_constraints state prev_unsolved_size
+                (subst_tau_equations
+                   (Ast.TauParamMap.singleton tp tau)
+                   unsolved)
+                (subst_tau_equations (Ast.TauParamMap.singleton tp tau) ineqs)
+            in
+            (add_tau_subst tp tau tau_subst, unsolved') *)
+        (* | Ast.TauConst z, Ast.TauAdd (t1, t2)
+        | Ast.TauAdd (t1, t2), Ast.TauConst z
+          when z = Tau.zero ->
+            unify_tau_ineq_constraints state prev_unsolved_size unsolved
+              ((t1, Ast.TauConst Tau.zero)
+              :: (t2, Ast.TauConst Tau.zero)
+              :: ineqs) *)
+        | t, Ast.TauAdd (t1, t2) ->
+            let left = build_sorted_tau_param_list t in
+            let right = build_sorted_tau_param_list (Ast.TauAdd (t1, t2)) in
+            let left', right' = cancel_common_elements left right in
+            let left_tau = build_tau_from_param_list left' in
+            let right_tau = build_tau_from_param_list right' in
+            if left_tau = t && right_tau = Ast.TauAdd (t1, t2) then
+              unify_tau_ineq_constraints state prev_unsolved_size
+                ((left_tau, right_tau) :: unsolved)
+                ineqs
+            else
+              unify_tau_ineq_constraints state prev_unsolved_size unsolved
+                ((left_tau, right_tau) :: ineqs)
+        | Ast.TauAdd (t1, t2), t ->
+            let left = build_sorted_tau_param_list t in
+            let right = build_sorted_tau_param_list (Ast.TauAdd (t1, t2)) in
+            let left', right' = cancel_common_elements left right in
+            let left_tau = build_tau_from_param_list left' in
+            let right_tau = build_tau_from_param_list right' in
+            if left_tau = Ast.TauAdd (t1, t2) && right_tau = t then
+              unify_tau_ineq_constraints state prev_unsolved_size
+                ((left_tau, right_tau) :: unsolved)
+                ineqs
+            else
+              unify_tau_ineq_constraints state prev_unsolved_size unsolved
+                ((left_tau, right_tau) :: ineqs)
+        | u1, u2 ->
+            unify_tau_ineq_constraints state prev_unsolved_size
+              ((u1, u2) :: unsolved) ineqs)
 
   let rec check_tau_ineq_constraints state = function
     | [] -> ()
@@ -867,21 +966,35 @@ module Make (Tau : Language.Tau.S) = struct
                   tau ppf))
 
   let unify state ty_eqs tau_eqs tau_ineqs tau_abs =
-    (* print_ty_constraints ty_eqs;
-    print_tau_eq_constraints tau_eqs;
-    print_tau_ineq_constraints tau_ineqs; *)
+    let _ty_pp = PrettyPrint.TyPrintParam.create () in
+    let tau_pp = PrettyPrint.TauPrintParam.create () in
+    (* print_ty_constraints_pp ty_pp tau_pp ty_eqs; *)
+    (* print_tau_eq_constraints_pp tau_pp tau_eqs; *)
+    (* print_tau_ineq_constraints_pp tau_pp tau_ineqs; *)
     let ty_subst, tau_eqs' = unify_ty_constraints state [] ty_eqs in
     (* print_tau_eq_constraints tau_eqs'; *)
     let tau_subst = unify_tau_constraints state 0 [] (tau_eqs @ tau_eqs') in
+    let tau_ineqs' = subst_tau_inequations tau_subst tau_ineqs in
+    let tau_subst', tau_ineqs'' =
+      unify_tau_ineq_constraints state 0 [] tau_ineqs'
+    in
+    let tau_subst'' =
+      Ast.TauParamMap.map
+        (fun tau -> Ast.substitute_tau tau_subst' tau)
+        tau_subst
+    in
+    print_tau_ineq_constraints_pp tau_pp
+      (subst_tau_inequations tau_subst'' tau_ineqs'');
+    check_tau_ineq_constraints state
+      (subst_tau_inequations tau_subst'' tau_ineqs'');
+    check_tau_abs_constraints
+      (subst_tau_abstract_constraints tau_subst'' tau_abs);
     let ty_subst' =
       Ast.TyParamMap.map
-        (fun ty -> Ast.substitute_ty ty_subst tau_subst ty)
+        (fun ty -> Ast.substitute_ty ty_subst tau_subst'' ty)
         ty_subst
     in
-    (* print_tau_ineq_constraints (subst_tau_inequations tau_subst tau_ineqs); *)
-    check_tau_ineq_constraints state (subst_tau_inequations tau_subst tau_ineqs);
-    check_tau_abs_constraints (subst_tau_abstract_constraints tau_subst tau_abs);
-    (ty_subst', tau_subst)
+    (ty_subst', tau_subst'')
 
   let infer state e =
     let comp_ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs =
