@@ -1010,8 +1010,10 @@ module Make (Tau : Language.Tau.S) = struct
       variables = ContextHolderModule.add_variable x ty_sch state.variables;
     }
 
-  let add_top_definition state x expr =
-    let ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs = infer_expression state expr in
+  let add_top_definition state x e =
+    (* PrettyPrint.print_expression (module Tau) e Format.std_formatter;
+    Format.fprintf Format.std_formatter "\n"; *)
+    let ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs = infer_expression state e in
     let ty_subst, tau_subst = unify state ty_eqs tau_eqs tau_ineqs tau_abs in
     let ty' = Ast.substitute_ty ty_subst tau_subst ty in
     let ty'' = simplify_ty ty' in
