@@ -1,16 +1,24 @@
-(* Typechecks as desired. *)
+(* Is correctly accepted by the typechecker. *)
 let foo () = 
   let r = box (1,4) 1 in
   delay 3; 
   unbox r as y in 
   y + 1
 
-(* BUG: This version should not typecheck because [5,5] is not subinterval of [1,4]. *)
+(*
+(* Correctly gets rejected by the typechecker. *)
 let bar () = 
   let r = box (1,4) 1 in
   delay 5;
   unbox r as y in
   y + 1
+*)
 
-run foo ()
-run bar ()
+(* TODO: Is incorrectly accepted by the typechecker. *)
+let fez () =
+  let r = box (1,4) 1 in
+  delay 3;
+  let r' = r in
+  delay 3;
+  unbox r' as y in 
+  y + 1

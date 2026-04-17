@@ -68,5 +68,5 @@ module IntervalTau : S = struct
       invalid_arg "IntervalTau.of_nat: expected non-negative integer"
     else (n, n)
 
-  let show (n, m) = "[" ^ string_of_int n ^ "," ^ string_of_int m ^ "]"
+  let show (n, m) = "(" ^ string_of_int n ^ "," ^ string_of_int m ^ ")"
 end
