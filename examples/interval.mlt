@@ -14,18 +14,31 @@ let foo2 () =
   unbox r as y in
   y
 
-(* This does not currently typecheck because (+) is a binary function 
-   defined in stdlib and thus appears in context behind grade (3,3). *)
+(* Should be accepted by the typechecker. *)
 let foo3 () = 
+  let x = 7 in
   box (1,4) 1 as r in
   let _ = delay 1 in
   let _ = delay 2 in
+  let z = 3 in
   unbox r as y in
-  y + 1
+  y + z
 
+(* Should be rejected by the typechecker. *)
 (*
+let foo4 () = 
+  let x = 7 in
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  let z = 3 in
+  unbox r as y in
+  y + x
+*)
+
 (* Should get rejected by the typechecker. *)
-let bar () = 
+(*
+let foo5 () = 
   let r = box (1,4) 1 in
   delay 5;
   unbox r as y in
@@ -34,7 +47,7 @@ let bar () =
 
 (* Should get rejected by the typechecker. *)
 (*
-let fez () =
+let foo6 () =
   let r = box (1,4) 1 in
   delay 3;
   let r' = r in

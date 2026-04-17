@@ -11,9 +11,11 @@ module Make (Tau : Language.Tau.S) = struct
 
   module P = Primitives.Make (Tau)
 
+  type var_type = Global | Local
+
   type state = {
     variables :
-      (Ast.ty_param list * Ast.tau_param list * Tau.t Ast.ty)
+      (Ast.ty_param list * Ast.tau_param list * Tau.t Ast.ty * var_type)
       ContextHolderModule.t;
     type_definitions : (Ast.ty_param list * Tau.t Ast.ty_def) Ast.TyNameMap.t;
     op_signatures :
@@ -179,11 +181,21 @@ module Make (Tau : Language.Tau.S) = struct
 
   let fresh_comp_ty () = Ast.CompTy (fresh_ty (), fresh_tau ())
 
-  let extend_variables state vars =
+  let extend_local_variables state vars =
     List.fold_left
       (fun state (x, ty) ->
         let updated_variables =
-          ContextHolderModule.add_variable x ([], [], ty) state.variables
+          ContextHolderModule.add_variable x ([], [], ty, Local) state.variables
+        in
+        { state with variables = updated_variables })
+      state vars
+
+  let extend_global_variables state vars =
+    List.fold_left
+      (fun state (x, ty) ->
+        let updated_variables =
+          ContextHolderModule.add_variable x ([], [], ty, Global)
+            state.variables
         in
         { state with variables = updated_variables })
       state vars
@@ -264,11 +276,13 @@ module Make (Tau : Language.Tau.S) = struct
         handlers) *)
   let rec infer_expression state = function
     | Ast.Var x ->
-        let ty_params, tau_params, ty =
+        let ty_params, tau_params, ty, var_type =
           ContextHolderModule.find_variable x state.variables
         in
         let sum_taus_added_after =
-          ContextHolderModule.sum_taus_added_after x state.variables
+          match var_type with
+          | Local -> ContextHolderModule.sum_taus_added_after x state.variables
+          | Global -> Ast.TauConst Tau.zero
         in
         (* Format.fprintf Format.std_formatter "\n";
         PrettyPrint.print_expression
@@ -324,7 +338,7 @@ module Make (Tau : Language.Tau.S) = struct
           tau_abs )
     | Ast.RecLambda (f, abs) ->
         let f_ty = fresh_ty () in
-        let state' = extend_variables state [ (f, f_ty) ] in
+        let state' = extend_local_variables state [ (f, f_ty) ] in
         let ty, CompTy (ty', tau), ty_eqs, tau_eqs, tau_ineqs, tau_abs =
           infer_abstraction state' abs
         in
@@ -501,7 +515,7 @@ module Make (Tau : Language.Tau.S) = struct
           | _ -> Error.typing "Unboxing requires a variable."
         in
         let x = findVar e in
-        let ty_params, tau_params, ty =
+        let ty_params, tau_params, ty, var_type =
           ContextHolderModule.find_variable x state.variables
         in
         let ty_subst = refreshing_ty_subst ty_params in
@@ -511,7 +525,9 @@ module Make (Tau : Language.Tau.S) = struct
           infer_abstraction state abs
         in
         let sum_taus_added_after =
-          ContextHolderModule.sum_taus_added_after x state.variables
+          match var_type with
+          | Local -> ContextHolderModule.sum_taus_added_after x state.variables
+          | Global -> Ast.TauConst Tau.zero
         in
         let tau = fresh_tau () in
         ( comp_ty,
@@ -561,7 +577,7 @@ module Make (Tau : Language.Tau.S) = struct
 
   and infer_abstraction state (pat, comp) =
     let ty, vars, ty_eqs = infer_pattern state pat in
-    let state' = extend_variables state vars in
+    let state' = extend_local_variables state vars in
     let ty', ty_eqs', tau_eqs', tau_ineqs', tau_abs' =
       infer_computation state' comp
     in
@@ -1026,7 +1042,8 @@ module Make (Tau : Language.Tau.S) = struct
     let ty_sch =
       ( free_vars |> Ast.TyParamSet.elements,
         free_taus |> Ast.TauParamSet.elements,
-        ty'' )
+        ty'',
+        Global )
     in
     add_external_function x ty_sch state
 
@@ -1054,6 +1071,6 @@ module Make (Tau : Language.Tau.S) = struct
     state'
 
   let load_primitive state x prim =
-    let ty_sch = P.primitive_type_scheme prim in
-    add_external_function x ty_sch state
+    let ty_params, tau_params, ty = P.primitive_type_scheme prim in
+    add_external_function x (ty_params, tau_params, ty, Global) state
 end
