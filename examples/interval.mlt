@@ -12,11 +12,16 @@ let foo2 () =
   let _ = delay 1 in
   let _ = delay 2 in
   unbox r as y in
-  y + 1
+  y
 
-(* TODO: *)
-(* [TauGeq((3,3) <= (1,4)); TauGeq((3,3) <= (0,0))] *)
-(* Unclear why the use of y induces (3,3) <= (0,0) constraint here?!?  *)
+(* This does not currently typecheck because (+) is a binary function 
+   defined in stdlib and thus appears in context behind grade (3,3). *)
+let foo3 () = 
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  unbox r as y in
+  y + 1
 
 (*
 (* Should get rejected by the typechecker. *)
