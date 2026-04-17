@@ -515,7 +515,7 @@ module Make (Tau : Language.Tau.S) = struct
           | _ -> Error.typing "Unboxing requires a variable."
         in
         let x = findVar e in
-        let ty_params, tau_params, ty, var_type =
+        let ty_params, tau_params, ty, _var_type =
           ContextHolderModule.find_variable x state.variables
         in
         let ty_subst = refreshing_ty_subst ty_params in
@@ -525,9 +525,7 @@ module Make (Tau : Language.Tau.S) = struct
           infer_abstraction state abs
         in
         let sum_taus_added_after =
-          match var_type with
-          | Local -> ContextHolderModule.sum_taus_added_after x state.variables
-          | Global -> Ast.TauConst Tau.zero
+          ContextHolderModule.sum_taus_added_after x state.variables
         in
         let tau = fresh_tau () in
         ( comp_ty,

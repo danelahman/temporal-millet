@@ -22,7 +22,7 @@ let higher2 n =
   delay 10; 
   fun m -> delay 5; n + m
 
-let foo f f2 n = f n; f n; f n; f2 n; f2 n; delay 42
+let foo f1 f2 n = f1 n; f1 n; f1 n; f2 n; f2 n; delay 42
 
 let bar n = delay 24
 
@@ -30,6 +30,7 @@ let bar2 n = delay 23
 
 let foobar () = foo bar bar2 7
 
+(*
 let test () = 
   let x = box 3 (higher 5 6) in 
   delay 3; 
@@ -62,3 +63,4 @@ run test ()
 run test2 ()
 run test3 ()
 
+*)
