@@ -22,15 +22,24 @@ let higher2 n =
   delay 10; 
   fun m -> delay 5; n + m
 
-let foo f1 f2 n = f1 n; f1 n; f1 n; f2 n; f2 n; delay 42
+(* Does not work any more because the variable n cannot be automatically 
+   transported through the (unknown) resource grade contributed by f1. *)
+(* At the moment the f1 argument is inferred a 0-graded function type. *)
+(* Either need to automatically insert boxing/unboxing, or maybe classify
+   some value types as being stable/eternal and allow them to be used anywhere. *)
+let foo f1 f2 n = f1 n; f2 n; delay 42
 
-let bar n = delay 24
+(* But this example also infers for f1 a 0-graded function type. *)
+(* At the same time, the grade of foo' mentions what should be the grade of f1. *)
+let foo' f1 f2 () = f1 (); f2 (); delay 42
+
+(*
+let bar1 n = delay 24
 
 let bar2 n = delay 23
 
-let foobar () = foo bar bar2 7
+let foobar () = foo bar1 bar2 7
 
-(*
 let test () = 
   let x = box 3 (higher 5 6) in 
   delay 3; 

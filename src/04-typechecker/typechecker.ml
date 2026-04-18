@@ -984,13 +984,13 @@ module Make (Tau : Language.Tau.S) = struct
                   tau ppf))
 
   let unify state ty_eqs tau_eqs tau_ineqs tau_abs =
-    (* let _ty_pp = PrettyPrint.TyPrintParam.create () in *)
-    (* let _tau_pp = PrettyPrint.TauPrintParam.create () in *)
+    (* let ty_pp = PrettyPrint.TyPrintParam.create () in *)
+    (* let tau_pp = PrettyPrint.TauPrintParam.create () in *)
     (* print_ty_constraints_pp ty_pp tau_pp ty_eqs; *)
     (* print_tau_eq_constraints_pp tau_pp tau_eqs; *)
     (* print_tau_ineq_constraints_pp tau_pp tau_ineqs; *)
     let ty_subst, tau_eqs' = unify_ty_constraints state [] ty_eqs in
-    (* print_tau_eq_constraints tau_eqs'; *)
+    (* print_tau_eq_constraints_pp tau_pp tau_eqs'; *)
     let tau_subst = unify_tau_constraints state 0 [] (tau_eqs @ tau_eqs') in
     let tau_ineqs' = subst_tau_inequations tau_subst tau_ineqs in
     let tau_subst', tau_ineqs'' =
