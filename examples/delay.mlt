@@ -31,7 +31,7 @@ let foo f1 f2 n = f1 n; f2 n; delay 42
 
 (* But this example also infers for f1 a 0-graded function type. *)
 (* At the same time, the grade of foo' mentions what should be the grade of f1. *)
-let foo' f1 f2 () = f1 (); f2 (); delay 42
+let foo' f1 f2 () = f1 (); f2 (); delay 24
 
 (*
 let bar1 n = delay 24

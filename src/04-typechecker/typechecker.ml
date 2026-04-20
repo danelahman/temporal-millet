@@ -279,10 +279,14 @@ module Make (Tau : Language.Tau.S) = struct
         let ty_params, tau_params, ty, var_type =
           ContextHolderModule.find_variable x state.variables
         in
-        let sum_taus_added_after =
+        let tau_ineq =
           match var_type with
-          | Local -> ContextHolderModule.sum_taus_added_after x state.variables
-          | Global -> Ast.TauConst Tau.zero
+          | Local ->
+              [
+                ( ContextHolderModule.sum_taus_added_after x state.variables,
+                  Ast.TauConst Tau.zero );
+              ]
+          | Global -> []
         in
         (* Format.fprintf Format.std_formatter "\n";
         PrettyPrint.print_expression
@@ -295,11 +299,7 @@ module Make (Tau : Language.Tau.S) = struct
         Format.fprintf Format.std_formatter "\n"; *)
         let ty_subst = refreshing_ty_subst ty_params in
         let tau_subst = refreshing_tau_subst tau_params in
-        ( Ast.substitute_ty ty_subst tau_subst ty,
-          [],
-          [],
-          [ (sum_taus_added_after, Ast.TauConst Tau.zero) ],
-          [] )
+        (Ast.substitute_ty ty_subst tau_subst ty, [], [], tau_ineq, [])
         (* type, type constraints, tau constraints, tau inequational constraints, tau abstractness constraints *)
     | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [], [], [], [])
     | Ast.Annotated (expr, ty) ->
@@ -984,11 +984,11 @@ module Make (Tau : Language.Tau.S) = struct
                   tau ppf))
 
   let unify state ty_eqs tau_eqs tau_ineqs tau_abs =
-    (* let ty_pp = PrettyPrint.TyPrintParam.create () in *)
-    (* let tau_pp = PrettyPrint.TauPrintParam.create () in *)
-    (* print_ty_constraints_pp ty_pp tau_pp ty_eqs; *)
-    (* print_tau_eq_constraints_pp tau_pp tau_eqs; *)
-    (* print_tau_ineq_constraints_pp tau_pp tau_ineqs; *)
+    let ty_pp = PrettyPrint.TyPrintParam.create () in
+    let tau_pp = PrettyPrint.TauPrintParam.create () in
+    print_ty_constraints_pp ty_pp tau_pp ty_eqs;
+    print_tau_eq_constraints_pp tau_pp tau_eqs;
+    print_tau_ineq_constraints_pp tau_pp tau_ineqs;
     let ty_subst, tau_eqs' = unify_ty_constraints state [] ty_eqs in
     (* print_tau_eq_constraints_pp tau_pp tau_eqs'; *)
     let tau_subst = unify_tau_constraints state 0 [] (tau_eqs @ tau_eqs') in
@@ -1029,9 +1029,9 @@ module Make (Tau : Language.Tau.S) = struct
     }
 
   let add_top_definition state x e =
-    (* Format.fprintf Format.std_formatter "\n";
+    Format.fprintf Format.std_formatter "\n";
     PrettyPrint.print_expression (module Tau) e Format.std_formatter;
-    Format.fprintf Format.std_formatter "\n"; *)
+    Format.fprintf Format.std_formatter "\n";
     let ty, ty_eqs, tau_eqs, tau_ineqs, tau_abs = infer_expression state e in
     let ty_subst, tau_subst = unify state ty_eqs tau_eqs tau_ineqs tau_abs in
     let ty' = Ast.substitute_ty ty_subst tau_subst ty in
