@@ -75,9 +75,9 @@ module Make (Tau : Language.Tau.S) = struct
     print_tau_constraint tau1 tau2 tau_pp
 
   let print_tau_geq tau1 tau2 tau_pp =
-    (* TODO: inequality symbol should depend on Tau module instance *)
-    Format.printf "TauGeq(%t ≾ %t)"
+    Format.printf "TauGeq(%t %s %t)"
       (PrettyPrint.print_tau (module Tau) tau_pp tau1)
+      Tau.is_sub_tau_symbol
       (PrettyPrint.print_tau (module Tau) tau_pp tau2)
 
   let print_one_tau_geq tau1 tau2 =
