@@ -75,7 +75,8 @@ module Make (Tau : Language.Tau.S) = struct
     print_tau_constraint tau1 tau2 tau_pp
 
   let print_tau_geq tau1 tau2 tau_pp =
-    Format.printf "TauGeq(%t <= %t)"
+    (* TODO: inequality symbol should depend on Tau module instance *)
+    Format.printf "TauGeq(%t ≾ %t)"
       (PrettyPrint.print_tau (module Tau) tau_pp tau1)
       (PrettyPrint.print_tau (module Tau) tau_pp tau2)
 
@@ -676,8 +677,8 @@ module Make (Tau : Language.Tau.S) = struct
 
   let compare_tau a b =
     match (a, b) with
-    | Either.Left p1, Either.Left p2 -> compare p1 p2
-    | Either.Right c1, Either.Right c2 -> compare c1 c2
+    | Either.Left p1, Either.Left p2 -> compare p1 p2 (* compare parameters *)
+    | Either.Right c1, Either.Right c2 -> compare c1 c2 (* compare constants *)
     | Either.Left _, _ -> -1
     | _, Either.Left _ -> 1
 
@@ -869,6 +870,7 @@ module Make (Tau : Language.Tau.S) = struct
         match (tau1', tau2') with
         | _ when tau1' = tau2' ->
             unify_tau_ineq_constraints state prev_unsolved_size unsolved ineqs
+        (* TODO: whether zero is minimal needs to depend on Tau module instance *)
         | Ast.TauParam tp, tau
           when (not (occurs_tau tp tau)) && tau2' = Ast.TauConst Tau.zero ->
             let tau_subst, unsolved' =
@@ -954,6 +956,7 @@ module Make (Tau : Language.Tau.S) = struct
                   (module Tau)
                   (PrettyPrint.TauPrintParam.create ())
                   tau_greater_or_equal_simplified ppf)
+        (* TODO: checking inequations should also depend on properties of zero for a given Tau module instance *)
         | Some (tau_smaller_val, tau_greater_or_equal_val) ->
             if not (Tau.is_sub_tau tau_smaller_val tau_greater_or_equal_val)
             then
@@ -997,9 +1000,12 @@ module Make (Tau : Language.Tau.S) = struct
       unify_tau_ineq_constraints state 0 [] tau_ineqs'
     in
     let tau_subst'' =
-      Ast.TauParamMap.map
-        (fun tau -> Ast.substitute_tau tau_subst' tau)
-        tau_subst
+      Ast.TauParamMap.union
+        (fun _ v _ -> Some v)
+        (Ast.TauParamMap.map
+           (fun tau -> Ast.substitute_tau tau_subst' tau)
+           tau_subst)
+        tau_subst'
     in
     (* print_tau_ineq_constraints_pp tau_pp
       (subst_tau_inequations tau_subst'' tau_ineqs''); *)
