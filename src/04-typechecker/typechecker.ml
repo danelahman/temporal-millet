@@ -870,9 +870,10 @@ module Make (Tau : Language.Tau.S) = struct
         match (tau1', tau2') with
         | _ when tau1' = tau2' ->
             unify_tau_ineq_constraints state prev_unsolved_size unsolved ineqs
-        (* TODO: whether zero is minimal needs to depend on Tau module instance *)
         | Ast.TauParam tp, tau
-          when (not (occurs_tau tp tau)) && tau2' = Ast.TauConst Tau.zero ->
+          when (not (occurs_tau tp tau))
+               && tau2' = Ast.TauConst Tau.zero
+               && Tau.is_zero_minimal_sub_tau ->
             let tau_subst, unsolved' =
               unify_tau_ineq_constraints state prev_unsolved_size
                 (subst_tau_equations
