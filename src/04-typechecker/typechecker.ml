@@ -928,7 +928,6 @@ module Make (Tau : Language.Tau.S) = struct
             unify_tau_ineq_constraints state prev_unsolved_size
               ((u1, u2) :: unsolved) ineqs)
 
-  (* TODO: checking inequations should also depend on properties of zero for a given Tau module instance *)
   let rec check_tau_ineq_constraints state = function
     | [] -> ()
     | (tau_smaller, tau_greater_or_equal) :: tau_ineqs -> (
