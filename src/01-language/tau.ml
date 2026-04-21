@@ -15,6 +15,7 @@ module type S = sig
 
   val is_sub_tau_symbol : string
   val is_zero_minimal_sub_tau : bool
+  val is_zero_top_sub_tau : bool
 
   val of_lit : lit -> t
   (** Converts a parsed tau literal to a value of type [t]. *)
@@ -33,6 +34,7 @@ module NatTau : S = struct
   let is_sub_tau = ( >= )
   let is_sub_tau_symbol = ">="
   let is_zero_minimal_sub_tau = false
+  let is_zero_top_sub_tau = true
 
   let of_lit = function
     | Int n ->
@@ -58,6 +60,7 @@ module IntervalTau : S = struct
 
   let is_sub_tau_symbol = "<="
   let is_zero_minimal_sub_tau = true
+  let is_zero_top_sub_tau = false
 
   let of_lit = function
     | Int _ -> invalid_arg "IntervalTau.of_lit: pair literal expected"
