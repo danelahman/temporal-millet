@@ -1,3 +1,5 @@
+resources time
+
 type nat =
   | Zero
   | Succ of nat

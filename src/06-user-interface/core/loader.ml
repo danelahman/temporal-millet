@@ -84,6 +84,12 @@ module Loader (Backend : Backend.S) = struct
         let _ = TC.infer state.typechecker comp in
         let backend_state' = Backend.load_top_do state.backend comp in
         { state with backend = backend_state' }
+    | Ast.Resources resource_name ->
+        if resource_name <> Backend.Tau.name then
+          Error.typing
+            "File specifies resources '%s' but interpreter is using '%s'."
+            resource_name Backend.Tau.name;
+        state
 
   let load_commands state cmds =
     let desugarer_state', cmds' =

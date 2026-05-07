@@ -7,6 +7,10 @@ type lit =
 module type S = sig
   type t
 
+  val name : string
+  (** The name of the resource grade type, e.g. ["time"] or ["time-interval"].
+  *)
+
   val zero : t
   val add : t -> t -> t
 
@@ -29,6 +33,7 @@ end
 module NatTau : S = struct
   type t = int
 
+  let name = "time"
   let zero = 0
   let add = ( + )
   let is_sub_tau = ( >= )
@@ -52,6 +57,7 @@ end
 module IntervalTau : S = struct
   type t = int * int
 
+  let name = "time-interval"
   let zero = (0, 0)
   let add (n, m) (k, l) = (n + k, m + l)
 

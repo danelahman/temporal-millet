@@ -404,6 +404,7 @@ module Make (Tau : Language.Tau.S) = struct
     | Sugared.TopLetRec (f, term) ->
         let state', f, expr = desugar_let_rec_def state (f, term) in
         (state', Untyped.TopLet (f, expr))
+    | Sugared.Resources s -> (state, Untyped.Resources s)
 
   let load_primitive state x prim =
     let str = Language.Primitives.primitive_name prim in

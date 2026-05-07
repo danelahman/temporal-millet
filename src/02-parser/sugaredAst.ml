@@ -92,3 +92,4 @@ and 'tau plain_command =
   | TopLet of variable * 'tau term  (** [let x = t] *)
   | TopLetRec of variable * 'tau term  (** [let rec f = t] *)
   | TopDo of 'tau term  (** [do t] *)
+  | Resources of string  (** [resources "name"] *)

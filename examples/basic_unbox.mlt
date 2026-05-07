@@ -1,3 +1,5 @@
+resources time
+
 run
     let x = (10, 10) in
     box 5 x as boxed in

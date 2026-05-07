@@ -28,6 +28,7 @@
 %token AMPER AMPERAMPER
 %token LAND LOR LXOR
 %token <string> PREFIXOP INFIXOP0 INFIXOP1 INFIXOP2 INFIXOP3 INFIXOP4
+%token RESOURCES
 %token EOF
 
 %nonassoc ARROW IN
@@ -70,6 +71,14 @@ plain_command:
     { let (f, t) = def in TopLetRec (f, t) }
   | RUN trm = term
     { TopDo trm }
+  | RESOURCES name = resource_name
+    { Resources name }
+
+resource_name:
+  | s = LNAME
+    { s }
+  | s1 = LNAME MINUS s2 = LNAME
+    { s1 ^ "-" ^ s2 }
 
 payload:
   | trm = term EOF

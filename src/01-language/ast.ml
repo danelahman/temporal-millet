@@ -96,6 +96,7 @@ type 'a command =
   | OpSig of (operation * 'a ty * 'a ty * 'a tau)
   | TopLet of variable * 'a expression
   | TopDo of 'a computation
+  | Resources of string
 
 type ('var, 'map, 'tau) context_elem_ty = VarMap of 'map | Tau of 'tau
 type ('var, 'map, 'tau) context = ('var, 'map, 'tau) context_elem_ty list

@@ -1,3 +1,5 @@
+resources time
+
 operation Get : unit ~> int # 71
 operation Set : int ~> unit # 2
 
