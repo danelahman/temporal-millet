@@ -1,2 +1,2 @@
-module Make (Resource : Language.Resource.S) :
-  CliBackend.S with module Resource = Resource
+module Make (ResourceGrade : Language.ResourceGrade.S) :
+  CliBackend.S with module ResourceGrade = ResourceGrade

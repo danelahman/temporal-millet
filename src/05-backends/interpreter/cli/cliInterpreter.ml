@@ -1,5 +1,5 @@
-module Make (Resource : Language.Resource.S) = struct
-  include Interpreter.Make (Resource)
+module Make (ResourceGrade : Language.ResourceGrade.S) = struct
+  include Interpreter.Make (ResourceGrade)
   module Ast = Language.Ast
   module PrettyPrint = Language.PrettyPrint
 
@@ -7,11 +7,13 @@ module Make (Resource : Language.Resource.S) = struct
     match run_state with
     | { computations = Ast.Return exp :: _; _ } ->
         Format.printf "%t@."
-          (PrettyPrint.print_computation (module Resource) (Ast.Return exp))
+          (PrettyPrint.print_computation
+             (module ResourceGrade)
+             (Ast.Return exp))
     | { computations = Ast.Perform (op, exp, cont) :: _; _ } ->
         Format.printf "%t@."
           (PrettyPrint.print_computation
-             (module Resource)
+             (module ResourceGrade)
              (Ast.Perform (op, exp, cont)))
     | _ -> ()
 end

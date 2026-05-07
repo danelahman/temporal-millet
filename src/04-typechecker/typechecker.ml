@@ -5,22 +5,27 @@ module Context = Language.Context
 module Exception = Language.Exception
 module PrettyPrint = Language.PrettyPrint
 
-module Make (Resource : Language.Resource.S) = struct
+module Make (ResourceGrade : Language.ResourceGrade.S) = struct
   module ContextHolderModule =
-    Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (Resource)
+    Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (ResourceGrade)
 
-  module P = Primitives.Make (Resource)
+  module P = Primitives.Make (ResourceGrade)
 
   type var_type = Global | Local
 
   type state = {
     variables :
-      (Ast.ty_param list * Ast.rho_param list * Resource.t Ast.ty * var_type)
+      (Ast.ty_param list
+      * Ast.rho_param list
+      * ResourceGrade.t Ast.ty
+      * var_type)
       ContextHolderModule.t;
     type_definitions :
-      (Ast.ty_param list * Resource.t Ast.ty_def) Ast.TyNameMap.t;
+      (Ast.ty_param list * ResourceGrade.t Ast.ty_def) Ast.TyNameMap.t;
     op_signatures :
-      (Resource.t Ast.ty * Resource.t Ast.ty * Resource.t Ast.rho)
+      (ResourceGrade.t Ast.ty
+      * ResourceGrade.t Ast.ty
+      * ResourceGrade.t Ast.rho)
       Ast.OpNameMap.t;
   }
 
@@ -59,8 +64,8 @@ module Make (Resource : Language.Resource.S) = struct
 
   let print_type_constraint t1 t2 ty_pp rho_pp =
     Format.printf "TypeConstraint(%t = %t)"
-      (PrettyPrint.print_ty (module Resource) ty_pp rho_pp t1)
-      (PrettyPrint.print_ty (module Resource) ty_pp rho_pp t2)
+      (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp t1)
+      (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp t2)
 
   let print_one_type_constraint t1 t2 =
     let ty_pp = PrettyPrint.TyPrintParam.create () in
@@ -69,8 +74,8 @@ module Make (Resource : Language.Resource.S) = struct
 
   let print_rho_constraint rho1 rho2 rho_pp =
     Format.printf "RhoConstraint(%t = %t)"
-      (PrettyPrint.print_rho (module Resource) rho_pp rho1)
-      (PrettyPrint.print_rho (module Resource) rho_pp rho2)
+      (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho1)
+      (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho2)
 
   let print_one_rho_constraint rho1 rho2 =
     let rho_pp = PrettyPrint.RhoPrintParam.create () in
@@ -78,9 +83,9 @@ module Make (Resource : Language.Resource.S) = struct
 
   let print_rho_geq rho1 rho2 rho_pp =
     Format.printf "RhoGeq(%t %s %t)"
-      (PrettyPrint.print_rho (module Resource) rho_pp rho1)
-      Resource.is_sub_rho_symbol
-      (PrettyPrint.print_rho (module Resource) rho_pp rho2)
+      (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho1)
+      ResourceGrade.is_sub_rho_symbol
+      (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho2)
 
   let print_one_rho_geq rho1 rho2 =
     let rho_pp = PrettyPrint.RhoPrintParam.create () in
@@ -88,7 +93,7 @@ module Make (Resource : Language.Resource.S) = struct
 
   let print_fresh_rho_constraint rho rho_pp =
     Format.printf "FreshRhoConstraint(%t)"
-      (PrettyPrint.print_rho (module Resource) rho_pp rho)
+      (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho)
 
   let print_one_fresh_rho_constraint rho =
     let rho_pp = PrettyPrint.RhoPrintParam.create () in
@@ -287,16 +292,16 @@ module Make (Resource : Language.Resource.S) = struct
           | Local ->
               [
                 ( ContextHolderModule.sum_rhos_added_after x state.variables,
-                  Ast.RhoConst Resource.zero );
+                  Ast.RhoConst ResourceGrade.zero );
               ]
           | Global -> []
         in
         (* Format.fprintf Format.std_formatter "\n";
         PrettyPrint.print_expression
-          (module Resource)
+          (module ResourceGrade)
           (Ast.Var x) Format.std_formatter;
         PrettyPrint.print_rho
-          (module Resource)
+          (module ResourceGrade)
           (PrettyPrint.RhoPrintParam.create ())
           sum_rhos_added_after Format.std_formatter;
         Format.fprintf Format.std_formatter "\n"; *)
@@ -336,7 +341,7 @@ module Make (Resource : Language.Resource.S) = struct
         in
         ( Ast.TyArrow (ty, CompTy (ty', rho)),
           ty_eqs,
-          (rho, Ast.RhoConst Resource.zero) :: rho_eqs,
+          (rho, Ast.RhoConst ResourceGrade.zero) :: rho_eqs,
           rho_ineqs,
           rho_abs )
     | Ast.RecLambda (f, abs) ->
@@ -348,7 +353,7 @@ module Make (Resource : Language.Resource.S) = struct
         let out_ty = Ast.TyArrow (ty, CompTy (ty', rho)) in
         ( out_ty,
           (f_ty, out_ty) :: ty_eqs,
-          (rho, Ast.RhoConst Resource.zero) :: rho_eqs,
+          (rho, Ast.RhoConst ResourceGrade.zero) :: rho_eqs,
           rho_ineqs,
           rho_abs )
     | Ast.Variant (lbl, expr) -> (
@@ -430,7 +435,7 @@ module Make (Resource : Language.Resource.S) = struct
         let ty, ty_eqs, rho_eqs, rho_ineqs, rho_abs =
           infer_expression state expr
         in
-        ( Ast.CompTy (ty, Ast.RhoConst Resource.zero),
+        ( Ast.CompTy (ty, Ast.RhoConst ResourceGrade.zero),
           ty_eqs,
           rho_eqs,
           rho_ineqs,
@@ -654,8 +659,10 @@ module Make (Resource : Language.Resource.S) = struct
         let t1' = simplify_rho t1 in
         let t2' = simplify_rho t2 in
         match (t1', t2') with
-        | Ast.RhoConst c1, Ast.RhoConst c2 -> Ast.RhoConst (Resource.add c1 c2)
-        | (Ast.RhoConst z, t | t, Ast.RhoConst z) when z = Resource.zero -> t
+        | Ast.RhoConst c1, Ast.RhoConst c2 ->
+            Ast.RhoConst (ResourceGrade.add c1 c2)
+        | (Ast.RhoConst z, t | t, Ast.RhoConst z) when z = ResourceGrade.zero ->
+            t
         | _ -> Ast.RhoAdd (t1', t2'))
     | _ -> rho
 
@@ -717,7 +724,7 @@ module Make (Resource : Language.Resource.S) = struct
       | Either.Right x -> Ast.RhoConst x
     in
     match params with
-    | [] -> Ast.RhoConst Resource.zero
+    | [] -> Ast.RhoConst ResourceGrade.zero
     | hd :: tl ->
         List.fold_left (fun acc e -> Ast.RhoAdd (acc, to_rho e)) (to_rho hd) tl
 
@@ -780,8 +787,8 @@ module Make (Resource : Language.Resource.S) = struct
         let ty_pp = PrettyPrint.TyPrintParam.create () in
         let rho_pp = PrettyPrint.RhoPrintParam.create () in
         Error.typing "Cannot unify types %t = %t"
-          (PrettyPrint.print_ty (module Resource) ty_pp rho_pp t1)
-          (PrettyPrint.print_ty (module Resource) ty_pp rho_pp t2)
+          (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp t1)
+          (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp t2)
 
   let rec unify_rho_constraints state prev_unsolved_size unsolved = function
     | [] ->
@@ -824,10 +831,10 @@ module Make (Resource : Language.Resource.S) = struct
             add_rho_subst tp rho rho_subst
         | Ast.RhoConst z, Ast.RhoAdd (t1, t2)
         | Ast.RhoAdd (t1, t2), Ast.RhoConst z
-          when z = Resource.zero ->
+          when z = ResourceGrade.zero ->
             unify_rho_constraints state prev_unsolved_size unsolved
-              ((t1, Ast.RhoConst Resource.zero)
-              :: (t2, Ast.RhoConst Resource.zero)
+              ((t1, Ast.RhoConst ResourceGrade.zero)
+              :: (t2, Ast.RhoConst ResourceGrade.zero)
               :: eqs)
         | t, Ast.RhoAdd (t1, t2) ->
             let left = build_sorted_rho_param_list t in
@@ -876,8 +883,8 @@ module Make (Resource : Language.Resource.S) = struct
             unify_rho_ineq_constraints state prev_unsolved_size unsolved ineqs
         | Ast.RhoParam tp, rho
           when (not (occurs_rho tp rho))
-               && rho2' = Ast.RhoConst Resource.zero
-               && Resource.is_zero_minimal_sub_rho ->
+               && rho2' = Ast.RhoConst ResourceGrade.zero
+               && ResourceGrade.is_zero_minimal_sub_rho ->
             let rho_subst, unsolved' =
               unify_rho_ineq_constraints state prev_unsolved_size
                 (subst_rho_equations
@@ -897,10 +904,10 @@ module Make (Resource : Language.Resource.S) = struct
             (add_rho_subst tp rho rho_subst, unsolved') *)
         (* | Ast.RhoConst z, Ast.RhoAdd (t1, t2)
         | Ast.RhoAdd (t1, t2), Ast.RhoConst z
-          when z = Resource.zero ->
+          when z = ResourceGrade.zero ->
             unify_rho_ineq_constraints state prev_unsolved_size unsolved
-              ((t1, Ast.RhoConst Resource.zero)
-              :: (t2, Ast.RhoConst Resource.zero)
+              ((t1, Ast.RhoConst ResourceGrade.zero)
+              :: (t2, Ast.RhoConst ResourceGrade.zero)
               :: ineqs) *)
         | t, Ast.RhoAdd (t1, t2) ->
             let left = build_sorted_rho_param_list t in
@@ -944,44 +951,46 @@ module Make (Resource : Language.Resource.S) = struct
             ContextHolderModule.eval_rho rho_greater_or_equal_simplified
           in
           if
-            rho_greater_or_equal_val = Resource.zero
-            && Resource.is_zero_top_sub_rho
+            rho_greater_or_equal_val = ResourceGrade.zero
+            && ResourceGrade.is_zero_top_sub_rho
           then check_rho_ineq_constraints state rho_ineqs
           else
             let rho_smaller_val =
               ContextHolderModule.eval_rho rho_smaller_simplified
             in
             if
-              not (Resource.is_sub_rho rho_smaller_val rho_greater_or_equal_val)
+              not
+                (ResourceGrade.is_sub_rho rho_smaller_val
+                   rho_greater_or_equal_val)
             then
               raise
                 (Exception.InequalityCheckFailed
-                   "Resource inequality check failed")
+                   "ResourceGrade inequality check failed")
             else check_rho_ineq_constraints state rho_ineqs
         with
         | Exception.InequalityCheckFailed _ ->
             Error.typing "Comparing resource inequality %t %s %t failed"
               (fun ppf ->
                 PrettyPrint.print_rho
-                  (module Resource)
+                  (module ResourceGrade)
                   (PrettyPrint.RhoPrintParam.create ())
                   rho_smaller_simplified ppf)
-              Resource.is_sub_rho_symbol
+              ResourceGrade.is_sub_rho_symbol
               (fun ppf ->
                 PrettyPrint.print_rho
-                  (module Resource)
+                  (module ResourceGrade)
                   (PrettyPrint.RhoPrintParam.create ())
                   rho_greater_or_equal_simplified ppf)
         | Exception.RhoParamInEval _ ->
             Error.typing "Cannot compare non-ground resource values %t and %t"
               (fun ppf ->
                 PrettyPrint.print_rho
-                  (module Resource)
+                  (module ResourceGrade)
                   (PrettyPrint.RhoPrintParam.create ())
                   rho_smaller_simplified ppf)
               (fun ppf ->
                 PrettyPrint.print_rho
-                  (module Resource)
+                  (module ResourceGrade)
                   (PrettyPrint.RhoPrintParam.create ())
                   rho_greater_or_equal_simplified ppf))
 
@@ -991,9 +1000,10 @@ module Make (Resource : Language.Resource.S) = struct
         match rho with
         | Ast.RhoParam _ -> check_rho_abs_constraints rho_abs
         | _ ->
-            Error.typing "Resource grade is not in abstract form %t" (fun ppf ->
+            Error.typing "ResourceGrade grade is not in abstract form %t"
+              (fun ppf ->
                 PrettyPrint.print_rho
-                  (module Resource)
+                  (module ResourceGrade)
                   (PrettyPrint.RhoPrintParam.create ())
                   rho ppf))
 
@@ -1047,7 +1057,7 @@ module Make (Resource : Language.Resource.S) = struct
 
   let add_top_definition state x e =
     (* Format.fprintf Format.std_formatter "\n";
-    PrettyPrint.print_expression (module Resource) e Format.std_formatter;
+    PrettyPrint.print_expression (module ResourceGrade) e Format.std_formatter;
     Format.fprintf Format.std_formatter "\n"; *)
     let ty, ty_eqs, rho_eqs, rho_ineqs, rho_abs = infer_expression state e in
     let ty_subst, rho_subst = unify state ty_eqs rho_eqs rho_ineqs rho_abs in

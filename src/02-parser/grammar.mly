@@ -3,7 +3,7 @@
   open Utils
 %}
 
-%parameter<Resource : Language.Resource.S>
+%parameter<ResourceGrade : Language.ResourceGrade.S>
 
 %token LPAREN RPAREN LBRACK RBRACK
 %token COLON COMMA SEMI EQUAL CONS
@@ -43,8 +43,8 @@
 %left  INFIXOP3 STAR MOD LAND LOR LXOR
 %right INFIXOP4 LSL LSR ASR
 
-%start <Resource.t SugaredAst.term> payload
-%start <Resource.t SugaredAst.command list> commands
+%start <ResourceGrade.t SugaredAst.term> payload
+%start <ResourceGrade.t SugaredAst.command list> commands
 
 %%
 
@@ -416,7 +416,7 @@ plain_ty:
   | t1 = ty_apply ARROW t2 = ty HASH grade = rho_grade
     { TyArrow (t1, CompTy (t2, grade)) }
   | t1 = ty_apply ARROW t2 = ty
-    { TyArrow (t1, CompTy (t2, Resource.zero)) }
+    { TyArrow (t1, CompTy (t2, ResourceGrade.zero)) }
   | t = plain_prod_ty
     { t }
 
@@ -455,7 +455,7 @@ sum_case:
     { (lbl, Some t) }
 
 rho_grade:
-  | n = INT { Resource.of_lit (Language.Resource.Int n) }
-  | LPAREN n = INT COMMA m = INT RPAREN { Resource.of_lit (Language.Resource.Pair (n, m)) }
+  | n = INT { ResourceGrade.of_lit (Language.ResourceGrade.Int n) }
+  | LPAREN n = INT COMMA m = INT RPAREN { ResourceGrade.of_lit (Language.ResourceGrade.Pair (n, m)) }
 
 %%

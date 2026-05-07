@@ -5,9 +5,9 @@ module Ast = Language.Ast
 open Backend
 
 module Loader (Backend : Backend.S) = struct
-  module D = Desugarer.Make (Backend.Resource)
-  module TC = Typechecker.Make (Backend.Resource)
-  module G = Parser.Grammar.Make (Backend.Resource)
+  module D = Desugarer.Make (Backend.ResourceGrade)
+  module TC = Typechecker.Make (Backend.ResourceGrade)
+  module G = Parser.Grammar.Make (Backend.ResourceGrade)
 
   type state = {
     desugarer : D.state;
@@ -85,10 +85,10 @@ module Loader (Backend : Backend.S) = struct
         let backend_state' = Backend.load_top_do state.backend comp in
         { state with backend = backend_state' }
     | Ast.Resources resource_name ->
-        if resource_name <> Backend.Resource.name then
+        if resource_name <> Backend.ResourceGrade.name then
           Error.typing
             "File specifies resources '%s' but interpreter is using '%s'."
-            resource_name Backend.Resource.name;
+            resource_name Backend.ResourceGrade.name;
         state
 
   let load_commands state cmds =

@@ -1,8 +1,8 @@
-module Make (Resource : Language.Resource.S) = struct
-  include Interpreter.Make (Resource)
+module Make (ResourceGrade : Language.ResourceGrade.S) = struct
+  include Interpreter.Make (ResourceGrade)
   open Vdom
   module PrettyPrint = Language.PrettyPrint
-  module RS = RedexSelectorTM.Make (Resource)
+  module RS = RedexSelectorTM.Make (ResourceGrade)
 
   let view_computation_redex = function
     | Match -> "match"
@@ -37,7 +37,7 @@ module Make (Resource : Language.Resource.S) = struct
 
         let state_string =
           PrettyPrint.string_of_interpreter_state
-            (module Resource)
+            (module ResourceGrade)
             environment.state
         in
         let computation_tree =

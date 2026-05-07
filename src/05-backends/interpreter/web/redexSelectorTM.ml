@@ -2,8 +2,8 @@ module Print = Utils.Print
 module Ast = Language.Ast
 module PrettyPrint = Language.PrettyPrint
 
-module Make (Resource : Language.Resource.S) = struct
-  module I = Interpreter.Make (Resource)
+module Make (ResourceGrade : Language.ResourceGrade.S) = struct
+  module I = Interpreter.Make (ResourceGrade)
   open I
 
   let tag_marker = "###"
@@ -15,13 +15,15 @@ module Make (Resource : Language.Resource.S) = struct
     | DoReturn, Ast.Do (c1, (pat, c2)) ->
         print "@[<hov>%tlet@[<hov>@ %t =@ %t@]%t in@ %t@]" print_mark
           (PrettyPrint.print_pattern pat)
-          (PrettyPrint.print_computation (module Resource) c1)
+          (PrettyPrint.print_computation (module ResourceGrade) c1)
           print_mark
-          (PrettyPrint.print_computation (module Resource) c2)
+          (PrettyPrint.print_computation (module ResourceGrade) c2)
     | _, comp ->
         print "%t%t%t" print_mark
           (fun ppf ->
-            PrettyPrint.print_computation (module Resource) ?max_level comp ppf)
+            PrettyPrint.print_computation
+              (module ResourceGrade)
+              ?max_level comp ppf)
           print_mark
 
   let rec print_computation_reduction ?max_level red c ppf =
@@ -30,12 +32,12 @@ module Make (Resource : Language.Resource.S) = struct
     | DoCtx red, Ast.Do (c1, (Ast.PNonbinding, c2)) ->
         print "@[<hov>%t;@ %t@]"
           (print_computation_reduction red c1)
-          (PrettyPrint.print_computation (module Resource) c2)
+          (PrettyPrint.print_computation (module ResourceGrade) c2)
     | DoCtx red, Ast.Do (c1, (pat, c2)) ->
         print "@[<hov>let@[<hov>@ %t =@ %t@] in@ %t@]"
           (PrettyPrint.print_pattern pat)
           (print_computation_reduction red c1)
-          (PrettyPrint.print_computation (module Resource) c2)
+          (PrettyPrint.print_computation (module ResourceGrade) c2)
     | ComputationRedex redex, c ->
         print_computation_redex ?max_level redex c ppf
     | _, _ -> assert false
@@ -58,7 +60,7 @@ module Make (Resource : Language.Resource.S) = struct
     (match red with
     | None ->
         PrettyPrint.print_computation
-          (module Resource)
+          (module ResourceGrade)
           comp Format.str_formatter
     | Some red -> print_computation_reduction red comp Format.str_formatter);
     match split_string tag_marker (Format.flush_str_formatter ()) with

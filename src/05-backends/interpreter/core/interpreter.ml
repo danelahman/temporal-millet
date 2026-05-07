@@ -24,24 +24,25 @@ module Types = struct
   type step_label = ComputationReduction of computation_reduction | Return
 end
 
-module Make (T : Language.Resource.S) = struct
-  module Resource = T
+module Make (T : Language.ResourceGrade.S) = struct
+  module ResourceGrade = T
 
   module ContextHolderModule =
-    Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (Resource)
+    Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (ResourceGrade)
 
-  module P = Primitives.Make (Resource)
+  module P = Primitives.Make (ResourceGrade)
   include Types
 
   type evaluation_environment = {
     state :
-      (Resource.t Ast.rho * Resource.t Ast.expression) ContextHolderModule.t;
-    variables : Resource.t Ast.expression ContextHolderModule.t;
+      (ResourceGrade.t Ast.rho * ResourceGrade.t Ast.expression)
+      ContextHolderModule.t;
+    variables : ResourceGrade.t Ast.expression ContextHolderModule.t;
     builtin_functions :
-      (Resource.t Ast.expression -> Resource.t Ast.computation)
+      (ResourceGrade.t Ast.expression -> ResourceGrade.t Ast.computation)
       ContextHolderModule.t;
     resource_counter : int;
-    op_signatures : Resource.t Ast.rho Ast.OpNameMap.t;
+    op_signatures : ResourceGrade.t Ast.rho Ast.OpNameMap.t;
   }
 
   let initial_environment =
@@ -61,7 +62,7 @@ module Make (T : Language.Resource.S) = struct
         eval_tuple env (ContextHolderModule.find_variable x env.variables)
     | expr ->
         Error.runtime "Tuple expected but got %t"
-          (PrettyPrint.print_expression (module Resource) expr)
+          (PrettyPrint.print_expression (module ResourceGrade) expr)
 
   let rec eval_variant (env : evaluation_environment) = function
     | Ast.Variant (lbl, expr) -> (lbl, expr)
@@ -69,7 +70,7 @@ module Make (T : Language.Resource.S) = struct
         eval_variant env (ContextHolderModule.find_variable x env.variables)
     | expr ->
         Error.runtime "Variant expected but got %t"
-          (PrettyPrint.print_expression (module Resource) expr)
+          (PrettyPrint.print_expression (module ResourceGrade) expr)
 
   let rec eval_const (env : evaluation_environment) = function
     | Ast.Const c -> c
@@ -77,7 +78,7 @@ module Make (T : Language.Resource.S) = struct
         eval_const env (ContextHolderModule.find_variable x env.variables)
     | expr ->
         Error.runtime "Const expected but got %t"
-          (PrettyPrint.print_expression (module Resource) expr)
+          (PrettyPrint.print_expression (module ResourceGrade) expr)
 
   let rec match_pattern_with_expression env pat expr =
     match pat with
@@ -276,7 +277,7 @@ module Make (T : Language.Resource.S) = struct
         | None -> ContextHolderModule.find_variable x env.builtin_functions)
     | expr ->
         Error.runtime "Function expected but got %t"
-          (PrettyPrint.print_expression (module Resource) expr)
+          (PrettyPrint.print_expression (module ResourceGrade) expr)
 
   let rec eval_handler env = function
     | Ast.Handler (ret_case, op_cases) -> (ret_case, op_cases)
@@ -288,7 +289,7 @@ module Make (T : Language.Resource.S) = struct
               "Handler expected but did not find it from environment")
     | expr ->
         Error.runtime "Handler expected but got %t"
-          (PrettyPrint.print_expression (module Resource) expr)
+          (PrettyPrint.print_expression (module ResourceGrade) expr)
 
   let step_in_context step env redCtx ctx term =
     let terms' = step env term in
@@ -391,7 +392,7 @@ module Make (T : Language.Resource.S) = struct
           | Ast.Annotated (expr', _) -> doUnbox expr' pat comp
           | _ ->
               Error.runtime "Unbox expected a variable but got expression %t"
-                (PrettyPrint.print_expression (module Resource) expr)
+                (PrettyPrint.print_expression (module ResourceGrade) expr)
         in
         doUnbox expr pat comp
     | Ast.Perform _ -> []
@@ -459,7 +460,7 @@ module Make (T : Language.Resource.S) = struct
 
   type load_state = {
     environment : evaluation_environment;
-    computations : Resource.t Ast.computation list;
+    computations : ResourceGrade.t Ast.computation list;
   }
 
   let initial_load_state =

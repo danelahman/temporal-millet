@@ -8,7 +8,7 @@ module Context = Language.Context
 module Const = Language.Const
 module StringMap = Map.Make (String)
 
-module Make (Resource : Language.Resource.S) = struct
+module Make (ResourceGrade : Language.ResourceGrade.S) = struct
   let add_unique ~loc kind str symb string_map =
     StringMap.update str
       (function
@@ -232,8 +232,8 @@ module Make (Resource : Language.Resource.S) = struct
     | Sugared.Delay rho ->
         ( [],
           Untyped.Delay
-            (RhoConst (Resource.of_nat rho), Untyped.Return (Untyped.Tuple []))
-        )
+            ( RhoConst (ResourceGrade.of_nat rho),
+              Untyped.Return (Untyped.Tuple []) ) )
     | Sugared.Box (rho, e, (p, c)) ->
         let binds, e' = desugar_expression state e in
         let abs = desugar_abstraction state (p, c) in
