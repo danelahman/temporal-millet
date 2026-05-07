@@ -5,9 +5,9 @@ module Ast = Language.Ast
 open Backend
 
 module Loader (Backend : Backend.S) = struct
-  module D = Desugarer.Make (Backend.Tau)
-  module TC = Typechecker.Make (Backend.Tau)
-  module G = Parser.Grammar.Make (Backend.Tau)
+  module D = Desugarer.Make (Backend.Resource)
+  module TC = Typechecker.Make (Backend.Resource)
+  module G = Parser.Grammar.Make (Backend.Resource)
 
   type state = {
     desugarer : D.state;
@@ -60,15 +60,15 @@ module Loader (Backend : Backend.S) = struct
           typechecker = typechecker_state';
           backend = backend_state';
         }
-    | Ast.OpSig (op, ty1, ty2, tau) ->
+    | Ast.OpSig (op, ty1, ty2, rho) ->
         let typechecker_state' =
-          TC.add_operation_signature state.typechecker (op, ty1, ty2, tau)
+          TC.add_operation_signature state.typechecker (op, ty1, ty2, rho)
         in
         let _evaluation_environment_state' = state.backend in
         {
           state with
           typechecker = typechecker_state';
-          backend = Backend.load_op_sig state.backend op tau;
+          backend = Backend.load_op_sig state.backend op rho;
         }
     | Ast.TopLet (x, expr) ->
         let typechecker_state' =
@@ -85,10 +85,10 @@ module Loader (Backend : Backend.S) = struct
         let backend_state' = Backend.load_top_do state.backend comp in
         { state with backend = backend_state' }
     | Ast.Resources resource_name ->
-        if resource_name <> Backend.Tau.name then
+        if resource_name <> Backend.Resource.name then
           Error.typing
             "File specifies resources '%s' but interpreter is using '%s'."
-            resource_name Backend.Tau.name;
+            resource_name Backend.Resource.name;
         state
 
   let load_commands state cmds =

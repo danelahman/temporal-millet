@@ -1,8 +1,8 @@
-module Make (Tau : Language.Tau.S) = struct
-  include Interpreter.Make (Tau)
+module Make (Resource : Language.Resource.S) = struct
+  include Interpreter.Make (Resource)
   open Vdom
   module PrettyPrint = Language.PrettyPrint
-  module RS = RedexSelectorTM.Make (Tau)
+  module RS = RedexSelectorTM.Make (Resource)
 
   let view_computation_redex = function
     | Match -> "match"
@@ -36,7 +36,9 @@ module Make (Tau : Language.Tau.S) = struct
         in
 
         let state_string =
-          PrettyPrint.string_of_interpreter_state (module Tau) environment.state
+          PrettyPrint.string_of_interpreter_state
+            (module Resource)
+            environment.state
         in
         let computation_tree =
           RS.view_computation_with_redexes reduction comp

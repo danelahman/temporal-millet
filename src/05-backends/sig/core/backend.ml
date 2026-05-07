@@ -2,31 +2,32 @@ module Ast = Language.Ast
 module Primitives = Language.Primitives
 
 module type S = sig
-  module Tau : Language.Tau.S
+  module Resource : Language.Resource.S
 
   type load_state
 
   type evaluation_environment = {
     state :
       ( Ast.Variable.t,
-        (Tau.t Ast.tau * Tau.t Ast.expression) Ast.VariableMap.t,
-        Tau.t Ast.tau )
+        (Resource.t Ast.rho * Resource.t Ast.expression) Ast.VariableMap.t,
+        Resource.t Ast.rho )
       Ast.context_elem_ty
       list;
     variables :
       ( Ast.Variable.t,
-        Tau.t Ast.expression Ast.VariableMap.t,
-        Tau.t Ast.tau )
+        Resource.t Ast.expression Ast.VariableMap.t,
+        Resource.t Ast.rho )
       Ast.context_elem_ty
       list;
     builtin_functions :
       ( Ast.Variable.t,
-        (Tau.t Ast.expression -> Tau.t Ast.computation) Ast.VariableMap.t,
-        Tau.t Ast.tau )
+        (Resource.t Ast.expression -> Resource.t Ast.computation)
+        Ast.VariableMap.t,
+        Resource.t Ast.rho )
       Ast.context_elem_ty
       list;
     resource_counter : int;
-    op_signatures : Tau.t Ast.tau Ast.OpNameMap.t;
+    op_signatures : Resource.t Ast.rho Ast.OpNameMap.t;
   }
 
   val initial_load_state : load_state
@@ -36,14 +37,16 @@ module type S = sig
 
   val load_ty_def :
     load_state ->
-    (Ast.ty_param list * Ast.ty_name * Tau.t Ast.ty_def) list ->
+    (Ast.ty_param list * Ast.ty_name * Resource.t Ast.ty_def) list ->
     load_state
 
   val load_top_let :
-    load_state -> Ast.variable -> Tau.t Ast.expression -> load_state
+    load_state -> Ast.variable -> Resource.t Ast.expression -> load_state
 
-  val load_top_do : load_state -> Tau.t Ast.computation -> load_state
-  val load_op_sig : load_state -> Ast.OpName.t -> Tau.t Ast.tau -> load_state
+  val load_top_do : load_state -> Resource.t Ast.computation -> load_state
+
+  val load_op_sig :
+    load_state -> Ast.OpName.t -> Resource.t Ast.rho -> load_state
 
   type run_state
   type step_label

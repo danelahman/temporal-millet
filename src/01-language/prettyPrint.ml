@@ -42,15 +42,15 @@ let greek_letters =
     "ξ";
     "ο";
     "π";
-    "ρ";
     "σ";
+    "τ";
   |]
 
 let type_symbol n =
   if n < Array.length greek_letters then greek_letters.(n)
   else "σ" ^ subscript (n - Array.length greek_letters)
 
-let tau_symbol n = "τ" ^ subscript n
+let rho_symbol n = "ρ" ^ subscript n
 
 module MakeParamPrinter
     (ParamMap : Map.S)
@@ -81,11 +81,11 @@ module TyPrintParam =
       let symbol_for_index = type_symbol
     end)
 
-module TauPrintParam =
+module RhoPrintParam =
   MakeParamPrinter
-    (TauParamMap)
+    (RhoParamMap)
     (struct
-      let symbol_for_index = tau_symbol
+      let symbol_for_index = rho_symbol
     end)
 
 let print_ty_params ty_pp ty_params ppf =
@@ -100,32 +100,32 @@ let print_ty_params ty_pp ty_params ppf =
   print_helper ty_params;
   Format.fprintf ppf "]"
 
-let print_tau_params ?max_level:_ tau_pp tau_params ppf =
+let print_rho_params ?max_level:_ rho_pp rho_params ppf =
   Format.fprintf ppf "[";
   let rec print_helper = function
     | [] -> ()
-    | [ last ] -> Format.fprintf ppf "%t" (tau_pp last)
+    | [ last ] -> Format.fprintf ppf "%t" (rho_pp last)
     | hd :: tl ->
-        Format.fprintf ppf "%t, " (tau_pp hd);
+        Format.fprintf ppf "%t, " (rho_pp hd);
         print_helper tl
   in
-  print_helper tau_params;
+  print_helper rho_params;
   Format.fprintf ppf "]"
 
-let print_tau (type a) (module Tau : Tau.S with type t = a) tau_pp =
-  let rec aux (tau : a tau) ppf =
-    match tau with
-    | TauConst i -> Format.fprintf ppf "%s" (Tau.show i)
-    | TauParam p -> tau_pp p ppf
-    | TauAdd (t1, t2) ->
+let print_rho (type a) (module Resource : Resource.S with type t = a) rho_pp =
+  let rec aux (rho : a rho) ppf =
+    match rho with
+    | RhoConst i -> Format.fprintf ppf "%s" (Resource.show i)
+    | RhoParam p -> rho_pp p ppf
+    | RhoAdd (t1, t2) ->
         Format.fprintf ppf "@[%t + %t@]"
           (fun ppf -> aux t1 ppf)
           (fun ppf -> aux t2 ppf)
   in
   aux
 
-let print_ty (type a) ?max_level tau_module ty_print_param tau_print_param =
-  let module Tau = (val tau_module : Tau.S with type t = a) in
+let print_ty (type a) ?max_level rho_module ty_print_param rho_print_param =
+  let module Resource = (val rho_module : Resource.S with type t = a) in
   let rec aux ?max_level p ppf =
     let print ?at_level = Print.print ?max_level ?at_level ppf in
     match p with
@@ -138,26 +138,26 @@ let print_ty (type a) ?max_level tau_module ty_print_param tau_print_param =
           (Print.print_tuple aux tys)
           (TyName.print ty_name)
     | TyParam a -> print "%t" (ty_print_param a)
-    | TyArrow (ty1, CompTy (ty2, TauConst z)) when z = Tau.zero ->
+    | TyArrow (ty1, CompTy (ty2, RhoConst z)) when z = Resource.zero ->
         print ~at_level:3 "%t → %t" (aux ~max_level:2 ty1)
           (aux ~max_level:3 ty2)
-    | TyArrow (ty1, CompTy (ty2, tau)) ->
+    | TyArrow (ty1, CompTy (ty2, rho)) ->
         print ~at_level:3 "%t → %t # %t" (aux ~max_level:2 ty1)
           (aux ~max_level:3 ty2)
-          (print_tau tau_module tau_print_param tau)
+          (print_rho rho_module rho_print_param rho)
     | TyTuple [] -> print "unit"
     | TyTuple tys ->
         print ~at_level:2 "%t"
           (Print.print_sequence " × " (aux ~max_level:1) tys)
-    | TyBox (tau, ty) ->
+    | TyBox (rho, ty) ->
         print ~at_level:1 "[%t]%t"
-          (print_tau tau_module tau_print_param tau)
+          (print_rho rho_module rho_print_param rho)
           (aux ~max_level:0 ty)
-    | TyHandler (CompTy (ty1, tau1), CompTy (ty2, tau2)) ->
+    | TyHandler (CompTy (ty1, rho1), CompTy (ty2, rho2)) ->
         print ~at_level:3 "%t # %t ⇒ %t # %t" (aux ~max_level:2 ty1)
-          (print_tau tau_module tau_print_param tau1)
+          (print_rho rho_module rho_print_param rho1)
           (aux ~max_level:3 ty2)
-          (print_tau tau_module tau_print_param tau2)
+          (print_rho rho_module rho_print_param rho2)
   in
   aux ?max_level
 
@@ -177,7 +177,7 @@ let rec print_pattern ?max_level p ppf =
       print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl) (print_pattern p)
   | PNonbinding -> print "_"
 
-and print_expression tau_module =
+and print_expression rho_module =
   let rec aux ?max_level e ppf =
     let print ?at_level = Print.print ?max_level ?at_level ppf in
     match e with
@@ -192,74 +192,74 @@ and print_expression tau_module =
         print ~at_level:1 "%t::%t" (aux ~max_level:0 v1) (aux ~max_level:1 v2)
     | Variant (lbl, Some arg) ->
         print ~at_level:1 "%t %t" (Label.print lbl) (aux ~max_level:0 arg)
-    | Lambda a -> print ~at_level:2 "fun %t" (print_abstraction tau_module a)
+    | Lambda a -> print ~at_level:2 "fun %t" (print_abstraction rho_module a)
     | PureLambda a ->
-        print ~at_level:2 "fun %t" (print_abstraction tau_module a)
+        print ~at_level:2 "fun %t" (print_abstraction rho_module a)
     | RecLambda (f, _ty) -> print ~at_level:2 "rec %t ..." (Variable.print f)
     | Handler (ret_case, op_cases) ->
         print "handler (@[<hov>return %t%t@])"
-          (print_abstraction tau_module ret_case)
-          (Print.print_sequence_with_start_sep " | " (print_op_case tau_module)
+          (print_abstraction rho_module ret_case)
+          (Print.print_sequence_with_start_sep " | " (print_op_case rho_module)
              (OpNameMap.bindings op_cases))
   in
   aux
 
-and print_computation tau_module =
+and print_computation rho_module =
   let rec aux ?max_level c ppf =
     let print ?at_level = Print.print ?max_level ?at_level ppf in
     match c with
     | Return e ->
         print ~at_level:1 "return %t"
-          (print_expression tau_module ~max_level:0 e)
+          (print_expression rho_module ~max_level:0 e)
     | Do (c1, (PNonbinding, c2)) -> print "@[<hov>%t;@ %t@]" (aux c1) (aux c2)
     | Do (c1, (pat, c2)) ->
         print "@[<hov>let@[<hov>@ %t =@ %t@] in@ %t@]" (print_pattern pat)
           (aux c1) (aux c2)
     | Match (e, lst) ->
         print "match %t with (@[<hov>%t@])"
-          (print_expression tau_module ~max_level:0 e)
-          (Print.print_sequence " | " (print_case tau_module) lst)
+          (print_expression rho_module ~max_level:0 e)
+          (Print.print_sequence " | " (print_case rho_module) lst)
     | Apply (e1, e2) ->
         print ~at_level:1 "@[%t@ %t@]"
-          (print_expression tau_module ~max_level:1 e1)
-          (print_expression tau_module ~max_level:0 e2)
-    | Delay (tau, c) ->
-        let tau_pp = TauPrintParam.create () in
+          (print_expression rho_module ~max_level:1 e1)
+          (print_expression rho_module ~max_level:0 e2)
+    | Delay (rho, c) ->
+        let rho_pp = RhoPrintParam.create () in
         print ~at_level:1 "delay %t @[%t@]"
-          (print_tau tau_module tau_pp tau)
+          (print_rho rho_module rho_pp rho)
           (aux ~max_level:0 c)
-    | Box (tau, e, (p, c)) ->
-        let tau_pp = TauPrintParam.create () in
+    | Box (rho, e, (p, c)) ->
+        let rho_pp = RhoPrintParam.create () in
         print ~at_level:1 "box %t %t as %t in@ @[%t@]"
-          (print_tau tau_module tau_pp tau)
-          (print_expression tau_module ~max_level:0 e)
+          (print_rho rho_module rho_pp rho)
+          (print_expression rho_module ~max_level:0 e)
           (print_pattern ~max_level:0 p)
           (aux ~max_level:0 c)
     | Unbox (e, (p, c)) ->
         print ~at_level:1 "unbox %t as %t in@ @[%t@]"
-          (print_expression tau_module ~max_level:0 e)
+          (print_expression rho_module ~max_level:0 e)
           (print_pattern p) (aux c)
     | Perform (op, e, (pat, c)) ->
         print ~at_level:1 "perform %t %t (%t. @[%t@])" (OpName.print op)
-          (print_expression tau_module ~max_level:0 e)
+          (print_expression rho_module ~max_level:0 e)
           (print_pattern pat) (aux ~max_level:1 c)
     | Handle (c, h) ->
         print ~at_level:1 "handle @[%t@]@ with %t" (aux ~max_level:0 c)
-          (print_expression tau_module ~max_level:0 h)
+          (print_expression rho_module ~max_level:0 h)
   in
   aux
 
-and print_abstraction tau_module (p, c) ppf =
+and print_abstraction rho_module (p, c) ppf =
   Format.fprintf ppf "%t ↦ %t" (print_pattern p)
-    (print_computation tau_module c)
+    (print_computation rho_module c)
 
-and print_case tau_module a ppf =
-  Format.fprintf ppf "%t" (print_abstraction tau_module a)
+and print_case rho_module a ppf =
+  Format.fprintf ppf "%t" (print_abstraction rho_module a)
 
-and print_op_case tau_module (op, a) ppf =
-  Format.fprintf ppf "%t %t" (OpName.print op) (print_abstraction tau_module a)
+and print_op_case rho_module (op, a) ppf =
+  Format.fprintf ppf "%t %t" (OpName.print op) (print_abstraction rho_module a)
 
-let print_vars_and_tys tau_module print_var_and_ty lst ppf =
+let print_vars_and_tys rho_module print_var_and_ty lst ppf =
   let rec print_list lst ppf =
     match lst with
     | [] -> ()
@@ -270,16 +270,16 @@ let print_vars_and_tys tau_module print_var_and_ty lst ppf =
           | [] -> ()
           | entry :: tl ->
               let ty_pp = TyPrintParam.create () in
-              let tau_pp = TauPrintParam.create () in
-              print_var_and_ty ty_pp tau_pp entry ppf;
+              let rho_pp = RhoPrintParam.create () in
+              print_var_and_ty ty_pp rho_pp entry ppf;
               print_elements tl
         in
         print_elements elements;
         Print.print ppf "}\n";
         print_list rest ppf
-    | Tau n :: rest ->
-        let tau_pp = TauPrintParam.create () in
-        print_tau tau_module tau_pp n ppf;
+    | Rho n :: rest ->
+        let rho_pp = RhoPrintParam.create () in
+        print_rho rho_module rho_pp n ppf;
         Print.print ppf "\n";
         print_list rest ppf
   in
@@ -287,8 +287,8 @@ let print_vars_and_tys tau_module print_var_and_ty lst ppf =
   print_list (List.rev lst) ppf;
   Print.print ppf "]\n"
 
-let print_vars_and_exprs tau_module print_var_and_expr
-    (lst : ('var, 'map, 'tau) Ast.context_elem_ty list) ppf =
+let print_vars_and_exprs rho_module print_var_and_expr
+    (lst : ('var, 'map, 'rho) Ast.context_elem_ty list) ppf =
   let print_var_map map ppf =
     Print.print ppf "{";
     let elements = VariableMap.bindings map in
@@ -312,12 +312,12 @@ let print_vars_and_exprs tau_module print_var_and_expr
         print_var_map map ppf;
         Print.print ppf "}, ";
         print_list rest ppf
-    | Tau n :: [] ->
-        let tau_pp = TauPrintParam.create () in
-        print_tau tau_module tau_pp n ppf
-    | Tau n :: rest ->
-        let tau_pp = TauPrintParam.create () in
-        print_tau tau_module tau_pp n ppf;
+    | Rho n :: [] ->
+        let rho_pp = RhoPrintParam.create () in
+        print_rho rho_module rho_pp n ppf
+    | Rho n :: rest ->
+        let rho_pp = RhoPrintParam.create () in
+        print_rho rho_module rho_pp n ppf;
         Print.print ppf ", ";
         print_list rest ppf
   in
@@ -325,37 +325,37 @@ let print_vars_and_exprs tau_module print_var_and_expr
   print_list (List.rev lst) ppf;
   Print.print ppf "]\n"
 
-let print_variable_context tau_module ctx =
-  let print_var_and_ty ty_pp tau_pp (variable, (ty_params, tau_params, ty, _))
+let print_variable_context rho_module ctx =
+  let print_var_and_ty ty_pp rho_pp (variable, (ty_params, rho_params, ty, _))
       ppf =
     Format.fprintf ppf "@[<h>%t -> %t, %t %t@]@." (Variable.print variable)
       (print_ty_params ty_pp ty_params)
-      (print_tau_params tau_pp tau_params)
-      (print_ty tau_module ty_pp tau_pp ty)
+      (print_rho_params rho_pp rho_params)
+      (print_ty rho_module ty_pp rho_pp ty)
   in
-  print_vars_and_tys tau_module print_var_and_ty ctx
+  print_vars_and_tys rho_module print_var_and_ty ctx
 
-let print_interpreter_state tau_module ctx ppf =
-  let print_var_and_expr (variable, (tau, expr)) ppf =
-    let tau_print_param = TauPrintParam.create () in
+let print_interpreter_state rho_module ctx ppf =
+  let print_var_and_expr (variable, (rho, expr)) ppf =
+    let rho_print_param = RhoPrintParam.create () in
     Format.fprintf ppf "%t -> %t # %t" (Variable.print variable)
-      (print_expression tau_module expr)
-      (print_tau tau_module tau_print_param tau)
+      (print_expression rho_module expr)
+      (print_rho rho_module rho_print_param rho)
   in
-  print_vars_and_exprs tau_module print_var_and_expr ctx ppf
+  print_vars_and_exprs rho_module print_var_and_expr ctx ppf
 
-let string_of_variable_context tau_module context =
-  print_variable_context tau_module context Format.str_formatter;
+let string_of_variable_context rho_module context =
+  print_variable_context rho_module context Format.str_formatter;
   Format.flush_str_formatter ()
 
-let string_of_interpreter_state tau_module context =
-  print_interpreter_state tau_module context Format.str_formatter;
+let string_of_interpreter_state rho_module context =
+  print_interpreter_state rho_module context Format.str_formatter;
   Format.flush_str_formatter ()
 
-let string_of_expression tau_module e =
-  print_expression tau_module e Format.str_formatter;
+let string_of_expression rho_module e =
+  print_expression rho_module e Format.str_formatter;
   Format.flush_str_formatter ()
 
-let string_of_computation tau_module c =
-  print_computation tau_module c Format.str_formatter;
+let string_of_computation rho_module c =
+  print_computation rho_module c Format.str_formatter;
   Format.flush_str_formatter ()

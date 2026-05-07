@@ -1,1 +1,2 @@
-module Make (Tau : Language.Tau.S) : WebBackend.S with module Tau = Tau
+module Make (Resource : Language.Resource.S) :
+  WebBackend.S with module Resource = Resource

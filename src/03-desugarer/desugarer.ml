@@ -8,7 +8,7 @@ module Context = Language.Context
 module Const = Language.Const
 module StringMap = Map.Make (String)
 
-module Make (Tau : Language.Tau.S) = struct
+module Make (Resource : Language.Resource.S) = struct
   let add_unique ~loc kind str symb string_map =
     StringMap.update str
       (function
@@ -66,24 +66,24 @@ module Make (Tau : Language.Tau.S) = struct
     | Sugared.TyParam ty_param ->
         let ty_param' = lookup_ty_param ~loc state ty_param in
         Untyped.TyParam ty_param'
-    | Sugared.TyArrow (ty1, CompTy (ty2, tau)) ->
+    | Sugared.TyArrow (ty1, CompTy (ty2, rho)) ->
         let ty1' = desugar_ty state ty1 in
         let ty2' = desugar_ty state ty2 in
-        Untyped.TyArrow (ty1', CompTy (ty2', TauConst tau))
+        Untyped.TyArrow (ty1', CompTy (ty2', RhoConst rho))
     | Sugared.TyTuple tys ->
         let tys' = List.map (desugar_ty state) tys in
         Untyped.TyTuple tys'
     | Sugared.TyConst c -> Untyped.TyConst c
-    | Sugared.TyBox (tau, ty) ->
-        let tau' = Untyped.TauConst tau in
+    | Sugared.TyBox (rho, ty) ->
+        let rho' = Untyped.RhoConst rho in
         let ty' = desugar_ty state ty in
-        Untyped.TyBox (tau', ty')
-    | Sugared.TyHandler (CompTy (ty1, tau1), CompTy (ty2, tau2)) ->
+        Untyped.TyBox (rho', ty')
+    | Sugared.TyHandler (CompTy (ty1, rho1), CompTy (ty2, rho2)) ->
         let ty1' = desugar_ty state ty1 in
-        let tau1' = Untyped.TauConst tau1 in
+        let rho1' = Untyped.RhoConst rho1 in
         let ty2' = desugar_ty state ty2 in
-        let tau2' = Untyped.TauConst tau2 in
-        Untyped.TyHandler (CompTy (ty1', tau1'), CompTy (ty2', tau2'))
+        let rho2' = Untyped.RhoConst rho2 in
+        Untyped.TyHandler (CompTy (ty1', rho1'), CompTy (ty2', rho2'))
 
   let rec desugar_pattern state vars { Sugared.it = pat; at = loc } =
     let vars, pat' = desugar_plain_pattern ~loc state vars pat in
@@ -229,20 +229,21 @@ module Make (Tau : Language.Tau.S) = struct
         let state', f, comp1 = desugar_let_rec_def state (x, term1) in
         let c = desugar_computation state' term2 in
         ([], Untyped.Do (Untyped.Return comp1, (Untyped.PVar f, c)))
-    | Sugared.Delay tau ->
+    | Sugared.Delay rho ->
         ( [],
           Untyped.Delay
-            (TauConst (Tau.of_nat tau), Untyped.Return (Untyped.Tuple [])) )
-    | Sugared.Box (tau, e, (p, c)) ->
+            (RhoConst (Resource.of_nat rho), Untyped.Return (Untyped.Tuple []))
+        )
+    | Sugared.Box (rho, e, (p, c)) ->
         let binds, e' = desugar_expression state e in
         let abs = desugar_abstraction state (p, c) in
-        (binds, Untyped.Box (TauConst tau, e', abs))
-    | Sugared.GenBox (tau, e) ->
+        (binds, Untyped.Box (RhoConst rho, e', abs))
+    | Sugared.GenBox (rho, e) ->
         let binds, e' = desugar_expression state e in
         let var = Untyped.Variable.fresh "box_var" in
         ( binds,
           Untyped.Box
-            ( TauConst tau,
+            ( RhoConst rho,
               e',
               (Untyped.PVar var, Untyped.Return (Untyped.Var var)) ) )
     | Sugared.Unbox (e, (p, c)) ->
@@ -386,13 +387,13 @@ module Make (Tau : Language.Tau.S) = struct
         in
         let state'', defs' = List.fold_right2 aux defs new_names (state', []) in
         (state'', Untyped.TyDef defs')
-    | Sugared.OpSig (op_name, ty1_name, ty2_name, tau_val) ->
+    | Sugared.OpSig (op_name, ty1_name, ty2_name, rho_val) ->
         let operation = Untyped.OpName.fresh op_name in
         let ty1 = desugar_ty state ty1_name in
         let ty2 = desugar_ty state ty2_name in
-        let tau = Untyped.TauConst tau_val in
+        let rho = Untyped.RhoConst rho_val in
         let state' = add_operation ~loc state op_name operation in
-        (state', Untyped.OpSig (operation, ty1, ty2, tau))
+        (state', Untyped.OpSig (operation, ty1, ty2, rho))
     | Sugared.TopLet (x, term) ->
         let x' = Untyped.Variable.fresh x in
         let state' = add_fresh_variables state (StringMap.singleton x x') in

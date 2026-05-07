@@ -24,22 +24,24 @@ module Types = struct
   type step_label = ComputationReduction of computation_reduction | Return
 end
 
-module Make (T : Language.Tau.S) = struct
-  module Tau = T
+module Make (T : Language.Resource.S) = struct
+  module Resource = T
 
   module ContextHolderModule =
-    Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (Tau)
+    Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (Resource)
 
-  module P = Primitives.Make (Tau)
+  module P = Primitives.Make (Resource)
   include Types
 
   type evaluation_environment = {
-    state : (Tau.t Ast.tau * Tau.t Ast.expression) ContextHolderModule.t;
-    variables : Tau.t Ast.expression ContextHolderModule.t;
+    state :
+      (Resource.t Ast.rho * Resource.t Ast.expression) ContextHolderModule.t;
+    variables : Resource.t Ast.expression ContextHolderModule.t;
     builtin_functions :
-      (Tau.t Ast.expression -> Tau.t Ast.computation) ContextHolderModule.t;
+      (Resource.t Ast.expression -> Resource.t Ast.computation)
+      ContextHolderModule.t;
     resource_counter : int;
-    op_signatures : Tau.t Ast.tau Ast.OpNameMap.t;
+    op_signatures : Resource.t Ast.rho Ast.OpNameMap.t;
   }
 
   let initial_environment =
@@ -59,7 +61,7 @@ module Make (T : Language.Tau.S) = struct
         eval_tuple env (ContextHolderModule.find_variable x env.variables)
     | expr ->
         Error.runtime "Tuple expected but got %t"
-          (PrettyPrint.print_expression (module Tau) expr)
+          (PrettyPrint.print_expression (module Resource) expr)
 
   let rec eval_variant (env : evaluation_environment) = function
     | Ast.Variant (lbl, expr) -> (lbl, expr)
@@ -67,7 +69,7 @@ module Make (T : Language.Tau.S) = struct
         eval_variant env (ContextHolderModule.find_variable x env.variables)
     | expr ->
         Error.runtime "Variant expected but got %t"
-          (PrettyPrint.print_expression (module Tau) expr)
+          (PrettyPrint.print_expression (module Resource) expr)
 
   let rec eval_const (env : evaluation_environment) = function
     | Ast.Const c -> c
@@ -75,7 +77,7 @@ module Make (T : Language.Tau.S) = struct
         eval_const env (ContextHolderModule.find_variable x env.variables)
     | expr ->
         Error.runtime "Const expected but got %t"
-          (PrettyPrint.print_expression (module Tau) expr)
+          (PrettyPrint.print_expression (module Resource) expr)
 
   let rec match_pattern_with_expression env pat expr =
     match pat with
@@ -175,11 +177,11 @@ module Make (T : Language.Tau.S) = struct
             List.map (refresh_abstraction vars) cases )
     | Ast.Apply (expr1, expr2) ->
         Ast.Apply (refresh_expression vars expr1, refresh_expression vars expr2)
-    | Ast.Delay (tau, c) -> Ast.Delay (tau, refresh_computation vars c)
-    | Ast.Box (tau, e, abs) ->
+    | Ast.Delay (rho, c) -> Ast.Delay (rho, refresh_computation vars c)
+    | Ast.Box (rho, e, abs) ->
         let e' = refresh_expression vars e in
         let abs' = refresh_abstraction vars abs in
-        Ast.Box (tau, e', abs')
+        Ast.Box (rho, e', abs')
     | Ast.Unbox (e, abs) ->
         let e' = refresh_expression vars e in
         let abs' = refresh_abstraction vars abs in
@@ -230,10 +232,10 @@ module Make (T : Language.Tau.S) = struct
     | Ast.Apply (expr1, expr2) ->
         Ast.Apply
           (substitute_expression subst expr1, substitute_expression subst expr2)
-    | Ast.Delay (tau, c) -> Ast.Delay (tau, substitute_computation subst c)
-    | Ast.Box (tau, e, abs) ->
+    | Ast.Delay (rho, c) -> Ast.Delay (rho, substitute_computation subst c)
+    | Ast.Box (rho, e, abs) ->
         Ast.Box
-          (tau, substitute_expression subst e, substitute_abstraction subst abs)
+          (rho, substitute_expression subst e, substitute_abstraction subst abs)
     | Ast.Unbox (e, abs) ->
         Ast.Unbox
           (substitute_expression subst e, substitute_abstraction subst abs)
@@ -274,7 +276,7 @@ module Make (T : Language.Tau.S) = struct
         | None -> ContextHolderModule.find_variable x env.builtin_functions)
     | expr ->
         Error.runtime "Function expected but got %t"
-          (PrettyPrint.print_expression (module Tau) expr)
+          (PrettyPrint.print_expression (module Resource) expr)
 
   let rec eval_handler env = function
     | Ast.Handler (ret_case, op_cases) -> (ret_case, op_cases)
@@ -286,7 +288,7 @@ module Make (T : Language.Tau.S) = struct
               "Handler expected but did not find it from environment")
     | expr ->
         Error.runtime "Handler expected but got %t"
-          (PrettyPrint.print_expression (module Tau) expr)
+          (PrettyPrint.print_expression (module Resource) expr)
 
   let step_in_context step env redCtx ctx term =
     let terms' = step env term in
@@ -340,13 +342,13 @@ module Make (T : Language.Tau.S) = struct
               fun () -> Ast.Perform (op, expr, (pat, Ast.Do (cont, comp2))) )
             :: comps1'
         | _ -> comps1')
-    | Ast.Delay (tau, comp) ->
+    | Ast.Delay (rho, comp) ->
         let env' =
-          { env with state = ContextHolderModule.add_temp tau env.state }
+          { env with state = ContextHolderModule.add_temp rho env.state }
         in
         [ (env', ComputationRedex Delay, fun () -> comp) ]
-    | Ast.Box (tau, expr, (pat, comp)) ->
-        let rec doBox tau expr pat comp =
+    | Ast.Box (rho, expr, (pat, comp)) ->
+        let rec doBox rho expr pat comp =
           match pat with
           | Ast.PVar x ->
               let resource_counter = env.resource_counter in
@@ -357,7 +359,7 @@ module Make (T : Language.Tau.S) = struct
                 Ast.Variable.fresh ("resource_" ^ string_of_int resource_counter)
               in
               let state' =
-                ContextHolderModule.add_variable x' (tau, expr) env.state
+                ContextHolderModule.add_variable x' (rho, expr) env.state
               in
               let env' =
                 {
@@ -371,17 +373,17 @@ module Make (T : Language.Tau.S) = struct
                   ComputationRedex Box,
                   fun () -> refresh_computation [ (x, x') ] comp );
               ]
-          | Ast.PAnnotated (pat', _) -> doBox tau expr pat' comp
+          | Ast.PAnnotated (pat', _) -> doBox rho expr pat' comp
           | _ ->
               Error.runtime "Box expected a variable but got pattern %t"
                 (PrettyPrint.print_pattern pat)
         in
-        doBox tau expr pat comp
+        doBox rho expr pat comp
     | Ast.Unbox (expr, (pat, comp)) ->
         let rec doUnbox expr pat comp =
           match expr with
           | Ast.Var x ->
-              let _tau', expr' =
+              let _rho', expr' =
                 ContextHolderModule.find_variable x env.state
               in
               let subst = match_pattern_with_expression env pat expr' in
@@ -389,7 +391,7 @@ module Make (T : Language.Tau.S) = struct
           | Ast.Annotated (expr', _) -> doUnbox expr' pat comp
           | _ ->
               Error.runtime "Unbox expected a variable but got expression %t"
-                (PrettyPrint.print_expression (module Tau) expr)
+                (PrettyPrint.print_expression (module Resource) expr)
         in
         doUnbox expr pat comp
     | Ast.Perform _ -> []
@@ -416,7 +418,7 @@ module Make (T : Language.Tau.S) = struct
             | Some (Ast.PTuple [ op_arg_pat; op_cont_pat ], op_case) -> (
                 let op_sig = Ast.OpNameMap.find_opt op env.op_signatures in
                 match op_sig with
-                | Some tau ->
+                | Some rho ->
                     let resource_counter = env.resource_counter in
                     let x =
                       Ast.Variable.fresh
@@ -435,7 +437,7 @@ module Make (T : Language.Tau.S) = struct
                       ComputationRedex HandleOp,
                       fun () ->
                         Ast.Box
-                          ( tau,
+                          ( rho,
                             Ast.Lambda (op_pat, Ast.Handle (op_cont, handler)),
                             ( Ast.PVar x,
                               substitute cont_subst
@@ -457,7 +459,7 @@ module Make (T : Language.Tau.S) = struct
 
   type load_state = {
     environment : evaluation_environment;
-    computations : Tau.t Ast.computation list;
+    computations : Resource.t Ast.computation list;
   }
 
   let initial_load_state =
@@ -493,14 +495,14 @@ module Make (T : Language.Tau.S) = struct
   let load_top_do load_state comp =
     { load_state with computations = load_state.computations @ [ comp ] }
 
-  let load_op_sig load_state op tau =
+  let load_op_sig load_state op rho =
     {
       load_state with
       environment =
         {
           load_state.environment with
           op_signatures =
-            Ast.OpNameMap.add op tau load_state.environment.op_signatures;
+            Ast.OpNameMap.add op rho load_state.environment.op_signatures;
         };
     }
 

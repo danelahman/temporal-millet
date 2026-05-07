@@ -5,17 +5,17 @@ type config = {
   filenames : string list;
   use_stdlib : bool;
   debug : bool;
-  tau_type : string;
+  resource_type : string;
 }
 
-let accepted_tau_names = List.map fst Language.Tau.tau_modules
-let default_tau_name = List.hd accepted_tau_names
+let accepted_resource_names = List.map fst Language.Resource.resource_modules
+let default_resource_name = List.hd accepted_resource_names
 
 let parse_args_to_config () =
   let filenames = ref []
   and use_stdlib = ref true
   and debug = ref false
-  and tau_type = ref default_tau_name in
+  and resource_type = ref default_resource_name in
   let usage = "Run Temporal Millet as '" ^ Sys.argv.(0) ^ " [filename.mlt] ...'"
   and anonymous filename = filenames := filename :: !filenames
   and options =
@@ -29,12 +29,12 @@ let parse_args_to_config () =
           " Show final internal state and top level typing results after \
            execution" );
         ( "--resources",
-          Arg.Set_string tau_type,
+          Arg.Set_string resource_type,
           Printf.sprintf
             " Type of resource grades to use (default: %s). Accepted: %s"
-            default_tau_name
+            default_resource_name
             (String.concat ", "
-               (List.map (fun s -> "'" ^ s ^ "'") accepted_tau_names)) );
+               (List.map (fun s -> "'" ^ s ^ "'") accepted_resource_names)) );
       ]
   in
   Arg.parse options anonymous usage;
@@ -42,11 +42,12 @@ let parse_args_to_config () =
     filenames = List.rev !filenames;
     use_stdlib = !use_stdlib;
     debug = !debug;
-    tau_type = !tau_type;
+    resource_type = !resource_type;
   }
 
-let run_with (type t) (module Tau : Language.Tau.S with type t = t) config =
-  let module Backend = CliInterpreter.Make (Tau) in
+let run_with (type t) (module Resource : Language.Resource.S with type t = t)
+    config =
+  let module Backend = CliInterpreter.Make (Resource) in
   let module Loader = Loader.Loader (Backend) in
   let rec run (state : Backend.run_state) debug =
     Backend.view_run_state state;
@@ -59,7 +60,7 @@ let run_with (type t) (module Tau : Language.Tau.S with type t = t) config =
         if debug && Backend.steps state' = [] then
           print_string
             (PrettyPrint.string_of_interpreter_state
-               (module Tau)
+               (module Resource)
                step.environment.state);
         run state' debug
   in
@@ -75,7 +76,7 @@ let run_with (type t) (module Tau : Language.Tau.S with type t = t) config =
     if config.debug then
       print_string
         (PrettyPrint.string_of_variable_context
-           (module Tau)
+           (module Resource)
            state'.typechecker.variables);
     run run_state config.debug
   with Error.Error error ->
@@ -84,13 +85,16 @@ let run_with (type t) (module Tau : Language.Tau.S with type t = t) config =
 
 let main () =
   let config = parse_args_to_config () in
-  match List.assoc_opt config.tau_type Language.Tau.tau_modules with
-  | Some (module Tau : Language.Tau.S) -> run_with (module Tau) config
+  match
+    List.assoc_opt config.resource_type Language.Resource.resource_modules
+  with
+  | Some (module Resource : Language.Resource.S) ->
+      run_with (module Resource) config
   | None ->
       Printf.eprintf "Unknown type of resource grades '%s'. Accepted: %s\n"
-        config.tau_type
+        config.resource_type
         (String.concat ", "
-           (List.map (fun s -> "'" ^ s ^ "'") accepted_tau_names));
+           (List.map (fun s -> "'" ^ s ^ "'") accepted_resource_names));
       exit 1
 
 let _ = main ()

@@ -1,6 +1,6 @@
 module Error = Utils.Error
 module Ast = Language.Ast
-module Backend = WebInterpreter.Make (Language.Tau.NatTau)
+module Backend = WebInterpreter.Make (Language.Resource.NatResource)
 module Loader = Loader.Loader (Backend)
 
 type edit_model = { use_stdlib : bool; unparsed_code : string }

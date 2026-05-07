@@ -3,7 +3,7 @@
   open Utils
 %}
 
-%parameter<Tau : Language.Tau.S>
+%parameter<Resource : Language.Resource.S>
 
 %token LPAREN RPAREN LBRACK RBRACK
 %token COLON COMMA SEMI EQUAL CONS
@@ -43,8 +43,8 @@
 %left  INFIXOP3 STAR MOD LAND LOR LXOR
 %right INFIXOP4 LSL LSR ASR
 
-%start <Tau.t SugaredAst.term> payload
-%start <Tau.t SugaredAst.command list> commands
+%start <Resource.t SugaredAst.term> payload
+%start <Resource.t SugaredAst.command list> commands
 
 %%
 
@@ -63,7 +63,7 @@ command: mark_position(plain_command) { $1 }
 plain_command:
   | TYPE defs = separated_nonempty_list(AND, ty_def)
     { TyDef defs }
-  | OPERATION op = UNAME COLON ty1 = ty SIGARROW ty2 = ty HASH grade = tau_grade
+  | OPERATION op = UNAME COLON ty1 = ty SIGARROW ty2 = ty HASH grade = rho_grade
     { OpSig (op, ty1, ty2, grade) }
   | LET x = ident t = lambdas0(EQUAL)
     { TopLet (x, t) }
@@ -104,9 +104,9 @@ plain_term:
     { Conditional (t_cond, t_true, t_false) }
   | DELAY grade = INT
     { Delay grade }
-  | BOX grade = tau_grade e = term AS p = pattern IN c = term
+  | BOX grade = rho_grade e = term AS p = pattern IN c = term
     { Box (grade, e, (p, c)) }
-  | BOX grade = tau_grade e = term
+  | BOX grade = rho_grade e = term
     { GenBox (grade, e) }
   | UNBOX e = term AS p = pattern IN c = term
     { Unbox (e, (p, c)) }
@@ -413,10 +413,10 @@ defined_ty:
 
 ty: mark_position(plain_ty) { $1 }
 plain_ty:
-  | t1 = ty_apply ARROW t2 = ty HASH grade = tau_grade
+  | t1 = ty_apply ARROW t2 = ty HASH grade = rho_grade
     { TyArrow (t1, CompTy (t2, grade)) }
   | t1 = ty_apply ARROW t2 = ty
-    { TyArrow (t1, CompTy (t2, Tau.zero)) }
+    { TyArrow (t1, CompTy (t2, Resource.zero)) }
   | t = plain_prod_ty
     { t }
 
@@ -443,7 +443,7 @@ plain_simple_ty:
     { TyApply (t, []) }
   | t = PARAM
     { TyParam t }
-  | LBRACK grade = tau_grade RBRACK ty = ty
+  | LBRACK grade = rho_grade RBRACK ty = ty
     { TyBox (grade, ty) }
   | LPAREN t = ty RPAREN
     { t.it }
@@ -454,8 +454,8 @@ sum_case:
   | lbl = UNAME OF t = ty
     { (lbl, Some t) }
 
-tau_grade:
-  | n = INT { Tau.of_lit (Language.Tau.Int n) }
-  | LPAREN n = INT COMMA m = INT RPAREN { Tau.of_lit (Language.Tau.Pair (n, m)) }
+rho_grade:
+  | n = INT { Resource.of_lit (Language.Resource.Int n) }
+  | LPAREN n = INT COMMA m = INT RPAREN { Resource.of_lit (Language.Resource.Pair (n, m)) }
 
 %%

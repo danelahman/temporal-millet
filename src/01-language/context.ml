@@ -6,33 +6,33 @@ module Symbol = Utils.Symbol
 module type S = sig
   type var
   type base
-  type 'a map_or_tau
+  type 'a map_or_rho
   type 'a t
 
   val empty : 'a t
-  val add_temp : base tau -> 'a t -> 'a t
+  val add_temp : base rho -> 'a t -> 'a t
   val add_variable : var -> 'a -> 'a t -> 'a t
   val find_variable : var -> 'a t -> 'a
   val find_variable_opt : var -> 'a t -> 'a option
-  val abstract_tau_sum : 'a t -> base tau
-  val eval_tau : base tau -> base
+  val abstract_rho_sum : 'a t -> base rho
+  val eval_rho : base rho -> base
 end
 
 module Make
     (Variable : Symbol.S)
     (VariableMap : Map.S with type key = Variable.t)
-    (Base : Tau.S) =
+    (Base : Resource.S) =
 struct
   type var = Variable.t
   type base = Base.t
-  type base_tau = base tau
-  type 'a map_or_tau = (var, 'a VariableMap.t, base_tau) context_elem_ty
-  type 'a t = (var, 'a VariableMap.t, base_tau) context
+  type base_rho = base rho
+  type 'a map_or_rho = (var, 'a VariableMap.t, base_rho) context_elem_ty
+  type 'a t = (var, 'a VariableMap.t, base_rho) context
 
   let empty : 'a t = []
 
-  let add_temp (n : base_tau) (lst : 'a t) : 'a t =
-    match n with TauConst z when z = Base.zero -> lst | _ -> Tau n :: lst
+  let add_temp (n : base_rho) (lst : 'a t) : 'a t =
+    match n with RhoConst z when z = Base.zero -> lst | _ -> Rho n :: lst
 
   let add_variable (key : var) (value : 'a) (lst : 'a t) : 'a t =
     match lst with
@@ -52,7 +52,7 @@ struct
           match VariableMap.find_opt key map with
           | Some v -> v
           | None -> find rest)
-      | Tau _ :: rest -> find rest
+      | Rho _ :: rest -> find rest
     in
     find lst
 
@@ -63,34 +63,34 @@ struct
           match VariableMap.find_opt key map with
           | Some v -> Some v
           | None -> find rest)
-      | Tau _ :: rest -> find rest
+      | Rho _ :: rest -> find rest
     in
     find lst
 
-  let sum_taus_added_after (key : var) (lst : 'a t) : base_tau =
+  let sum_rhos_added_after (key : var) (lst : 'a t) : base_rho =
     let rec go acc = function
       | [] ->
           Variable.print key Format.str_formatter;
           raise (VariableNotFound (Format.flush_str_formatter ()))
-      | Tau t :: rest -> go (Ast.TauAdd (acc, t)) rest
+      | Rho t :: rest -> go (Ast.RhoAdd (acc, t)) rest
       | VarMap map :: rest -> (
           match VariableMap.find_opt key map with
           | Some _ -> acc
           | None -> go acc rest)
     in
-    go (Ast.TauConst Base.zero) lst
+    go (Ast.RhoConst Base.zero) lst
 
-  let abstract_tau_sum (lst : 'a t) : base_tau =
+  let abstract_rho_sum (lst : 'a t) : base_rho =
     let rec sum acc = function
       | [] -> acc
-      | Tau t :: rest -> sum (TauAdd (acc, t)) rest
+      | Rho t :: rest -> sum (RhoAdd (acc, t)) rest
       | VarMap _ :: rest -> sum acc rest
     in
-    sum (TauConst Base.zero) lst
+    sum (RhoConst Base.zero) lst
 
-  let rec eval_tau (t : base_tau) : base =
+  let rec eval_rho (t : base_rho) : base =
     match t with
-    | TauConst c -> c
-    | TauParam _ -> raise (TauParamInEval "TauParam not supported in eval_tau")
-    | TauAdd (t1, t2) -> Base.add (eval_tau t1) (eval_tau t2)
+    | RhoConst c -> c
+    | RhoParam _ -> raise (RhoParamInEval "RhoParam not supported in eval_rho")
+    | RhoAdd (t1, t2) -> Base.add (eval_rho t1) (eval_rho t2)
 end

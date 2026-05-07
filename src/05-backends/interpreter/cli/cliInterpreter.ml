@@ -1,5 +1,5 @@
-module Make (Tau : Language.Tau.S) = struct
-  include Interpreter.Make (Tau)
+module Make (Resource : Language.Resource.S) = struct
+  include Interpreter.Make (Resource)
   module Ast = Language.Ast
   module PrettyPrint = Language.PrettyPrint
 
@@ -7,11 +7,11 @@ module Make (Tau : Language.Tau.S) = struct
     match run_state with
     | { computations = Ast.Return exp :: _; _ } ->
         Format.printf "%t@."
-          (PrettyPrint.print_computation (module Tau) (Ast.Return exp))
+          (PrettyPrint.print_computation (module Resource) (Ast.Return exp))
     | { computations = Ast.Perform (op, exp, cont) :: _; _ } ->
         Format.printf "%t@."
           (PrettyPrint.print_computation
-             (module Tau)
+             (module Resource)
              (Ast.Perform (op, exp, cont)))
     | _ -> ()
 end
