@@ -84,3 +84,9 @@ module IntervalTau : S = struct
 
   let show (n, m) = "(" ^ string_of_int n ^ "," ^ string_of_int m ^ ")"
 end
+
+(** All available tau modules, in order of definition. The accepted resource
+    names for the [resources] declaration are taken from the [name] fields of
+    these modules. *)
+let tau_modules : (string * (module S)) list =
+  [ (NatTau.name, (module NatTau)); (IntervalTau.name, (module IntervalTau)) ]

@@ -8,11 +8,14 @@ type config = {
   tau_type : string;
 }
 
+let accepted_tau_names = List.map fst Language.Tau.tau_modules
+let default_tau_name = List.hd accepted_tau_names
+
 let parse_args_to_config () =
   let filenames = ref []
   and use_stdlib = ref true
   and debug = ref false
-  and tau_type = ref "time-interval" in
+  and tau_type = ref default_tau_name in
   let usage = "Run Temporal Millet as '" ^ Sys.argv.(0) ^ " [filename.mlt] ...'"
   and anonymous filename = filenames := filename :: !filenames
   and options =
@@ -27,8 +30,11 @@ let parse_args_to_config () =
            execution" );
         ( "--resources",
           Arg.Set_string tau_type,
-          " Type of resource grades to use: 'time' or 'time-interval' \
-           (default: time-interval)" );
+          Printf.sprintf
+            " Type of resource grades to use (default: %s). Accepted: %s"
+            default_tau_name
+            (String.concat ", "
+               (List.map (fun s -> "'" ^ s ^ "'") accepted_tau_names)) );
       ]
   in
   Arg.parse options anonymous usage;
@@ -78,11 +84,13 @@ let run_with (type t) (module Tau : Language.Tau.S with type t = t) config =
 
 let main () =
   let config = parse_args_to_config () in
-  match config.tau_type with
-  | "time" -> run_with (module Language.Tau.NatTau) config
-  | "time-interval" -> run_with (module Language.Tau.IntervalTau) config
-  | other ->
-      Printf.eprintf "Unknown type of resource grades '%s'.\n" other;
+  match List.assoc_opt config.tau_type Language.Tau.tau_modules with
+  | Some (module Tau : Language.Tau.S) -> run_with (module Tau) config
+  | None ->
+      Printf.eprintf "Unknown type of resource grades '%s'. Accepted: %s\n"
+        config.tau_type
+        (String.concat ", "
+           (List.map (fun s -> "'" ^ s ^ "'") accepted_tau_names));
       exit 1
 
 let _ = main ()
