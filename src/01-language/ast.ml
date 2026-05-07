@@ -81,7 +81,7 @@ and 'a computation =
   | Do of 'a computation * 'a abstraction
   | Match of 'a expression * 'a abstraction list
   | Apply of 'a expression * 'a expression
-  | Delay of 'a rho * 'a computation
+  | Delay of int * 'a computation
   | Box of 'a rho * 'a expression * 'a abstraction
   | Unbox of 'a expression * 'a abstraction
   | Perform of operation * 'a expression * 'a abstraction

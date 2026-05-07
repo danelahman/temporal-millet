@@ -178,7 +178,7 @@ module Make (T : Language.ResourceGrade.S) = struct
             List.map (refresh_abstraction vars) cases )
     | Ast.Apply (expr1, expr2) ->
         Ast.Apply (refresh_expression vars expr1, refresh_expression vars expr2)
-    | Ast.Delay (rho, c) -> Ast.Delay (rho, refresh_computation vars c)
+    | Ast.Delay (n, c) -> Ast.Delay (n, refresh_computation vars c)
     | Ast.Box (rho, e, abs) ->
         let e' = refresh_expression vars e in
         let abs' = refresh_abstraction vars abs in
@@ -233,7 +233,7 @@ module Make (T : Language.ResourceGrade.S) = struct
     | Ast.Apply (expr1, expr2) ->
         Ast.Apply
           (substitute_expression subst expr1, substitute_expression subst expr2)
-    | Ast.Delay (rho, c) -> Ast.Delay (rho, substitute_computation subst c)
+    | Ast.Delay (n, c) -> Ast.Delay (n, substitute_computation subst c)
     | Ast.Box (rho, e, abs) ->
         Ast.Box
           (rho, substitute_expression subst e, substitute_abstraction subst abs)
@@ -343,7 +343,8 @@ module Make (T : Language.ResourceGrade.S) = struct
               fun () -> Ast.Perform (op, expr, (pat, Ast.Do (cont, comp2))) )
             :: comps1'
         | _ -> comps1')
-    | Ast.Delay (rho, comp) ->
+    | Ast.Delay (n, comp) ->
+        let rho = Ast.RhoConst (ResourceGrade.of_nat n) in
         let env' =
           { env with state = ContextHolderModule.add_temp rho env.state }
         in

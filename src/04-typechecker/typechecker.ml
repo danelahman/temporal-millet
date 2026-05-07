@@ -492,7 +492,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
           List.fold_left fold (ty_eqs, rho_eqs, rho_ineqs, rho_abs) cases
         in
         (branch_comp_ty, ty_eqs'', rho_eqs'', rho_ineqs'', rho_abs'')
-    | Ast.Delay (rho, c) ->
+    | Ast.Delay (n, c) ->
+        let rho = Ast.RhoConst (ResourceGrade.of_nat n) in
         let state' = extend_resource_grade state rho in
         let CompTy (ty, rho'), ty_eqs, rho_eqs, rho_ineqs, rho_abs =
           infer_computation state' c

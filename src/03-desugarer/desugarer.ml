@@ -229,11 +229,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         let state', f, comp1 = desugar_let_rec_def state (x, term1) in
         let c = desugar_computation state' term2 in
         ([], Untyped.Do (Untyped.Return comp1, (Untyped.PVar f, c)))
-    | Sugared.Delay rho ->
-        ( [],
-          Untyped.Delay
-            ( RhoConst (ResourceGrade.of_nat rho),
-              Untyped.Return (Untyped.Tuple []) ) )
+    | Sugared.Delay n ->
+        ([], Untyped.Delay (n, Untyped.Return (Untyped.Tuple [])))
     | Sugared.Box (rho, e, (p, c)) ->
         let binds, e' = desugar_expression state e in
         let abs = desugar_abstraction state (p, c) in

@@ -225,11 +225,7 @@ and print_computation rho_module =
         print ~at_level:1 "@[%t@ %t@]"
           (print_expression rho_module ~max_level:1 e1)
           (print_expression rho_module ~max_level:0 e2)
-    | Delay (rho, c) ->
-        let rho_pp = RhoPrintParam.create () in
-        print ~at_level:1 "delay %t @[%t@]"
-          (print_rho rho_module rho_pp rho)
-          (aux ~max_level:0 c)
+    | Delay (n, c) -> print ~at_level:1 "delay %d @[%t@]" n (aux ~max_level:0 c)
     | Box (rho, e, (p, c)) ->
         let rho_pp = RhoPrintParam.create () in
         print ~at_level:1 "box %t %t as %t in@ @[%t@]"
