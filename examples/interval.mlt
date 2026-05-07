@@ -1,4 +1,4 @@
-(* Should be accepted by the typechecker. *)
+(* Correctly accepted by the typechecker. *)
 let foo1 () = 
   box (1,4) 1 as r in
   let _ = delay 1 in
@@ -6,7 +6,7 @@ let foo1 () =
   unbox r as y in
   1
 
-(* Should be accepted by the typechecker. *)
+(* Correctly accepted by the typechecker. *)
 let foo2 () = 
   box (1,4) 1 as r in
   let _ = delay 1 in
@@ -14,7 +14,7 @@ let foo2 () =
   unbox r as y in
   y
 
-(* Should be accepted by the typechecker. *)
+(* Correctly accepted by the typechecker. *)
 let foo3 () = 
   let x = 7 in
   box (1,4) 1 as r in
@@ -24,7 +24,7 @@ let foo3 () =
   unbox r as y in
   y + z
 
-(* Rejected by the typechecker. *)
+(* Correctly rejected by the typechecker. *)
 (* TODO: But as 7 is constant and stable, would be nice if it were not rejected. *)
 (*
 let foo4 () = 
@@ -37,7 +37,8 @@ let foo4 () =
   y + x
 *)
 
-(* Should typecheck? *)
+(* Correctly rejected by the typechecker because boxing x requires x to be usable after (3,3) interval. *)
+(* So, for it to typecheck, would need a similar stability of base-typed constants built into the typechecker. *)
 (*
 let foo4 () = 
   let x = 7 in
@@ -51,7 +52,7 @@ let foo4 () =
   y + x''
 *)
 
-(* Should get rejected by the typechecker. *)
+(* Correctly rejected by the typechecker. *)
 (*
 let foo5 () = 
   let r = box (1,4) 1 in
@@ -60,7 +61,7 @@ let foo5 () =
   y + 1
 *)
 
-(* Should get rejected by the typechecker. *)
+(* Correctly rejected by the typechecker. *)
 (*
 let foo6 () =
   let r = box (1,4) 1 in
