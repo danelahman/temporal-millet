@@ -100,6 +100,7 @@ let view_compiler (model : Model.model) =
         div
           ~a:[ class_ "field" ]
           [
+            elt "label" ~a:[ class_ "label" ] [ text "Example" ];
             div
               ~a:[ class_ "control is-expanded" ]
               [
@@ -111,6 +112,27 @@ let view_compiler (model : Model.model) =
                   (fun _ -> false)
                   (* The module Examples_mlt is semi-automatically generated from examples/*.mlt. Check the dune file for details. *)
                   Examples_mlt.examples;
+              ];
+          ];
+      ]
+  and select_resource =
+    div
+      ~a:[ class_ "panel-block" ]
+      [
+        div
+          ~a:[ class_ "field" ]
+          [
+            elt "label" ~a:[ class_ "label" ] [ text "Resource grade" ];
+            div
+              ~a:[ class_ "control is-expanded" ]
+              [
+                select
+                  ~a:[ class_ "select is-fullwidth" ]
+                  "Select resource grade"
+                  (fun name -> Model.EditMsg (Model.SelectResource name))
+                  (fun name -> name)
+                  (fun name -> name = model.edit_model.selected_resource)
+                  (List.map fst Language.ResourceGrade.resource_grade_modules);
               ];
           ];
       ]
@@ -130,7 +152,8 @@ let view_compiler (model : Model.model) =
         | Ok _ -> nil);
       ]
   in
-  panel "Code options" [ use_stdlib; load_example; run_process ]
+  panel "Code options"
+    [ use_stdlib; select_resource; load_example; run_process ]
 
 let edit_view (model : Model.model) =
   view_contents
@@ -180,11 +203,7 @@ let view_steps (run_model : Model.run_model) steps =
               onmousemove (fun _ ->
                   Model.RunMsg (Model.SelectStepIndex (Some i)));
             ]
-          [
-            Vdom.map
-              (fun step -> Model.RunMsg (Model.MakeStep step))
-              (Model.Backend.view_step_label step.label);
-          ];
+          [ step.Model.label_vdom ];
       ]
   and view_random_steps steps =
     div
@@ -233,16 +252,16 @@ let view_steps (run_model : Model.run_model) steps =
    :: List.mapi view_step steps)
 
 let run_view (run_model : Model.run_model) =
-  let steps = Model.Backend.steps run_model.run_state in
+  let steps = run_model.current.steps in
   let selected_step =
     Option.map (List.nth steps) run_model.selected_step_index
   in
-  view_contents
-    [
-      Model.Backend.view_run_state run_model.run_state
-        (Option.map (fun step -> step.Model.Backend.label) selected_step);
-    ]
-    [ view_steps run_model steps ]
+  let state_view =
+    match selected_step with
+    | None -> run_model.current.view ()
+    | Some step -> step.view_highlighted ()
+  in
+  view_contents [ state_view ] [ view_steps run_model steps ]
 
 let view_navbar =
   let view_title =
