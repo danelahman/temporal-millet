@@ -1,2 +1,3 @@
 exception VariableNotFound of string
-exception UnknownValueInEval of string
+exception TauParamInEval of string
+exception InequalityCheckFailed of string

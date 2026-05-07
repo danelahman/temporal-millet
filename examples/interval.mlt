@@ -42,7 +42,7 @@ let foo4 () =
 (*
 let foo4 () = 
   let x = 7 in
-  box (3,3) x as x' in
+  box (2,5) x as x' in
   box (1,4) 1 as r in
   let _ = delay 1 in
   let _ = delay 2 in
@@ -68,7 +68,7 @@ let foo6 () =
   delay 3;
   let r' = r in
   delay 3;
-  unbox r' as y in 
+  unbox r' as y in
   y + 1
 *)
 

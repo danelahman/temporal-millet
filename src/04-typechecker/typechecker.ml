@@ -928,6 +928,12 @@ module Make (Tau : Language.Tau.S) = struct
             unify_tau_ineq_constraints state prev_unsolved_size
               ((u1, u2) :: unsolved) ineqs)
 
+  (**| _exn -> Error.typing "Error while checking temporal inequality %t %s %t"
+     (fun ppf -> PrettyPrint.print_tau (module Tau)
+     (PrettyPrint.TauPrintParam.create ()) tau_smaller_simplified ppf)
+     Tau.is_sub_tau_symbol (fun ppf -> PrettyPrint.print_tau (module Tau)
+     (PrettyPrint.TauPrintParam.create ()) tau_greater_or_equal_simplified ppf)
+     )*)
   let rec check_tau_ineq_constraints state = function
     | [] -> ()
     | (tau_smaller, tau_greater_or_equal) :: tau_ineqs -> (
@@ -947,32 +953,36 @@ module Make (Tau : Language.Tau.S) = struct
             in
             if not (Tau.is_sub_tau tau_smaller_val tau_greater_or_equal_val)
             then
-              Error.typing "Comparing temporal values %t %s %t fails"
-                (fun ppf ->
-                  PrettyPrint.print_tau
-                    (module Tau)
-                    (PrettyPrint.TauPrintParam.create ())
-                    tau_smaller_simplified ppf)
-                Tau.is_sub_tau_symbol
-                (fun ppf ->
-                  PrettyPrint.print_tau
-                    (module Tau)
-                    (PrettyPrint.TauPrintParam.create ())
-                    tau_greater_or_equal_simplified ppf)
+              raise
+                (Exception.InequalityCheckFailed
+                   "Temporal inequality check failed")
             else check_tau_ineq_constraints state tau_ineqs
-        with _exn ->
-          Error.typing "Cannot compare non-ground temporal values %t %s %t"
-            (fun ppf ->
-              PrettyPrint.print_tau
-                (module Tau)
-                (PrettyPrint.TauPrintParam.create ())
-                tau_smaller_simplified ppf)
-            Tau.is_sub_tau_symbol
-            (fun ppf ->
-              PrettyPrint.print_tau
-                (module Tau)
-                (PrettyPrint.TauPrintParam.create ())
-                tau_greater_or_equal_simplified ppf))
+        with
+        | Exception.InequalityCheckFailed _ ->
+            Error.typing "Comparing temporal inequality %t %s %t failed"
+              (fun ppf ->
+                PrettyPrint.print_tau
+                  (module Tau)
+                  (PrettyPrint.TauPrintParam.create ())
+                  tau_smaller_simplified ppf)
+              Tau.is_sub_tau_symbol
+              (fun ppf ->
+                PrettyPrint.print_tau
+                  (module Tau)
+                  (PrettyPrint.TauPrintParam.create ())
+                  tau_greater_or_equal_simplified ppf)
+        | Exception.TauParamInEval _ ->
+            Error.typing "Cannot compare non-ground temporal values %t and %t"
+              (fun ppf ->
+                PrettyPrint.print_tau
+                  (module Tau)
+                  (PrettyPrint.TauPrintParam.create ())
+                  tau_smaller_simplified ppf)
+              (fun ppf ->
+                PrettyPrint.print_tau
+                  (module Tau)
+                  (PrettyPrint.TauPrintParam.create ())
+                  tau_greater_or_equal_simplified ppf))
 
   let rec check_tau_abs_constraints = function
     | [] -> ()
