@@ -1,0 +1,9 @@
+; Warning flags applied to every library and executable under [src/].
+; -w +a turns on all warnings, then we mute a few that are pedantic for a
+; research prototype (notably 60: unused functor parameters that are kept for
+; signature uniformity). Promote to errors with `--profile release` if desired.
+
+(env
+ (_
+  (flags
+   (:standard -w +a-4-9-40-41-42-44-45-48-58-60-66-67-68-70))))

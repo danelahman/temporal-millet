@@ -7,14 +7,13 @@ let print (loc, error_kind, msg) = Print.error ?loc error_kind "%s" msg
 exception Error of t
 
 (** [error ~loc error_kind fmt] raises an [Error] of kind [error_kind] with a
-    message [fmt] at a location [loc]. The [kfprintf] magic allows us to
-    construct the [fmt] using a format string before raising the exception. *)
-let error ?loc error_kind =
-  let k _ =
-    let msg = Format.flush_str_formatter () in
-    raise (Error (loc, error_kind, msg))
-  in
-  fun fmt -> Format.kfprintf k Format.str_formatter ("@[" ^^ fmt ^^ "@]")
+    message [fmt] at a location [loc]. We use [Format.kasprintf] so the message
+    is built into a fresh buffer rather than the shared [Format.str_formatter],
+    which is not safe under OCaml 5 multidomain code. *)
+let error ?loc error_kind fmt =
+  Format.kasprintf
+    (fun msg -> raise (Error (loc, error_kind, msg)))
+    ("@[" ^^ fmt ^^ "@]")
 
 let fatal ?loc fmt = error ?loc "Fatal error" fmt
 let syntax ~loc fmt = error ~loc "Syntax error" fmt

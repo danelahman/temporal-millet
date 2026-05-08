@@ -1,10 +1,13 @@
-default: format
+default:
 	dune build
 
 format:
 	dune build @fmt --auto-promote
 
-release: format
+check-format:
+	dune build @fmt
+
+release:
 	dune build --profile release
 
 test: default
@@ -13,4 +16,4 @@ test: default
 clean:
 	dune clean
 
-.PHONY: default format release test clean
+.PHONY: default format check-format release test clean

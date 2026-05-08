@@ -12,12 +12,8 @@ module Make () : S = struct
   type t = int * string
 
   let compare (n1, _) (n2, _) = Int.compare n1 n2
-  let count = ref (-1)
-
-  let fresh ann =
-    incr count;
-    (!count, ann)
-
+  let count = Atomic.make (-1)
+  let fresh ann = (Atomic.fetch_and_add count 1 + 1, ann)
   let refresh (_, ann) = fresh ann
   let print (_n, ann) ppf = Format.fprintf ppf "%s" ann
   let string_of (_, ann) = ann

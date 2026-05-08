@@ -3,7 +3,7 @@
 type t = { filename : string; line : int; column : int }
 
 let print { filename; line; column } ppf =
-  if String.length filename != 0 then
+  if filename <> "" then
     Format.fprintf ppf "file %S, line %d, char %d" filename line column
   else Format.fprintf ppf "line %d, char %d" (line - 1) column
 

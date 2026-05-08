@@ -1,6 +1,6 @@
 (executable
  (name web)
- (libraries webInterpreter loader)
+ (libraries utils language vdom vdom.base webBackend webInterpreter loader)
  (modes js)
  (link_flags -no-check-prims)
  (promote

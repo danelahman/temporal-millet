@@ -46,8 +46,7 @@ struct
   let find_variable (key : var) (lst : 'a t) : 'a =
     let rec find = function
       | [] ->
-          Variable.print key Format.str_formatter;
-          raise (VariableNotFound (Format.flush_str_formatter ()))
+          raise (VariableNotFound (Format.asprintf "%t" (Variable.print key)))
       | VarMap map :: rest -> (
           match VariableMap.find_opt key map with
           | Some v -> v
@@ -70,8 +69,7 @@ struct
   let sum_rhos_added_after (key : var) (lst : 'a t) : base_rho =
     let rec go acc = function
       | [] ->
-          Variable.print key Format.str_formatter;
-          raise (VariableNotFound (Format.flush_str_formatter ()))
+          raise (VariableNotFound (Format.asprintf "%t" (Variable.print key)))
       | Rho t :: rest -> go (Ast.RhoAdd (acc, t)) rest
       | VarMap map :: rest -> (
           match VariableMap.find_opt key map with

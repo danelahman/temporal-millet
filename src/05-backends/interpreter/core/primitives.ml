@@ -59,6 +59,12 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
   let float_float_to_float f =
     float_float_to (fun n1 n2 -> Ast.Return (Ast.Const (Const.Float (f n1 n2))))
 
+  (* The built-in comparison primitives below use OCaml's polymorphic [(=)],
+     [(<)], etc. on AST values. This is safe only because [comparable_expression]
+     rejects the cases where it would be either undefined (functions, handlers)
+     or surprising. The AST is immutable and contains no abstract or cyclic
+     data, so structural compare on the remaining shapes (constants, tuples,
+     variants of comparables) is well-defined. *)
   let rec comparable_expression = function
     | Ast.Var _ -> true
     | Const _ -> true

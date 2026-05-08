@@ -1,3 +1,4 @@
+module Error = Utils.Error
 module Print = Utils.Print
 module Ast = Language.Ast
 module PrettyPrint = Language.PrettyPrint
@@ -6,8 +7,11 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
   module I = Interpreter.Make (ResourceGrade)
   open I
 
-  let tag_marker = "###"
-  let print_mark ppf = Format.pp_print_as ppf 0 tag_marker
+  (* A NUL byte is used as the redex marker because it cannot appear in any
+     output produced by [Format] and so makes a single-character separator
+     suitable for [String.split_on_char]. *)
+  let tag_marker = '\x00'
+  let print_mark ppf = Format.pp_print_as ppf 0 (String.make 1 tag_marker)
 
   let print_computation_redex ?max_level red c ppf =
     let print ?at_level = Print.print ?max_level ?at_level ppf in
@@ -40,30 +44,18 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
           (PrettyPrint.print_computation (module ResourceGrade) c2)
     | ComputationRedex redex, c ->
         print_computation_redex ?max_level redex c ppf
-    | _, _ -> assert false
-
-  let split_string sep str =
-    let sep_len = String.length sep and str_len = String.length str in
-    let sub_start = ref 0 and sub_end = ref 0 and subs = ref [] in
-    while !sub_end <= str_len - sep_len do
-      if String.sub str !sub_end sep_len = sep then (
-        subs := String.sub str !sub_start (!sub_end - !sub_start) :: !subs;
-        sub_start := !sub_end + sep_len;
-        sub_end := !sub_start)
-      else incr sub_end
-    done;
-    if !sub_start <= str_len then
-      subs := String.sub str !sub_start (str_len - !sub_start) :: !subs;
-    List.rev !subs
+    | _, _ ->
+        Error.runtime "internal: malformed reduction context in redex selector"
 
   let view_computation_with_redexes red comp =
-    (match red with
-    | None ->
-        PrettyPrint.print_computation
-          (module ResourceGrade)
-          comp Format.str_formatter
-    | Some red -> print_computation_reduction red comp Format.str_formatter);
-    match split_string tag_marker (Format.flush_str_formatter ()) with
+    let rendered =
+      match red with
+      | None ->
+          Format.asprintf "%t"
+            (PrettyPrint.print_computation (module ResourceGrade) comp)
+      | Some red -> Format.asprintf "%t" (print_computation_reduction red comp)
+    in
+    match String.split_on_char tag_marker rendered with
     | [ code ] -> [ Vdom.text code ]
     | [ pre; redex; post ] ->
         [
@@ -73,5 +65,7 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
             [ Vdom.text redex ];
           Vdom.text post;
         ]
-    | _ -> assert false
+    | _ ->
+        Error.runtime
+          "internal: redex marker split produced an unexpected layout"
 end

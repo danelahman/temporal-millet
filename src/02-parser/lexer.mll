@@ -154,19 +154,15 @@ and escaped = parse
                         }
 
 {
+  (* [In_channel.with_open_text] guarantees the channel is closed on any
+     exception path (parser errors, lexer errors, asynchronous exceptions),
+     replacing the older manual [open_in]/[close_in] dance. *)
   let read_file parser fn =
-  try
-    let fh = open_in fn in
-    let lex = Lexing.from_channel fh in
-    lex.Lexing.lex_curr_p <- {lex.Lexing.lex_curr_p with Lexing.pos_fname = fn};
     try
-      let terms = parser lex in
-      close_in fh;
-      terms
-    with
-      (* Close the file in case of any parsing errors. *)
-      Error.Error err -> close_in fh; raise (Error.Error err)
-  with
-    (* Any errors when opening or closing a file are fatal. *)
-    Sys_error msg -> Error.fatal "%s" msg
+      In_channel.with_open_text fn (fun ch ->
+        let lex = Lexing.from_channel ch in
+        lex.Lexing.lex_curr_p <-
+          { lex.Lexing.lex_curr_p with Lexing.pos_fname = fn };
+        parser lex)
+    with Sys_error msg -> Error.fatal "%s" msg
 }

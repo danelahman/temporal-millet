@@ -1,6 +1,6 @@
 (executable
  (name cli)
- (libraries cliInterpreter loader)
+ (libraries utils language cliInterpreter loader)
  (promote
   (until-clean)
   (into ../../..)))
