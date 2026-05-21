@@ -18,7 +18,7 @@
   ======================================================================
   iterative_unbox.mlt
   ======================================================================
-  Typing error: Cannot unify temporal values 0 >= 3
+  Typing error: Comparing resource inequality 0 >= 3 failed
   ======================================================================
   less_than_function.mlt
   ======================================================================
@@ -83,10 +83,14 @@
   return (4, "foo")
   return (1::u, "foo"::u)
   return ([]::v, (2::[])::v)
-  return (fun x ↦ let h = return (fun t ↦ return (fun u ↦ return u)) in
-                    let b = h x in b x)
-  return (fun x ↦ let h = return (fun t ↦ return (fun u ↦ return t)) in
-                    let b = h x in b x)
+  return (fun x ↦
+            let h = return (fun t ↦ return (fun u ↦ return u)) in
+            let b = h x in
+            b x)
+  return (fun x ↦
+            let h = return (fun t ↦ return (fun u ↦ return t)) in
+            let b = h x in
+            b x)
   ======================================================================
   polymorphism_id_id.mlt
   ======================================================================
@@ -248,15 +252,7 @@
   ======================================================================
   test_temporal.mlt
   ======================================================================
-  return 0
-  return 0
-  return 1
-  return 11
-  return 11
-  return ()
-  return resource_0
-  return 42
-  return (43, "test")
+  Typing error: Cannot compare non-ground resource values 0 and ρ₀ + ρ₀
   ======================================================================
   tydef.mlt
   ======================================================================
@@ -265,7 +261,9 @@
   ======================================================================
   type_annotations.mlt
   ======================================================================
-  return (fun y ↦ return (fun z ↦ let b = let b = z y in b true in return b))
+  return (fun y ↦ return (fun z ↦ let b = let b = z y in
+                                          b true in
+                                  return b))
   ======================================================================
   typing.mlt
   ======================================================================

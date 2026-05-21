@@ -194,15 +194,22 @@ and print_expression rho_module =
         print ~at_level:1 "%t::%t" (aux ~max_level:0 v1) (aux ~max_level:1 v2)
     | Variant (lbl, Some arg) ->
         print ~at_level:1 "%t %t" (Label.print lbl) (aux ~max_level:0 arg)
-    | Lambda a -> print ~at_level:2 "fun %t" (print_abstraction rho_module a)
-    | PureLambda a ->
-        print ~at_level:2 "fun %t" (print_abstraction rho_module a)
+    | Lambda (p, c) ->
+        print ~at_level:2 "@[<hv 2>fun %t ↦@ %t@]" (print_pattern p)
+          (print_computation rho_module ?max_level:None c)
+    | PureLambda (p, c) ->
+        print ~at_level:2 "@[<hv 2>fun %t ↦@ %t@]" (print_pattern p)
+          (print_computation rho_module ?max_level:None c)
     | RecLambda (f, _ty) -> print ~at_level:2 "rec %t ..." (Variable.print f)
     | Handler (ret_case, op_cases) ->
-        print "handler (@[<hov>return %t%t@])"
-          (print_abstraction rho_module ret_case)
-          (Print.print_sequence_with_start_sep " | " (print_op_case rho_module)
-             (OpNameMap.bindings op_cases))
+        let print_op_cases ppf =
+          List.iter
+            (fun op_case ->
+              Format.fprintf ppf "@,| %t" (print_op_case rho_module op_case))
+            (OpNameMap.bindings op_cases)
+        in
+        print "@[<v 0>handler@,| return %t%t@]"
+          (print_abstraction rho_module ret_case) print_op_cases
   in
   aux
 
@@ -213,42 +220,45 @@ and print_computation rho_module =
     | Return e ->
         print ~at_level:1 "return %t"
           (print_expression rho_module ~max_level:0 e)
-    | Do (c1, (PNonbinding, c2)) -> print "@[<hov>%t;@ %t@]" (aux c1) (aux c2)
+    | Do (c1, (PNonbinding, c2)) ->
+        print "@[<v 0>%t;@,%t@]" (aux c1) (aux c2)
     | Do (c1, (pat, c2)) ->
-        print "@[<hov>let@[<hov>@ %t =@ %t@] in@ %t@]" (print_pattern pat)
+        print "@[<v 0>@[<hov 2>let %t =@ %t@] in@,%t@]" (print_pattern pat)
           (aux c1) (aux c2)
     | Match (e, lst) ->
-        print "match %t with (@[<hov>%t@])"
+        print "@[<v 0>match %t with@,| %t@]"
           (print_expression rho_module ~max_level:0 e)
           (Print.print_sequence " | " (print_case rho_module) lst)
     | Apply (e1, e2) ->
-        print ~at_level:1 "@[%t@ %t@]"
+        print ~at_level:1 "@[<hov 2>%t@ %t@]"
           (print_expression rho_module ~max_level:1 e1)
           (print_expression rho_module ~max_level:0 e2)
-    | Delay (n, c) -> print ~at_level:1 "delay %d @[%t@]" n (aux ~max_level:0 c)
+    | Delay (n, c) ->
+        print ~at_level:1 "@[<hov 2>delay %d@ %t@]" n (aux ~max_level:0 c)
     | Box (rho, e, (p, c)) ->
         let rho_pp = RhoPrintParam.create () in
-        print ~at_level:1 "box %t %t as %t in@ @[%t@]"
+        print ~at_level:1 "@[<v 0>box %t %t as %t in@,%t@]"
           (print_rho rho_module rho_pp rho)
           (print_expression rho_module ~max_level:0 e)
           (print_pattern ~max_level:0 p)
           (aux ~max_level:0 c)
     | Unbox (e, (p, c)) ->
-        print ~at_level:1 "unbox %t as %t in@ @[%t@]"
+        print ~at_level:1 "@[<v 0>unbox %t as %t in@,%t@]"
           (print_expression rho_module ~max_level:0 e)
           (print_pattern p) (aux c)
     | Perform (op, e, (pat, c)) ->
-        print ~at_level:1 "perform %t %t (%t. @[%t@])" (OpName.print op)
+        print ~at_level:1 "@[<hv 2>perform %t %t (%t.@ %t)@]" (OpName.print op)
           (print_expression rho_module ~max_level:0 e)
           (print_pattern pat) (aux ~max_level:1 c)
     | Handle (c, h) ->
-        print ~at_level:1 "handle @[%t@]@ with %t" (aux ~max_level:0 c)
+        print ~at_level:1 "@[<v 0>handle@;<1 2>%t@,with %t@]"
+          (aux ~max_level:0 c)
           (print_expression rho_module ~max_level:0 h)
   in
   aux
 
 and print_abstraction rho_module (p, c) ppf =
-  Format.fprintf ppf "%t ↦ %t" (print_pattern p)
+  Format.fprintf ppf "@[<hv 2>%t ↦@ %t@]" (print_pattern p)
     (print_computation rho_module c)
 
 and print_case rho_module a ppf =
@@ -288,40 +298,40 @@ let print_vars_and_tys rho_module print_var_and_ty lst ppf =
 let print_vars_and_exprs rho_module print_var_and_expr
     (lst : ('var, 'map, 'rho) Ast.context_elem_ty list) ppf =
   let print_var_map map ppf =
-    Print.print ppf "{";
     let elements = VariableMap.bindings map in
+    Format.fprintf ppf "@[<hv 2>{ ";
     let rec print_elements = function
       | [] -> ()
-      | entry :: [] -> print_var_and_expr entry ppf
+      | [ entry ] -> print_var_and_expr entry ppf
       | entry :: tl ->
           print_var_and_expr entry ppf;
-          Print.print ppf ", ";
+          Format.fprintf ppf ",@ ";
           print_elements tl
     in
-    print_elements elements
+    print_elements elements;
+    Format.fprintf ppf "@;<1 -2>}@]"
   in
-  let rec print_list lst ppf =
-    match lst with
-    | [] -> ()
-    | VarMap map :: [] ->
-        print_var_map map ppf;
-        Print.print ppf "}"
-    | VarMap map :: rest ->
-        print_var_map map ppf;
-        Print.print ppf "}, ";
-        print_list rest ppf
-    | Rho n :: [] ->
+  let print_elem ppf = function
+    | VarMap map -> print_var_map map ppf
+    | Rho n ->
         let rho_pp = RhoPrintParam.create () in
         print_rho rho_module rho_pp n ppf
-    | Rho n :: rest ->
-        let rho_pp = RhoPrintParam.create () in
-        print_rho rho_module rho_pp n ppf;
-        Print.print ppf ", ";
-        print_list rest ppf
   in
-  Print.print ppf "State: [";
-  print_list (List.rev lst) ppf;
-  Print.print ppf "]\n"
+  let elems = List.rev lst in
+  match elems with
+  | [] -> Format.fprintf ppf "State: []@\n"
+  | _ ->
+      Format.fprintf ppf "@[<v 2>State: [@,";
+      let rec print_list = function
+        | [] -> ()
+        | [ e ] -> print_elem ppf e
+        | e :: tl ->
+            print_elem ppf e;
+            Format.fprintf ppf ",@,";
+            print_list tl
+      in
+      print_list elems;
+      Format.fprintf ppf "@;<0 -2>]@]@\n"
 
 let print_variable_context rho_module ctx =
   let print_var_and_ty ty_pp rho_pp (variable, (ty_params, rho_params, ty, _))
@@ -336,7 +346,7 @@ let print_variable_context rho_module ctx =
 let print_interpreter_state rho_module ctx ppf =
   let print_var_and_expr (variable, (rho, expr)) ppf =
     let rho_print_param = RhoPrintParam.create () in
-    Format.fprintf ppf "%t -> %t # %t" (Variable.print variable)
+    Format.fprintf ppf "@[<hv 2>%t ->@ %t@ # %t@]" (Variable.print variable)
       (print_expression rho_module expr)
       (print_rho rho_module rho_print_param rho)
   in
