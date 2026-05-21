@@ -261,8 +261,8 @@
   ======================================================================
   type_annotations.mlt
   ======================================================================
-  return (fun y ↦ return (fun z ↦ let b = let b = z y in
-                                          b true in
+  return (fun y ↦ return (fun z ↦ let b = (let b = z y in
+                                           b true) in
                                   return b))
   ======================================================================
   typing.mlt

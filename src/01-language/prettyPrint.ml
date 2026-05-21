@@ -221,10 +221,12 @@ and print_computation rho_module =
         print ~at_level:1 "return %t"
           (print_expression rho_module ~max_level:0 e)
     | Do (c1, (PNonbinding, c2)) ->
-        print "@[<v 0>%t;@,%t@]" (aux c1) (aux c2)
+        print ~at_level:2 "@[<v 0>%t;@,%t@]" (aux ~max_level:1 c1) (aux c2)
     | Do (c1, (pat, c2)) ->
-        print "@[<v 0>@[<hov 2>let %t =@ %t@] in@,%t@]" (print_pattern pat)
-          (aux c1) (aux c2)
+        print ~at_level:2 "@[<v 0>@[<hov 2>let %t =@ %t@] in@,%t@]"
+          (print_pattern pat)
+          (aux ~max_level:1 c1)
+          (aux c2)
     | Match (e, lst) ->
         print "@[<v 0>match %t with@,| %t@]"
           (print_expression rho_module ~max_level:0 e)
@@ -237,13 +239,13 @@ and print_computation rho_module =
         print ~at_level:1 "@[<hov 2>delay %d@ %t@]" n (aux ~max_level:0 c)
     | Box (rho, e, (p, c)) ->
         let rho_pp = RhoPrintParam.create () in
-        print ~at_level:1 "@[<v 0>box %t %t as %t in@,%t@]"
+        print ~at_level:2 "@[<v 0>box %t %t as %t in@,%t@]"
           (print_rho rho_module rho_pp rho)
           (print_expression rho_module ~max_level:0 e)
           (print_pattern ~max_level:0 p)
-          (aux ~max_level:0 c)
+          (aux c)
     | Unbox (e, (p, c)) ->
-        print ~at_level:1 "@[<v 0>unbox %t as %t in@,%t@]"
+        print ~at_level:2 "@[<v 0>unbox %t as %t in@,%t@]"
           (print_expression rho_module ~max_level:0 e)
           (print_pattern p) (aux c)
     | Perform (op, e, (pat, c)) ->
@@ -251,8 +253,7 @@ and print_computation rho_module =
           (print_expression rho_module ~max_level:0 e)
           (print_pattern pat) (aux ~max_level:1 c)
     | Handle (c, h) ->
-        print ~at_level:1 "@[<v 0>handle@;<1 2>%t@,with %t@]"
-          (aux ~max_level:0 c)
+        print ~at_level:1 "@[<v 0>handle@;<1 2>%t@,with %t@]" (aux c)
           (print_expression rho_module ~max_level:0 h)
   in
   aux

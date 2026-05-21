@@ -17,9 +17,10 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
     let print ?at_level = Print.print ?max_level ?at_level ppf in
     match (red, c) with
     | DoReturn, Ast.Do (c1, (pat, c2)) ->
-        print "@[<v 0>%t@[<hov 2>let %t =@ %t@]%t in@,%t@]" print_mark
+        print ~at_level:2 "@[<v 0>%t@[<hov 2>let %t =@ %t@]%t in@,%t@]"
+          print_mark
           (PrettyPrint.print_pattern pat)
-          (PrettyPrint.print_computation (module ResourceGrade) c1)
+          (PrettyPrint.print_computation (module ResourceGrade) ~max_level:1 c1)
           print_mark
           (PrettyPrint.print_computation (module ResourceGrade) c2)
     | _, comp ->
@@ -34,13 +35,13 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
     let print ?at_level = Print.print ?max_level ?at_level ppf in
     match (red, c) with
     | DoCtx red, Ast.Do (c1, (Ast.PNonbinding, c2)) ->
-        print "@[<v 0>%t;@,%t@]"
-          (print_computation_reduction red c1)
+        print ~at_level:2 "@[<v 0>%t;@,%t@]"
+          (print_computation_reduction ~max_level:1 red c1)
           (PrettyPrint.print_computation (module ResourceGrade) c2)
     | DoCtx red, Ast.Do (c1, (pat, c2)) ->
-        print "@[<v 0>@[<hov 2>let %t =@ %t@] in@,%t@]"
+        print ~at_level:2 "@[<v 0>@[<hov 2>let %t =@ %t@] in@,%t@]"
           (PrettyPrint.print_pattern pat)
-          (print_computation_reduction red c1)
+          (print_computation_reduction ~max_level:1 red c1)
           (PrettyPrint.print_computation (module ResourceGrade) c2)
     | ComputationRedex redex, c ->
         print_computation_redex ?max_level redex c ppf
