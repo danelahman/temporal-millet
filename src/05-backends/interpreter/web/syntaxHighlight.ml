@@ -69,7 +69,12 @@ let highlight_text s =
   let i = ref 0 in
   while !i < n do
     let c = s.[!i] in
-    if c = '(' && !i + 1 < n && s.[!i + 1] = '*' then begin
+    if
+      c = '(' && !i + 1 < n && s.[!i + 1] = '*'
+      (* Don't treat "(*)" as a comment opener — it's the multiplication
+         operator used as a value, the same convention as OCaml's lexer. *)
+      && (!i + 2 >= n || s.[!i + 2] <> ')')
+    then begin
       (* OCaml-style nested comment. *)
       let start = !i in
       i := !i + 2;
