@@ -526,7 +526,20 @@ module Make (T : Language.ResourceGrade.S) = struct
           {
             environment;
             label = Return;
-            next_state = (fun () -> { computations = comps; environment });
+            next_state =
+              (fun () ->
+                (* Reset resource state between consecutive top-level [run]
+                   commands: top-level bindings and operation signatures stay,
+                   but the resource store and fresh-resource counter start
+                   from zero again. *)
+                let environment' =
+                  {
+                    environment with
+                    state = ContextHolderModule.empty;
+                    resource_counter = 0;
+                  }
+                in
+                { computations = comps; environment = environment' });
           };
         ]
     | { computations = comp :: comps; environment } ->
