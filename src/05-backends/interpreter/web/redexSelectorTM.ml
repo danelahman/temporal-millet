@@ -56,15 +56,15 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
       | Some red -> Format.asprintf "%t" (print_computation_reduction red comp)
     in
     match String.split_on_char tag_marker rendered with
-    | [ code ] -> [ Vdom.text code ]
+    | [ code ] -> SyntaxHighlight.highlight_text code
     | [ pre; redex; post ] ->
-        [
-          Vdom.text pre;
-          Vdom.elt "strong"
-            ~a:[ Vdom.class_ "has-text-info" ]
-            [ Vdom.text redex ];
-          Vdom.text post;
-        ]
+        SyntaxHighlight.highlight_text pre
+        @ [
+            Vdom.elt "strong"
+              ~a:[ Vdom.class_ "has-text-info" ]
+              (SyntaxHighlight.highlight_text redex);
+          ]
+        @ SyntaxHighlight.highlight_text post
     | _ ->
         Error.runtime
           "internal: redex marker split produced an unexpected layout"
