@@ -23,6 +23,21 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
           (PrettyPrint.print_computation (module ResourceGrade) ~max_level:1 c1)
           print_mark
           (PrettyPrint.print_computation (module ResourceGrade) c2)
+    | Box, Ast.Box (rho, e, (p, c)) ->
+        let rho_pp = PrettyPrint.RhoPrintParam.create () in
+        print ~at_level:2
+          "@[<v 0>%t@[<hov 2>box %t %t as %t@]%t in@,%t@]" print_mark
+          (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho)
+          (PrettyPrint.print_expression (module ResourceGrade) ~max_level:0 e)
+          (PrettyPrint.print_pattern ~max_level:0 p)
+          print_mark
+          (PrettyPrint.print_computation (module ResourceGrade) c)
+    | Unbox, Ast.Unbox (e, (p, c)) ->
+        print ~at_level:2
+          "@[<v 0>%t@[<hov 2>unbox %t as %t@]%t in@,%t@]" print_mark
+          (PrettyPrint.print_expression (module ResourceGrade) ~max_level:0 e)
+          (PrettyPrint.print_pattern p) print_mark
+          (PrettyPrint.print_computation (module ResourceGrade) c)
     | _, comp ->
         print "%t%t%t" print_mark
           (fun ppf ->
