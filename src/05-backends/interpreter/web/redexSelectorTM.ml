@@ -43,6 +43,10 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
           (PrettyPrint.print_pattern pat)
           (print_computation_reduction ~max_level:1 red c1)
           (PrettyPrint.print_computation (module ResourceGrade) c2)
+    | HandleCtx red, Ast.Handle (c, h) ->
+        print ~at_level:1 "@[<v 0>handle@;<1 2>%t@,with %t@]"
+          (print_computation_reduction red c)
+          (PrettyPrint.print_expression (module ResourceGrade) ~max_level:0 h)
     | ComputationRedex redex, c ->
         print_computation_redex ?max_level redex c ppf
     | _, _ ->
