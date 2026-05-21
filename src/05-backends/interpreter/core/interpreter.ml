@@ -402,7 +402,7 @@ module Make (T : Language.ResourceGrade.S) = struct
     | Ast.Handle (comp, handler) -> (
         let comps' =
           step_in_context step_computation env
-            (fun red -> DoCtx red)
+            (fun red -> HandleCtx red)
             (fun comp' -> Ast.Handle (comp', handler))
             comp
         in

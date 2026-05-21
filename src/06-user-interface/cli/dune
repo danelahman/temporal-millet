@@ -1,6 +1,6 @@
-(executables
- (names cli debug_redex)
- (libraries utils language cliInterpreter interpreter loader)
+(executable
+ (name cli)
+ (libraries utils language cliInterpreter loader)
  (promote
   (until-clean)
   (into ../../..)))
