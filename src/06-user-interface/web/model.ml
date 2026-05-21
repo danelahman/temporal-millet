@@ -136,6 +136,21 @@ let update model = function
                 (if model.edit_model.use_stdlib then L.stdlib_source else "")
                 ^ "\n\n\n" ^ model.edit_model.unparsed_code
               in
+              (* The parser is parameterized by the selected resource grade
+                 and will raise on syntactic forms (e.g. pair literals) that
+                 the grade does not support — masking a mismatch with the
+                 user's [resources X] declaration. Detect that mismatch up
+                 front so the user gets a clear error. *)
+              (match
+                 Source_scan.find_resources_declaration
+                   model.edit_model.unparsed_code
+               with
+              | Some declared when declared <> RG.name ->
+                  Utils.Error.typing
+                    "Source declares 'resources %s' but the selected resource \
+                     grade is '%s'."
+                    declared RG.name
+              | _ -> ());
               let state = L.load_source L.initial_state source in
               let run_state = B.run state.backend in
               (* Build a run_model_state from a B.run_state, capturing all
@@ -159,7 +174,10 @@ let update model = function
                 }
               in
               Ok (run_init (make_run_state run_state))
-        with Error.Error (_, _, msg) -> Error msg
+        with
+        | Error.Error (_, _, msg) -> Error msg
+        | Invalid_argument msg -> Error msg
+        | exn -> Error (Printexc.to_string exn)
       in
       { model with run_model }
   | EditCode -> { model with run_model = Error "" }
