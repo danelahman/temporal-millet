@@ -346,7 +346,7 @@ let print_variable_context rho_module ctx =
 let print_interpreter_state rho_module ctx ppf =
   let print_var_and_expr (variable, (rho, expr)) ppf =
     let rho_print_param = RhoPrintParam.create () in
-    Format.fprintf ppf "@[<hv 2>%t ->@ %t@ # %t@]" (Variable.print variable)
+    Format.fprintf ppf "@[<hv 2>%t ↦@ %t@ # %t@]" (Variable.print variable)
       (print_expression rho_module expr)
       (print_rho rho_module rho_print_param rho)
   in
