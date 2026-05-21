@@ -200,7 +200,7 @@ let view_steps (run_model : Model.run_model) steps =
             [
               class_ "button is-outlined is-fullwidth";
               onclick (fun _ -> Model.RunMsg (Model.MakeStep step));
-              onmousemove (fun _ ->
+              onmouseenter (fun _ ->
                   Model.RunMsg (Model.SelectStepIndex (Some i)));
             ]
           [ step.Model.label_vdom ];
@@ -247,7 +247,7 @@ let view_steps (run_model : Model.run_model) steps =
       ]
   in
   panel "Interaction"
-    ~a:[ onmousemove (fun _ -> Model.RunMsg (Model.SelectStepIndex None)) ]
+    ~a:[ onmouseleave (fun _ -> Model.RunMsg (Model.SelectStepIndex None)) ]
     (view_edit_source :: view_undo_last_step :: view_random_steps steps
    :: List.mapi view_step steps)
 

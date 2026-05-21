@@ -65,8 +65,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
     | [ pre; redex; post ] ->
         SyntaxHighlight.highlight_text pre
         @ [
-            Vdom.elt "strong"
-              ~a:[ Vdom.class_ "has-text-info" ]
+            Vdom.elt "span"
+              ~a:[ Vdom.class_ "active-redex" ]
               (SyntaxHighlight.highlight_text redex);
           ]
         @ SyntaxHighlight.highlight_text post

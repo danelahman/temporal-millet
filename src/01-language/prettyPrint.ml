@@ -228,9 +228,15 @@ and print_computation rho_module =
           (aux ~max_level:1 c1)
           (aux c2)
     | Match (e, lst) ->
-        print "@[<v 0>match %t with@,| %t@]"
+        let print_cases ppf =
+          List.iter
+            (fun case ->
+              Format.fprintf ppf "@,| %t" (print_case rho_module case))
+            lst
+        in
+        print "@[<v 0>match %t with%t@]"
           (print_expression rho_module ~max_level:0 e)
-          (Print.print_sequence " | " (print_case rho_module) lst)
+          print_cases
     | Apply (e1, e2) ->
         print ~at_level:1 "@[<hov 2>%t@ %t@]"
           (print_expression rho_module ~max_level:1 e1)

@@ -50,11 +50,17 @@
       font-weight: 600;
     }
 
-    pre.syn-ml strong.has-text-info {
-      background: #fff3bf;
+    pre.syn-ml .active-redex {
+      background-color: #fff3bf;
       color: inherit;
+      font-weight: 600;
       padding: 0 2px;
       border-radius: 2px;
+      box-shadow: 0 0 0 1px #f0b500;
+      /* Make the background repeat on every visual line when the span wraps
+         across newlines (which is common inside <pre>). */
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
     }
   </style>
 </head>
