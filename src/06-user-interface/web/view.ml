@@ -1,5 +1,6 @@
 open Vdom
 module Ast = Language.Ast
+module SyntaxHighlight = WebInterpreter.SyntaxHighlight
 
 (* Auxiliary definitions *)
 let panel ?(a = []) heading blocks =
@@ -47,19 +48,33 @@ let view_contents main aside =
 (* Edit view *)
 
 let view_editor (model : Model.edit_model) =
+  let rows =
+    max 10 (String.split_on_char '\n' model.unparsed_code |> List.length)
+  in
+  let highlighted =
+    SyntaxHighlight.highlight_text (model.unparsed_code ^ "\n")
+  in
   div
     ~a:[ class_ "box" ]
     [
-      elt "textarea"
-        ~a:
-          [
-            class_ "textarea has-fixed-size";
-            oninput (fun input -> Model.ChangeSource input);
-            int_prop "rows"
-              (max 10
-                 (String.split_on_char '\n' model.unparsed_code |> List.length));
-          ]
-        [ text model.unparsed_code ];
+      div
+        ~a:[ class_ "code-editor" ]
+        [
+          elt "pre"
+            ~a:[ class_ "code-editor-display syn-ml" ]
+            highlighted;
+          elt "textarea"
+            ~a:
+              [
+                class_ "code-editor-input";
+                oninput (fun input -> Model.ChangeSource input);
+                int_prop "rows" rows;
+                attr "spellcheck" "false";
+                attr "autocapitalize" "off";
+                attr "autocorrect" "off";
+              ]
+            [ text model.unparsed_code ];
+        ];
     ]
 
 (* let _view (model : Model.model) =

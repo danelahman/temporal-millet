@@ -69,7 +69,25 @@ let highlight_text s =
   let i = ref 0 in
   while !i < n do
     let c = s.[!i] in
-    if c = '"' then begin
+    if c = '(' && !i + 1 < n && s.[!i + 1] = '*' then begin
+      (* OCaml-style nested comment. *)
+      let start = !i in
+      i := !i + 2;
+      let depth = ref 1 in
+      while !depth > 0 && !i < n do
+        if !i + 1 < n && s.[!i] = '(' && s.[!i + 1] = '*' then begin
+          incr depth;
+          i := !i + 2
+        end
+        else if !i + 1 < n && s.[!i] = '*' && s.[!i + 1] = ')' then begin
+          decr depth;
+          i := !i + 2
+        end
+        else incr i
+      done;
+      push_span "syn-comment" (String.sub s start (!i - start))
+    end
+    else if c = '"' then begin
       let start = !i in
       incr i;
       while !i < n && s.[!i] <> '"' do
