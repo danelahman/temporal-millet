@@ -7,24 +7,48 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
 
   (* Renders the interpreter state with markers around binding-position
      resource names so the syntax highlighter colors only those (and not
-     resource references inside stored values). *)
-  let string_of_state state =
-    let mark ppf =
+     resource references inside stored values). If [active] is set, the
+     binding whose label equals it is additionally bracketed by the active
+     marker so the web interface can highlight it like the active redex. *)
+  let string_of_state ?active state =
+    let label_mark ppf =
       Format.pp_print_as ppf 0
         (String.make 1 SyntaxHighlight.resource_label_marker)
     in
+    let active_mark ppf =
+      Format.pp_print_as ppf 0
+        (String.make 1 SyntaxHighlight.active_state_marker)
+    in
+    let is_active variable =
+      match active with
+      | Some v -> Ast.Variable.compare v variable = 0
+      | None -> false
+    in
     let print_var_and_expr (variable, (rho, expr)) ppf =
       let rho_pp = PrettyPrint.RhoPrintParam.create () in
-      Format.fprintf ppf "@[<hv 2>%t%t%t ↦@ %t@ # %t@]" mark
+      let surround ppf =
+        if is_active variable then active_mark ppf
+      in
+      Format.fprintf ppf "%t@[<hv 2>%t%t%t ↦@ %t@ # %t@]%t" surround label_mark
         (Ast.Variable.print variable)
-        mark
+        label_mark
         (PrettyPrint.print_expression (module ResourceGrade) expr)
         (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho)
+        surround
     in
     PrettyPrint.print_vars_and_exprs
       (module ResourceGrade)
       print_var_and_expr state Format.str_formatter;
     Format.flush_str_formatter ()
+
+  (* If the redex at the head of [red] is an [Unbox] applied to a variable,
+     return that variable so we can highlight the corresponding state entry. *)
+  let rec active_unbox_var red c =
+    match (red, c) with
+    | DoCtx red, Ast.Do (c1, _) -> active_unbox_var red c1
+    | HandleCtx red, Ast.Handle (c, _) -> active_unbox_var red c
+    | ComputationRedex Unbox, Ast.Unbox (Ast.Var v, _) -> Some v
+    | _ -> None
 
   let view_computation_redex = function
     | Match -> "match"
@@ -57,8 +81,28 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
           | None -> None
         in
 
-        let state_string = string_of_state environment.state in
-        let state_nodes = SyntaxHighlight.highlight_text state_string in
+        let active =
+          match reduction with
+          | Some red -> active_unbox_var red comp
+          | None -> None
+        in
+        let state_string = string_of_state ?active environment.state in
+        let state_nodes =
+          match
+            String.split_on_char SyntaxHighlight.active_state_marker
+              state_string
+          with
+          | [ code ] -> SyntaxHighlight.highlight_text code
+          | [ pre; active; post ] ->
+              SyntaxHighlight.highlight_text pre
+              @ [
+                  elt "span"
+                    ~a:[ class_ "active-redex" ]
+                    (SyntaxHighlight.highlight_text active);
+                ]
+              @ SyntaxHighlight.highlight_text post
+          | _ -> SyntaxHighlight.highlight_text state_string
+        in
         let computation_tree =
           RS.view_computation_with_redexes reduction comp
         in

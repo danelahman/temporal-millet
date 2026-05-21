@@ -48,6 +48,11 @@ let is_greek_lead b = b = 0xCE || b = 0xCF
    string; 0x01 is safe in pretty-printer output. *)
 let resource_label_marker = '\x01'
 
+(* Byte used by the state printer to bracket the entire entry of the resource
+   currently being acted on by the redex (e.g. the resource being unboxed),
+   so the web interface can highlight it the same way as the active redex. *)
+let active_state_marker = '\x02'
+
 let highlight_text s =
   let n = String.length s in
   let nodes = ref [] in
