@@ -63,11 +63,39 @@ Temporal Millet, like original Millet, gives you two options to run programs:
   you want to see the variable context and state at the end of a program, run
   Temporal Millet with the `--debug` option.
 
+## Grading monoids
+
+A Temporal Millet source file can optionally begin with a `resources`
+declaration that selects the grading monoid used to track resource usage
+throughout the file:
+
+```
+resources grade-name
+```
+
+If no such declaration is present, the `time` grading monoid is used by
+default. Two grading monoids are currently available:
+
+- **`time`** — grades are non-negative integers representing discrete time
+  units. The zero grade is the *top* element of the sub-grade order: grade
+  `rho` is considered a sub-grade of grade `rho'` when `rho >= rho'`. Grades
+  of this kind are written as plain integer literals, e.g. `3`. Intuitively, 
+  these grades track the lower bound of the time-cost of computations.
+
+- **`time-interval`** — grades are pairs of non-negative integers `(n, m)` with
+  `n <= m`, representing time intervals describing both the lower and upper
+  bounds of the time-cost of computations. The zero grade `(0, 0)` is the
+  *minimal* element of the sub-grade order: grade `(n, m)` is considered a
+  sub-grade of `(k, l)` when `n >= k` and `l >= m` (i.e. the interval is
+  contained within the other). Grades are written as pair literals, e.g. `(1,
+  4)`. See [this](examples/interval.mlt) example for a demonstration of
+  time-interval grades.
+
 ## Temporal resources
 
 At the core of Temporal Millet are values of modal types `[rho]a` which describe
-`a`-typed temporal resources that can only be used or accessed within `rho` 
-amount of computation, e.g., only within a time interval modelled by the `rho`.
+`a`-typed temporal resources that can only be used or accessed within `rho`
+amount of computation, e.g., only within a time interval modelled by `rho`.
 
 On the one hand, such temporal resources can be created (i.e., boxed up) with
 the `box rho e` command, where `e` is some `a`-typed expression that has to be
@@ -76,15 +104,16 @@ where `box` is called. In this case, `box rho e` returns a value of type `[rho]a
 
 On the other hand, such temporal resources can be eliminated (i.e., unboxed)
 with the `unbox e` command, where `e` is some `[rho]a`-typed expression that has
-to have been created/brought into scope within `rho` amount of computation before 
+to have been created/brought into scope within `rho` amount of computation before
 `unbox` is called. In this case, the `unbox` command returns a value of type `a`.
 
-Time is progressed, so that further `unbox` es become possible, by either using
-the `delay tau` command in your code, to delay the execution of the program's
-continuation by `tau` time units, or by making calls to algebraic operations as
-discussed below, each of which performs a prescribed grade amount of computation.
+The grade counter is advanced, so that further `unbox`es become possible, by
+either using the `delay tau` command in your code, to delay the execution of the
+program's continuation by `tau` grade units, or by making calls to algebraic
+operations as discussed below, each of which performs a prescribed grade amount
+of computation.
 
-See [this](main/examples/delay.mlt) example for a demonstration how the `box`,
+See [this](examples/delay.mlt) example for a demonstration how the `box`,
 `unbox`, and `delay` commands are supposed to be used.
 
 ## Algebraic effects and effect handlers in Temporal Millet
