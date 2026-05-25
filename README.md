@@ -66,8 +66,8 @@ Temporal Millet, like original Millet, gives you two options to run programs:
 ## Grading monoids
 
 A Temporal Millet source file can optionally begin with a `resources`
-declaration that selects the grading monoid used to track resource usage
-throughout the file:
+declaration that selects the grading monoid (an ordered monoid satisfying some
+additional properties) used to track resource usage throughout the file:
 
 ```
 resources grade-name
@@ -94,24 +94,29 @@ default. Two grading monoids are currently available:
 ## Temporal resources
 
 At the core of Temporal Millet are values of modal types `[rho]a` which describe
-`a`-typed temporal resources that can only be used or accessed within `rho`
-amount of computation, e.g., only within a time interval modelled by `rho`.
+`a`-typed resources whose accessibility is governed by the grade `rho`. Depending
+on the chosen grading monoid, `rho` may represent, for example, the amount of
+time that must have elapsed, the sequence of operations that must have been
+performed, or any other monoidal measure (with certain additional properties) 
+of computational progress, before the resource can be accessed.
 
-On the one hand, such temporal resources can be created (i.e., boxed up) with
-the `box rho e` command, where `e` is some `a`-typed expression that has to be
-well-typed in a hypothetical future within a `rho` amount of computation from
-where `box` is called. In this case, `box rho e` returns a value of type `[rho]a`.
+On the one hand, such resources can be created (i.e., boxed up) with the
+`box rho e` command, where `e` is some `a`-typed expression that has to be
+well-typed in a hypothetical future in which the accumulated grade has increased
+by `rho` from the point where `box` is called. In this case, `box rho e` returns
+a value of type `[rho]a` representing a temporal resource.
 
-On the other hand, such temporal resources can be eliminated (i.e., unboxed)
-with the `unbox e` command, where `e` is some `[rho]a`-typed expression that has
-to have been created/brought into scope within `rho` amount of computation before
-`unbox` is called. In this case, the `unbox` command returns a value of type `a`.
+On the other hand, such resources can be eliminated (i.e., unboxed) with the
+`unbox e` command, where `e` is some `[rho]a`-typed expression. The `unbox`
+command can only be used once the accumulated grade has advanced by at least
+`rho` (in the sub-grade order of the chosen grading monoid) since the resource
+was boxed. In this case, the `unbox` command returns a value of type `a`.
 
-The grade counter is advanced, so that further `unbox`es become possible, by
-either using the `delay tau` command in your code, to delay the execution of the
-program's continuation by `tau` grade units, or by making calls to algebraic
-operations as discussed below, each of which performs a prescribed grade amount
-of computation.
+The accumulated grade is advanced, so that further `unbox`es become possible, by
+either using the `delay tau` command in your code, which explicitly advances the
+accumulated grade by `tau`, or by making calls to algebraic effect operations as
+discussed below, each of which contributes a prescribed grade to the grade
+accumulated in the program context.
 
 See [this](examples/delay.mlt) example for a demonstration how the `box`,
 `unbox`, and `delay` commands are supposed to be used.
@@ -126,9 +131,9 @@ operations can be specified using the format
 operation OperationName : operation-input-type ~> operation-result-type # operation-grade
 ```
 where `operation-input-type` and `operation-result-type` are Temporal Millet
-type expressions, and `operation-grade` is a grade specifying the operation's
-computational behaviour (e.g., how many seconds, minutes, hours etc the given
-operation is supposed to execute.)
+type expressions, and `operation-grade` is a grade specifying the resource usage
+incurred by the operation (e.g., how much time, how many steps, or what sequence
+of sub-operations the given operation is supposed to involve).
 
 These algebraic operations can be then used in the following program code using
 the format
@@ -137,9 +142,9 @@ perform OperationName operation-parameter
 ```
 where `operation-parameter` is an expression of type `operation-input-type`. In
 this case, `perform OperationName operation-parameter` returns a
-`operation-result-type`-typed value, and the type system records that by the
-time the continuation of the operation call starts executing,
-`operation-grade` worth of extra computation has been performed.
+`operation-result-type`-typed value, and the type system records that the
+accumulated grade at the point where the continuation starts executing has
+increased by `operation-grade`.
 
 As is common for algebraic effects, these algebraic operation calls do not carry
 any meaning by themselves. To give them meaning, we have to handle them with an
