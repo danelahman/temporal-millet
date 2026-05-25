@@ -19,6 +19,105 @@
     .panel-block {
       display: block
     }
+
+    pre.syn-ml {
+      background: #f6f8fa;
+      color: #24292e;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.9rem;
+      padding: 0.75rem 1rem;
+    }
+
+    pre.syn-ml .syn-kw {
+      color: #a626a4;
+      font-weight: 600;
+    }
+
+    pre.syn-ml .syn-ctor {
+      color: #c18401;
+    }
+
+    pre.syn-ml .syn-str {
+      color: #50a14f;
+    }
+
+    pre.syn-ml .syn-num {
+      color: #986801;
+    }
+
+    pre.syn-ml .syn-comment {
+      color: #a0a1a7;
+      font-style: italic;
+    }
+
+    pre.syn-ml .syn-resource {
+      color: #0366d6;
+      font-weight: 600;
+    }
+
+    pre.syn-ml .active-redex {
+      background-color: #fff3bf;
+      color: inherit;
+      font-weight: 600;
+      padding: 0 2px;
+      border-radius: 2px;
+      box-shadow: 0 0 0 1px #f0b500;
+      /* Make the background repeat on every visual line when the span wraps
+         across newlines (which is common inside <pre>). */
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+
+    .code-editor {
+      position: relative;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .code-editor-display,
+    .code-editor-input {
+      font-family: inherit;
+      font-size: inherit;
+      line-height: inherit;
+      letter-spacing: 0;
+      padding: 0.75em 1em;
+      margin: 0;
+      border: 1px solid #dbdbdb;
+      border-radius: 4px;
+      box-sizing: border-box;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      tab-size: 2;
+      width: 100%;
+    }
+
+    .code-editor-display {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      background: #f6f8fa;
+      color: #24292e;
+      z-index: 1;
+    }
+
+    .code-editor-input {
+      position: relative;
+      z-index: 2;
+      background: transparent;
+      color: transparent;
+      caret-color: #24292e;
+      resize: vertical;
+      outline: none;
+      display: block;
+    }
+
+    .code-editor-input:focus {
+      border-color: #485fc7;
+      box-shadow: 0 0 0 0.125em rgba(72, 95, 199, 0.25);
+    }
   </style>
 </head>
 
