@@ -134,8 +134,9 @@ type is eternal when:
 - it is a user-defined algebraic type all of whose constructor argument types
   are eternal.
 
-Function types (`a -> b`), handler types, and temporal box types (`[rho]a`)
-are never eternal.
+Function types (`a -> b`), handler types (`a # rho1 => b # rho2`), and temporal
+box (resource) types (`[rho]a`) are never eternal because they might contain
+computations or resources that are temporally sensitive and can only be used "now".
 
 When a local variable `x` of type `a` is referenced, the type system generates
 an *eternal-or-inequality* constraint: either `a` is eternal, or the grade
