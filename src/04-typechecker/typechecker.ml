@@ -128,7 +128,6 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
 
   type ineq_constraint =
     | Ineq of ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
-    | Eternal of ResourceGrade.t Ast.ty
     | EternalOrIneq of ResourceGrade.t Ast.ty * ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
 
   let print_rho_ineq_constraints_pp rho_pp constraints =
@@ -138,10 +137,6 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
          (fun _ppf constraint_ ->
            match constraint_ with
            | Ineq (rho1, rho2) -> print_rho_geq rho1 rho2 rho_pp
-           | Eternal ty ->
-               let ty_pp = PrettyPrint.TyPrintParam.create () in
-               Format.printf "%t"
-                 (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
            | EternalOrIneq (ty, rho1, rho2) ->
                let ty_pp = PrettyPrint.TyPrintParam.create () in
                Format.printf "%t ∨ (%t %s %t)"
@@ -626,8 +621,6 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
     let subst_inequation = function
       | Ineq (rho1, rho2) ->
           Ineq (Ast.substitute_rho rho_subst rho1, Ast.substitute_rho rho_subst rho2)
-      | Eternal ty ->
-          Eternal (Ast.substitute_ty Ast.TyParamMap.empty rho_subst ty)
       | EternalOrIneq (ty, rho1, rho2) ->
           EternalOrIneq
             ( Ast.substitute_ty Ast.TyParamMap.empty rho_subst ty,
@@ -900,8 +893,6 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         else
           (* Retry with deferred constraints *)
           unify_rho_ineq_constraints state current_unsolved_size [] unsolved
-    | Eternal ty :: ineqs ->
-        unify_rho_ineq_constraints state prev_unsolved_size (Eternal ty :: unsolved) ineqs
     | EternalOrIneq (ty, rho1, rho2) :: ineqs -> (
         let rho1' = simplify_rho rho1 in
         let rho2' = simplify_rho rho2 in
@@ -1047,7 +1038,6 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
 
   let rec check_rho_ineq_constraints state = function
     | [] -> ()
-    | Eternal _ :: _ -> assert false
     | EternalOrIneq _ :: _ -> assert false
     | Ineq (rho_smaller, rho_greater_or_equal) :: rho_ineqs -> (
         let rho_smaller_simplified = simplify_rho rho_smaller in
