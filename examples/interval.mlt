@@ -26,9 +26,7 @@ let foo3 () =
   unbox r as y in
   y + z
 
-(* Correctly rejected by the typechecker. *)
-(* TODO: But as 7 is constant and stable, would be nice if it were not rejected. *)
-(*
+(* Correctly accepted by the typechecker because int is an eternal type. *)
 let foo4 () = 
   let x = 7 in
   box (1,4) 1 as r in
@@ -37,12 +35,10 @@ let foo4 () =
   let z = 3 in
   unbox r as y in
   y + x
-*)
 
-(* Correctly rejected by the typechecker because boxing x requires x to be usable after (3,3) interval. *)
-(* So, for it to typecheck, would need a similar stability of base-typed constants built into the typechecker. *)
-(*
-let foo4 () = 
+(* Correctly accepted by the typechecker because boxing x requires x to be usable after *)
+(* (3,3) interval, which is possible because x's its type (int) is an eternal type. *)
+let foo5 () = 
   let x = 7 in
   box (2,5) x as x' in
   box (1,4) 1 as r in
@@ -51,12 +47,11 @@ let foo4 () =
   let z = 3 in
   unbox r as y in
   unbox x' as x'' in
-  y + x''
-*)
+  y + x + x''
 
 (* Correctly rejected by the typechecker. *)
 (*
-let foo5 () = 
+let foo6 () = 
   let r = box (1,4) 1 in
   delay 5;
   unbox r as y in
@@ -65,7 +60,7 @@ let foo5 () =
 
 (* Correctly rejected by the typechecker. *)
 (*
-let foo6 () =
+let foo7 () =
   let r = box (1,4) 1 in
   delay 3;
   let r' = r in
@@ -77,3 +72,5 @@ let foo6 () =
 run foo1 ()
 run foo2 ()
 run foo3 ()
+run foo4 ()
+run foo5 ()

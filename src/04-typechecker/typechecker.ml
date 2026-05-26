@@ -302,8 +302,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         let rho_ineq =
           match var_type with
           | Local ->
-              [
-                Ineq ( ContextHolderModule.sum_rhos_added_after x state.variables,
+              [ EternalOrIneq ( ty, 
+                  ContextHolderModule.sum_rhos_added_after x state.variables,
                   Ast.RhoConst ResourceGrade.zero );
               ]
           | Global -> []
@@ -617,13 +617,13 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
     in
     List.map subst_rho_equation
 
-  let subst_rho_inequations rho_subst =
+  let subst_rho_inequations ty_subst rho_subst =
     let subst_inequation = function
       | Ineq (rho1, rho2) ->
           Ineq (Ast.substitute_rho rho_subst rho1, Ast.substitute_rho rho_subst rho2)
       | EternalOrIneq (ty, rho1, rho2) ->
           EternalOrIneq
-            ( Ast.substitute_ty Ast.TyParamMap.empty rho_subst ty,
+            ( Ast.substitute_ty ty_subst rho_subst ty,
               Ast.substitute_rho rho_subst rho1,
               Ast.substitute_rho rho_subst rho2 )
     in
@@ -898,8 +898,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
           let singleton = Ast.RhoParamMap.singleton tp rho in
           let rho_subst, unsolved' =
             unify_rho_ineq_constraints state prev_unsolved_size
-              (subst_rho_inequations singleton unsolved)
-              (subst_rho_inequations singleton ineqs)
+              (subst_rho_inequations Ast.TyParamMap.empty singleton unsolved)
+              (subst_rho_inequations Ast.TyParamMap.empty singleton ineqs)
           in
           (add_rho_subst tp rho rho_subst, unsolved')
       | t, Ast.RhoAdd (t1, t2) ->
@@ -989,61 +989,75 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
     in
     check [] ty
 
-  let rec check_rho_ineq_constraints state = function
-    | [] -> ()
-    | EternalOrIneq _ :: _ -> assert false
-    | Ineq (rho_smaller, rho_greater_or_equal) :: rho_ineqs -> (
-        let rho_smaller_simplified = simplify_rho rho_smaller in
-        let rho_greater_or_equal_simplified =
-          simplify_rho rho_greater_or_equal
+  let rec check_rho_ineq_constraints state =
+    let check_ineq ?eternal_ty rho_smaller rho_greater_or_equal =
+      let rho_smaller_simplified = simplify_rho rho_smaller in
+      let rho_greater_or_equal_simplified = simplify_rho rho_greater_or_equal in
+      let rho_pp = PrettyPrint.RhoPrintParam.create () in
+      let print_rho rho ppf =
+        PrettyPrint.print_rho (module ResourceGrade) rho_pp rho ppf
+      in
+      try
+        let rho_greater_or_equal_val =
+          ContextHolderModule.eval_rho rho_greater_or_equal_simplified
         in
-        try
-          let rho_greater_or_equal_val =
-            ContextHolderModule.eval_rho rho_greater_or_equal_simplified
+        if
+          rho_greater_or_equal_val = ResourceGrade.zero
+          && ResourceGrade.is_zero_top_sub_rho
+        then ()
+        else
+          let rho_smaller_val =
+            ContextHolderModule.eval_rho rho_smaller_simplified
           in
           if
-            rho_greater_or_equal_val = ResourceGrade.zero
-            && ResourceGrade.is_zero_top_sub_rho
-          then check_rho_ineq_constraints state rho_ineqs
-          else
-            let rho_smaller_val =
-              ContextHolderModule.eval_rho rho_smaller_simplified
-            in
-            if
-              not
-                (ResourceGrade.is_sub_rho rho_smaller_val
-                   rho_greater_or_equal_val)
-            then
-              raise
-                (Exception.InequalityCheckFailed
-                   "ResourceGrade inequality check failed")
-            else check_rho_ineq_constraints state rho_ineqs
-        with
-        | Exception.InequalityCheckFailed _ ->
-            Error.typing "Comparing resource inequality %t %s %t failed"
-              (fun ppf ->
-                PrettyPrint.print_rho
-                  (module ResourceGrade)
-                  (PrettyPrint.RhoPrintParam.create ())
-                  rho_smaller_simplified ppf)
-              ResourceGrade.is_sub_rho_symbol
-              (fun ppf ->
-                PrettyPrint.print_rho
-                  (module ResourceGrade)
-                  (PrettyPrint.RhoPrintParam.create ())
-                  rho_greater_or_equal_simplified ppf)
-        | Exception.RhoParamInEval _ ->
-            Error.typing "Cannot compare non-ground resource values %t and %t"
-              (fun ppf ->
-                PrettyPrint.print_rho
-                  (module ResourceGrade)
-                  (PrettyPrint.RhoPrintParam.create ())
-                  rho_smaller_simplified ppf)
-              (fun ppf ->
-                PrettyPrint.print_rho
-                  (module ResourceGrade)
-                  (PrettyPrint.RhoPrintParam.create ())
-                  rho_greater_or_equal_simplified ppf))
+            not
+              (ResourceGrade.is_sub_rho rho_smaller_val
+                 rho_greater_or_equal_val)
+          then
+            raise
+              (Exception.InequalityCheckFailed
+                 "ResourceGrade inequality check failed")
+      with
+      | Exception.InequalityCheckFailed _ -> (
+          match eternal_ty with
+          | Some ty when is_eternal state ty -> ()
+          | Some ty ->
+              let ty_pp = PrettyPrint.TyPrintParam.create () in
+              Error.typing
+                "Type %t is not eternal and resource inequality %t %s %t failed"
+                (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
+                (print_rho rho_smaller_simplified)
+                ResourceGrade.is_sub_rho_symbol
+                (print_rho rho_greater_or_equal_simplified)
+          | None ->
+              Error.typing "Comparing resource inequality %t %s %t failed"
+                (print_rho rho_smaller_simplified)
+                ResourceGrade.is_sub_rho_symbol
+                (print_rho rho_greater_or_equal_simplified))
+      | Exception.RhoParamInEval _ -> (
+          match eternal_ty with
+          | Some ty when is_eternal state ty -> ()
+          | Some ty ->
+              let ty_pp = PrettyPrint.TyPrintParam.create () in
+              Error.typing
+                "Type %t is not eternal and cannot compare non-ground \
+                 resource values %t and %t"
+                (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
+                (print_rho rho_smaller_simplified)
+                (print_rho rho_greater_or_equal_simplified)
+          | None ->
+              Error.typing "Cannot compare non-ground resource values %t and %t"
+                (print_rho rho_smaller_simplified)
+                (print_rho rho_greater_or_equal_simplified))
+    in
+    function
+    | [] -> ()
+    | EternalOrIneq (ty, rho_smaller, rho_greater_or_equal) :: rho_ineqs ->
+        check_ineq ~eternal_ty:ty rho_smaller rho_greater_or_equal;
+        check_rho_ineq_constraints state rho_ineqs
+    | Ineq (rho_smaller, rho_greater_or_equal) :: rho_ineqs ->
+        check_ineq rho_smaller rho_greater_or_equal;
+        check_rho_ineq_constraints state rho_ineqs
 
   let rec check_rho_abs_constraints = function
     | [] -> ()
@@ -1067,7 +1081,7 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
     let ty_subst, rho_eqs' = unify_ty_constraints state [] ty_eqs in
     (* print_rho_eq_constraints_pp rho_pp rho_eqs'; *)
     let rho_subst = unify_rho_constraints state 0 [] (rho_eqs @ rho_eqs') in
-    let rho_ineqs' = subst_rho_inequations rho_subst rho_ineqs in
+    let rho_ineqs' = subst_rho_inequations ty_subst rho_subst rho_ineqs in
     let rho_subst', rho_ineqs'' =
       unify_rho_ineq_constraints state 0 [] rho_ineqs'
     in
@@ -1080,9 +1094,9 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         rho_subst'
     in
     (* print_rho_ineq_constraints_pp rho_pp
-      (subst_rho_inequations rho_subst'' rho_ineqs''); *)
+      (subst_rho_inequations ty_subst rho_subst'' rho_ineqs'')); *)
     check_rho_ineq_constraints state
-      (subst_rho_inequations rho_subst'' rho_ineqs'');
+      (subst_rho_inequations ty_subst rho_subst'' rho_ineqs'');
     check_rho_abs_constraints
       (subst_rho_abstract_constraints rho_subst'' rho_abs);
     let ty_subst' =
