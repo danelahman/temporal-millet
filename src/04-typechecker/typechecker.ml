@@ -126,12 +126,15 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
     let rho_pp = PrettyPrint.RhoPrintParam.create () in
     print_rho_eq_constraints_pp rho_pp constraints
 
+  type ineq_constraint =
+    | Ineq of ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
+
   let print_rho_ineq_constraints_pp rho_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
       (Format.pp_print_list
          ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
          (fun _ppf constraint_ ->
-           match constraint_ with rho1, rho2 -> print_rho_geq rho1 rho2 rho_pp))
+           match constraint_ with Ineq (rho1, rho2) -> print_rho_geq rho1 rho2 rho_pp))
       constraints
 
   let print_rho_ineq_constraints constraints =
@@ -291,7 +294,7 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
           match var_type with
           | Local ->
               [
-                ( ContextHolderModule.sum_rhos_added_after x state.variables,
+                Ineq ( ContextHolderModule.sum_rhos_added_after x state.variables,
                   Ast.RhoConst ResourceGrade.zero );
               ]
           | Global -> []
@@ -540,7 +543,7 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         ( comp_ty,
           [ (Ast.TyBox (rho, value_ty), boxed_ty) ] @ ty_eqs,
           rho_eqs,
-          [ (sum_rhos_added_after, rho) ] @ rho_ineqs,
+          [ Ineq (sum_rhos_added_after, rho) ] @ rho_ineqs,
           rho_abs )
     | Ast.Perform (op, e, abs) -> (
         let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
@@ -607,8 +610,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
 
   let subst_rho_inequations rho_subst =
     let subst_inequation = function
-      | rho1, rho2 ->
-          (Ast.substitute_rho rho_subst rho1, Ast.substitute_rho rho_subst rho2)
+      | Ineq (rho1, rho2) ->
+          Ineq (Ast.substitute_rho rho_subst rho1, Ast.substitute_rho rho_subst rho2)
     in
     List.map subst_inequation
 
@@ -876,7 +879,7 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         else
           (* Retry with deferred constraints *)
           unify_rho_ineq_constraints state current_unsolved_size [] unsolved
-    | (rho1, rho2) :: ineqs -> (
+    | Ineq (rho1, rho2) :: ineqs -> (
         let rho1' = simplify_rho rho1 in
         let rho2' = simplify_rho rho2 in
         match (rho1', rho2') with
@@ -888,27 +891,27 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
                && ResourceGrade.is_zero_minimal_sub_rho ->
             let rho_subst, unsolved' =
               unify_rho_ineq_constraints state prev_unsolved_size
-                (subst_rho_equations
+                (subst_rho_inequations
                    (Ast.RhoParamMap.singleton tp rho)
                    unsolved)
-                (subst_rho_equations (Ast.RhoParamMap.singleton tp rho) ineqs)
+                (subst_rho_inequations (Ast.RhoParamMap.singleton tp rho) ineqs)
             in
             (add_rho_subst tp rho rho_subst, unsolved')
         (* | rho, Ast.RhoParam tp when not (occurs_rho tp rho) ->
             let rho_subst, unsolved' =
               unify_rho_ineq_constraints state prev_unsolved_size
-                (subst_rho_equations
+                (subst_rho_inequations
                    (Ast.RhoParamMap.singleton tp rho)
                    unsolved)
-                (subst_rho_equations (Ast.RhoParamMap.singleton tp rho) ineqs)
+                (subst_rho_inequations (Ast.RhoParamMap.singleton tp rho) ineqs)
             in
             (add_rho_subst tp rho rho_subst, unsolved') *)
         (* | Ast.RhoConst z, Ast.RhoAdd (t1, t2)
         | Ast.RhoAdd (t1, t2), Ast.RhoConst z
           when z = ResourceGrade.zero ->
             unify_rho_ineq_constraints state prev_unsolved_size unsolved
-              ((t1, Ast.RhoConst ResourceGrade.zero)
-              :: (t2, Ast.RhoConst ResourceGrade.zero)
+              (Ineq (t1, Ast.RhoConst ResourceGrade.zero)
+              :: Ineq (t2, Ast.RhoConst ResourceGrade.zero)
               :: ineqs) *)
         | t, Ast.RhoAdd (t1, t2) ->
             let left = build_sorted_rho_param_list t in
@@ -918,11 +921,11 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
             let right_rho = build_rho_from_param_list right' in
             if left_rho = t && right_rho = Ast.RhoAdd (t1, t2) then
               unify_rho_ineq_constraints state prev_unsolved_size
-                ((left_rho, right_rho) :: unsolved)
+                (Ineq (left_rho, right_rho) :: unsolved)
                 ineqs
             else
               unify_rho_ineq_constraints state prev_unsolved_size unsolved
-                ((left_rho, right_rho) :: ineqs)
+                (Ineq (left_rho, right_rho) :: ineqs)
         | Ast.RhoAdd (t1, t2), t ->
             let left = build_sorted_rho_param_list t in
             let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
@@ -931,18 +934,18 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
             let right_rho = build_rho_from_param_list right' in
             if left_rho = Ast.RhoAdd (t1, t2) && right_rho = t then
               unify_rho_ineq_constraints state prev_unsolved_size
-                ((left_rho, right_rho) :: unsolved)
+                (Ineq (left_rho, right_rho) :: unsolved)
                 ineqs
             else
               unify_rho_ineq_constraints state prev_unsolved_size unsolved
-                ((left_rho, right_rho) :: ineqs)
+                (Ineq (left_rho, right_rho) :: ineqs)
         | u1, u2 ->
             unify_rho_ineq_constraints state prev_unsolved_size
-              ((u1, u2) :: unsolved) ineqs)
+              (Ineq (u1, u2) :: unsolved) ineqs)
 
   let rec check_rho_ineq_constraints state = function
     | [] -> ()
-    | (rho_smaller, rho_greater_or_equal) :: rho_ineqs -> (
+    | Ineq (rho_smaller, rho_greater_or_equal) :: rho_ineqs -> (
         let rho_smaller_simplified = simplify_rho rho_smaller in
         let rho_greater_or_equal_simplified =
           simplify_rho rho_greater_or_equal

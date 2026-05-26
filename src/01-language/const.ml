@@ -3,6 +3,12 @@ module Error = Utils.Error
 type t = Integer of int | String of string | Boolean of bool | Float of float
 type ty = IntegerTy | StringTy | BooleanTy | FloatTy
 
+let is_eternal_ty = function
+  | IntegerTy -> true
+  | StringTy -> true
+  | BooleanTy -> true
+  | FloatTy -> true
+
 let of_integer n = Integer n
 let of_string s = String s
 let of_boolean b = Boolean b
