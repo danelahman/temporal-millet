@@ -184,3 +184,22 @@ handler are handled by themselves by the given handler.
 See [this](examples/handlers.mlt) and [this](examples/3dprint_handlers.mlt)
 example for a worked out examples of how to use algebraic effects and effect
 handlers in Temporal Millet.
+
+## Editor support
+
+A minimal VS Code extension providing OCaml-style syntax highlighting for
+`.mlt` source files is included in `editors/vscode/`. To install it locally,
+package it as a `.vsix` and install with the `code` CLI:
+
+    cd editors/vscode
+    npx --yes @vscode/vsce package
+    code --install-extension vscode-temporal-millet-*.vsix
+
+Then fully restart VS Code and open any `.mlt` file. To uninstall, run
+
+    code --uninstall-extension temporal-millet.vscode-temporal-millet
+
+While iterating on the extension itself, an alternative is to open the
+extension folder in VS Code (`code editors/vscode`) and press F5 — this
+launches an Extension Development Host window with the extension preloaded,
+without needing to repackage on every change.

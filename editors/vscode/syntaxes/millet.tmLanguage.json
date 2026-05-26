@@ -1,0 +1,87 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Temporal Millet",
+  "scopeName": "source.millet",
+  "fileTypes": ["mlt"],
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#string" },
+    { "include": "#number" },
+    { "include": "#keyword" },
+    { "include": "#constructor" },
+    { "include": "#type-param" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.block.millet",
+      "begin": "\\(\\*(?!\\))",
+      "end": "\\*\\)",
+      "patterns": [
+        { "include": "#comment" }
+      ]
+    },
+    "string": {
+      "name": "string.quoted.double.millet",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.millet",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "number": {
+      "patterns": [
+        {
+          "name": "constant.numeric.integer.hex.millet",
+          "match": "\\b0[xX][0-9a-fA-F][0-9a-fA-F_]*\\b"
+        },
+        {
+          "name": "constant.numeric.integer.octal.millet",
+          "match": "\\b0[oO][0-7][0-7_]*\\b"
+        },
+        {
+          "name": "constant.numeric.integer.binary.millet",
+          "match": "\\b0[bB][01][01_]*\\b"
+        },
+        {
+          "name": "constant.numeric.float.millet",
+          "match": "\\b[0-9][0-9_]*(\\.[0-9_]*)?([eE][+\\-]?[0-9][0-9_]*)\\b"
+        },
+        {
+          "name": "constant.numeric.float.millet",
+          "match": "\\b[0-9][0-9_]*\\.[0-9_]*\\b"
+        },
+        {
+          "name": "constant.numeric.integer.millet",
+          "match": "\\b[0-9][0-9_]*\\b"
+        }
+      ]
+    },
+    "keyword": {
+      "patterns": [
+        {
+          "name": "keyword.control.millet",
+          "match": "\\b(if|then|else|match|with|run|handle|return|perform|continue)\\b"
+        },
+        {
+          "name": "constant.language.boolean.millet",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "keyword.other.millet",
+          "match": "\\b(let|in|and|rec|fun|function|as|of|type|operation|resources|handler|box|unbox|delay|begin|end)\\b"
+        }
+      ]
+    },
+    "constructor": {
+      "name": "entity.name.type.constructor.millet",
+      "match": "\\b[A-Z][A-Za-z0-9_']*\\b"
+    },
+    "type-param": {
+      "name": "variable.other.generic-type.millet",
+      "match": "'[a-z_][a-zA-Z0-9_']*\\b"
+    }
+  }
+}

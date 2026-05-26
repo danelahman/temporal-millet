@@ -1,0 +1,40 @@
+{
+  "name": "vscode-temporal-millet",
+  "displayName": "Temporal Millet",
+  "description": "Syntax highlighting for Temporal Millet (.mlt) source files.",
+  "version": "0.1.0",
+  "publisher": "temporal-millet",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danelahman/temporal-millet"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "millet",
+        "aliases": [
+          "Temporal Millet",
+          "millet"
+        ],
+        "extensions": [
+          ".mlt"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "millet",
+        "scopeName": "source.millet",
+        "path": "./syntaxes/millet.tmLanguage.json"
+      }
+    ]
+  }
+}
