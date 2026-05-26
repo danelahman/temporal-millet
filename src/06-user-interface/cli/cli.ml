@@ -1,5 +1,20 @@
 module Error = Utils.Error
+module Ast = Language.Ast
 module PrettyPrint = Language.PrettyPrint
+
+let user_defined_variables ~stdlib_vars ~final_vars =
+  let in_stdlib var =
+    List.exists
+      (function
+        | Ast.VarMap m -> Ast.VariableMap.mem var m | Ast.Rho _ -> false)
+      stdlib_vars
+  in
+  List.map
+    (function
+      | Ast.VarMap m ->
+          Ast.VarMap (Ast.VariableMap.filter (fun k _ -> not (in_stdlib k)) m)
+      | Ast.Rho _ as r -> r)
+    final_vars
 
 type config = {
   filenames : string list;
@@ -51,31 +66,49 @@ let run_with (type t)
     (module ResourceGrade : Language.ResourceGrade.S with type t = t) config =
   let module Backend = CliInterpreter.Make (ResourceGrade) in
   let module Loader = Loader.Loader (Backend) in
-  let rec run (state : Backend.run_state) =
-    Backend.view_run_state state;
+  let rec run (state : Backend.run_state) run_num =
+    let printed = Backend.view_run_state state ~run_num in
+    let next_run_num = if printed then run_num + 1 else run_num in
     match Backend.steps state with
     | [] -> ()
     | steps ->
         let i = Random.int (List.length steps) in
         let step = List.nth steps i in
         let state' = step.next_state () in
-        run state'
+        run state' next_run_num
   in
   try
     Random.self_init ();
-    let state =
+    let stdlib_state =
       if config.use_stdlib then
         Loader.load_source Loader.initial_state Loader.stdlib_source
       else Loader.initial_state
     in
-    let state' = List.fold_left Loader.load_file state config.filenames in
+    let state' =
+      List.fold_left Loader.load_file stdlib_state config.filenames
+    in
     let run_state = Backend.run state'.backend in
-    if config.debug then
+    if config.debug then begin
+      if config.use_stdlib then begin
+        print_endline "=== Standard library ===";
+        print_string
+          (PrettyPrint.string_of_variable_context
+             (module ResourceGrade)
+             stdlib_state.typechecker.variables);
+        print_newline ()
+      end;
+      print_endline "=== Top-level definitions ===";
+      let user_vars =
+        user_defined_variables ~stdlib_vars:stdlib_state.typechecker.variables
+          ~final_vars:state'.typechecker.variables
+      in
       print_string
         (PrettyPrint.string_of_variable_context
            (module ResourceGrade)
-           state'.typechecker.variables);
-    run run_state
+           user_vars);
+      print_newline ()
+    end;
+    run run_state 1
   with Error.Error error ->
     Error.print error;
     exit 1

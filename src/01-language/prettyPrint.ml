@@ -274,32 +274,23 @@ and print_op_case rho_module (op, a) ppf =
   Format.fprintf ppf "%t %t" (OpName.print op) (print_abstraction rho_module a)
 
 let print_vars_and_tys rho_module print_var_and_ty lst ppf =
-  let rec print_list lst ppf =
-    match lst with
+  let rec print_list = function
     | [] -> ()
     | VarMap map :: rest ->
-        Print.print ppf "VarMap: {\n";
-        let elements = VariableMap.bindings map in
-        let rec print_elements = function
-          | [] -> ()
-          | entry :: tl ->
-              let ty_pp = TyPrintParam.create () in
-              let rho_pp = RhoPrintParam.create () in
-              print_var_and_ty ty_pp rho_pp entry ppf;
-              print_elements tl
-        in
-        print_elements elements;
-        Print.print ppf "}\n";
-        print_list rest ppf
+        List.iter
+          (fun entry ->
+            let ty_pp = TyPrintParam.create () in
+            let rho_pp = RhoPrintParam.create () in
+            print_var_and_ty ty_pp rho_pp entry ppf)
+          (VariableMap.bindings map);
+        print_list rest
     | Rho n :: rest ->
         let rho_pp = RhoPrintParam.create () in
         print_rho rho_module rho_pp n ppf;
         Print.print ppf "\n";
-        print_list rest ppf
+        print_list rest
   in
-  Print.print ppf "VariableContext: [\n";
-  print_list (List.rev lst) ppf;
-  Print.print ppf "]\n"
+  print_list (List.rev lst)
 
 let print_vars_and_exprs rho_module print_var_and_expr
     (lst : ('var, 'map, 'rho) Ast.context_elem_ty list) ppf =
