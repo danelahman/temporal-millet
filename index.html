@@ -119,6 +119,28 @@
       border-color: #485fc7;
       box-shadow: 0 0 0 0.125em rgba(72, 95, 199, 0.25);
     }
+
+    .completed-run-separator {
+      display: flex;
+      align-items: center;
+      text-align: center;
+      color: #888;
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin: 1.25rem 0;
+    }
+
+    .completed-run-separator::before,
+    .completed-run-separator::after {
+      content: "";
+      flex: 1;
+      border-bottom: 1px dashed #bbb;
+    }
+
+    .completed-run-separator span {
+      padding: 0 0.75rem;
+    }
   </style>
 </head>
 
