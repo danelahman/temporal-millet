@@ -157,6 +157,12 @@ practical effect of this constraint depends on the chosen grading monoid:
   bound — before any `delay` or operation calls have occurred — while
   variables with eternal types may be referenced freely at any later point.
 
+Currently type variables are not considered eternal, and no eternality
+constraints are propagated out of top-level functions as constraints on type
+variables appearing in the computed generalised polymorphic types. A top-level
+definition is only successfully typechecked if all generated eternality
+constraints are satisfied (or the accompanying inequalities are satisfied).
+
 ## Algebraic effects and effect handlers in Temporal Millet
 
 Temporal Millet now also supports algebraic effects and effect handlers. 
