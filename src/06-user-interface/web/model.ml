@@ -24,6 +24,9 @@ and run_model_state = {
       (** Snapshots of previously finished [run] blocks, in chronological order.
           Each snapshot is the view of the run-state at the moment its
           terminating [Return] step was about to be taken. *)
+  is_done : bool;
+      (** True when there are no computations left to run (i.e. all [run] blocks
+          have completed and their snapshots are in [completed_runs]). *)
 }
 (** A snapshot of an interpreter run state together with its available steps,
     all resource-grade types hidden behind closures. *)
@@ -192,6 +195,7 @@ let update model = function
                       (B.steps rs);
                   view = (fun () -> B.view_run_state rs None);
                   completed_runs;
+                  is_done = B.is_done rs;
                 }
               in
               Ok (run_init (make_run_state ~completed_runs:[] run_state))

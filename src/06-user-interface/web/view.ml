@@ -269,10 +269,16 @@ let run_view (run_model : Model.run_model) =
   let selected_step =
     Option.map (List.nth steps) run_model.selected_step_index
   in
-  let state_view =
-    match selected_step with
-    | None -> run_model.current.view ()
-    | Some step -> step.view_highlighted ()
+  let active_view =
+    if run_model.current.is_done && run_model.current.completed_runs <> [] then
+      []
+    else
+      let state_view =
+        match selected_step with
+        | None -> run_model.current.view ()
+        | Some step -> step.view_highlighted ()
+      in
+      [ state_view ]
   in
   let completed_views =
     List.concat_map
@@ -285,7 +291,7 @@ let run_view (run_model : Model.run_model) =
         ])
       run_model.current.completed_runs
   in
-  view_contents (state_view :: completed_views) [ view_steps run_model steps ]
+  view_contents (active_view @ completed_views) [ view_steps run_model steps ]
 
 let view_navbar =
   let view_title =
