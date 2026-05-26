@@ -907,16 +907,20 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         let rho2' = simplify_rho rho2 in
         match (rho1', rho2') with
         | _ when rho1' = rho2' ->
+            (* Inequational constraint holds trivially, 
+               so no need to check whether type is eternal. *)
             unify_rho_ineq_constraints state prev_unsolved_size
-              (Eternal ty :: unsolved) ineqs
+              unsolved ineqs
         | Ast.RhoParam tp, rho
           when (not (occurs_rho tp rho))
                && rho = Ast.RhoConst ResourceGrade.zero
                && ResourceGrade.is_zero_minimal_sub_rho ->
             let singleton = Ast.RhoParamMap.singleton tp rho in
             let rho_subst, unsolved' =
+              (* Inequational constraint holds because zero is minimal, 
+                 so no need to check whether the type is eternal. *)
               unify_rho_ineq_constraints state prev_unsolved_size
-                (subst_rho_inequations singleton (Eternal ty :: unsolved))
+                (subst_rho_inequations singleton unsolved)
                 (subst_rho_inequations singleton ineqs)
             in
             (add_rho_subst tp rho rho_subst, unsolved')
