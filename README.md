@@ -121,6 +121,41 @@ accumulated in the program context.
 See [this](examples/delay.mlt) example for a demonstration how the `box`,
 `unbox`, and `delay` commands are supposed to be used.
 
+## Eternal types
+
+A type is called *eternal* if values of that type remain valid regardless of
+how much grade has been accumulated since they were introduced. Concretely, a
+type is eternal when:
+
+- it is a base constant type that is considered eternal (e.g., integers,
+  booleans, and unit, but not, say, file handles --- at the moment all supported
+  base constant types are treated as eternal by the typechecker);
+- it is a tuple all of whose component types are eternal;
+- it is a user-defined algebraic type all of whose constructor argument types
+  are eternal.
+
+Function types (`a -> b`), handler types, and temporal box types (`[rho]a`)
+are never eternal.
+
+When a local variable `x` of type `a` is referenced, the type system generates
+an *eternal-or-inequality* constraint: either `a` is eternal, or the grade
+accumulated in the context since `x` was bound is a sub-grade of zero. The
+practical effect of this constraint depends on the chosen grading monoid:
+
+- For the **`time`** monoid, where zero is the *top* element of the sub-grade
+  order, the inequality `accumulated_grade ≤ zero` holds trivially for every
+  non-negative integer grade. Consequently, local variables of **any** type may
+  be freely referenced at any later point in the computation regardless of how
+  much time has elapsed.
+
+- For the **`time-interval`** monoid, where zero `(0, 0)` is the *minimal*
+  element of the sub-grade order, the inequality `accumulated_grade ≤ (0, 0)`
+  holds only when the accumulated grade is exactly `(0, 0)` (i.e. no grade
+  has been accumulated at all). This means that local variables whose types
+  are not eternal must be used in the very same time-step in which they were
+  bound — before any `delay` or operation calls have occurred — while
+  variables with eternal types may be referenced freely at any later point.
+
 ## Algebraic effects and effect handlers in Temporal Millet
 
 Temporal Millet now also supports algebraic effects and effect handlers. 
