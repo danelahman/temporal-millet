@@ -71,6 +71,10 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         text (view_computation_reduction reduction)
     | Return -> text "return"
 
+  let is_return_label = function
+    | Return -> true
+    | ComputationReduction _ -> false
+
   let view_run_state (run_state : run_state) step_label =
     match run_state with
     | { environment; computations = comp :: _ } ->

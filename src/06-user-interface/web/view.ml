@@ -274,7 +274,18 @@ let run_view (run_model : Model.run_model) =
     | None -> run_model.current.view ()
     | Some step -> step.view_highlighted ()
   in
-  view_contents [ state_view ] [ view_steps run_model steps ]
+  let completed_views =
+    List.concat_map
+      (fun (cr : Model.completed_run_view) ->
+        [
+          div
+            ~a:[ class_ "completed-run-separator" ]
+            [ elt "span" [ text "previous run" ] ];
+          cr.view_completed ();
+        ])
+      run_model.current.completed_runs
+  in
+  view_contents (state_view :: completed_views) [ view_steps run_model steps ]
 
 let view_navbar =
   let view_title =

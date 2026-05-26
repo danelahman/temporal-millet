@@ -14,10 +14,16 @@ type concrete_step = {
       (** Advance to the next run state by performing this step. *)
 }
 
+and completed_run_view = { view_completed : 'a. unit -> 'a Vdom.vdom }
+
 and run_model_state = {
   steps : concrete_step list;
   view : 'a. unit -> 'a Vdom.vdom;
       (** Render the current run state with no redex highlighted. *)
+  completed_runs : completed_run_view list;
+      (** Snapshots of previously finished [run] blocks, in chronological order.
+          Each snapshot is the view of the run-state at the moment its
+          terminating [Return] step was about to be taken. *)
 }
 (** A snapshot of an interpreter run state together with its available steps,
     all resource-grade types hidden behind closures. *)
@@ -156,24 +162,39 @@ let update model = function
               (* Build a run_model_state from a B.run_state, capturing all
                  resource-grade-specific types in closures so the rest of the
                  application is independent of the chosen resource grade. *)
-              let rec make_run_state (rs : B.run_state) : run_model_state =
+              let rec make_run_state ~completed_runs (rs : B.run_state) :
+                  run_model_state =
                 {
                   steps =
                     List.map
                       (fun (step : B.step) ->
+                        let next_completed_runs =
+                          if B.is_return_label step.label then
+                            completed_runs
+                            @ [
+                                {
+                                  view_completed =
+                                    (fun () -> B.view_run_state rs None);
+                                };
+                              ]
+                          else completed_runs
+                        in
                         {
                           label_vdom =
                             (B.view_step_label step.label : msg Vdom.vdom);
                           view_highlighted =
                             (fun () -> B.view_run_state rs (Some step.label));
                           next_state =
-                            (fun () -> make_run_state (step.next_state ()));
+                            (fun () ->
+                              make_run_state ~completed_runs:next_completed_runs
+                                (step.next_state ()));
                         })
                       (B.steps rs);
                   view = (fun () -> B.view_run_state rs None);
+                  completed_runs;
                 }
               in
-              Ok (run_init (make_run_state run_state))
+              Ok (run_init (make_run_state ~completed_runs:[] run_state))
         with
         | Error.Error (_, _, msg) -> Error msg
         | Invalid_argument msg -> Error msg
