@@ -128,7 +128,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
 
   type ineq_constraint =
     | Ineq of ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
-    | TyOrIneq of ResourceGrade.t Ast.ty * ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
+    | Eternal of ResourceGrade.t Ast.ty
+    | EternalOrIneq of ResourceGrade.t Ast.ty * ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
 
   let print_rho_ineq_constraints_pp rho_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
@@ -137,7 +138,11 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
          (fun _ppf constraint_ ->
            match constraint_ with
            | Ineq (rho1, rho2) -> print_rho_geq rho1 rho2 rho_pp
-           | TyOrIneq (ty, rho1, rho2) ->
+           | Eternal ty ->
+               let ty_pp = PrettyPrint.TyPrintParam.create () in
+               Format.printf "%t"
+                 (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
+           | EternalOrIneq (ty, rho1, rho2) ->
                let ty_pp = PrettyPrint.TyPrintParam.create () in
                Format.printf "%t ∨ (%t %s %t)"
                  (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
@@ -621,7 +626,13 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
     let subst_inequation = function
       | Ineq (rho1, rho2) ->
           Ineq (Ast.substitute_rho rho_subst rho1, Ast.substitute_rho rho_subst rho2)
-      | TyOrIneq _ -> assert false
+      | Eternal ty ->
+          Eternal (Ast.substitute_ty Ast.TyParamMap.empty rho_subst ty)
+      | EternalOrIneq (ty, rho1, rho2) ->
+          EternalOrIneq
+            ( Ast.substitute_ty Ast.TyParamMap.empty rho_subst ty,
+              Ast.substitute_rho rho_subst rho1,
+              Ast.substitute_rho rho_subst rho2 )
     in
     List.map subst_inequation
 
@@ -889,7 +900,55 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         else
           (* Retry with deferred constraints *)
           unify_rho_ineq_constraints state current_unsolved_size [] unsolved
-    | TyOrIneq _ :: _ -> assert false
+    | Eternal ty :: ineqs ->
+        unify_rho_ineq_constraints state prev_unsolved_size (Eternal ty :: unsolved) ineqs
+    | EternalOrIneq (ty, rho1, rho2) :: ineqs -> (
+        let rho1' = simplify_rho rho1 in
+        let rho2' = simplify_rho rho2 in
+        match (rho1', rho2') with
+        | _ when rho1' = rho2' ->
+            unify_rho_ineq_constraints state prev_unsolved_size
+              (Eternal ty :: unsolved) ineqs
+        | Ast.RhoParam tp, rho
+          when (not (occurs_rho tp rho))
+               && rho = Ast.RhoConst ResourceGrade.zero
+               && ResourceGrade.is_zero_minimal_sub_rho ->
+            let singleton = Ast.RhoParamMap.singleton tp rho in
+            let rho_subst, unsolved' =
+              unify_rho_ineq_constraints state prev_unsolved_size
+                (subst_rho_inequations singleton (Eternal ty :: unsolved))
+                (subst_rho_inequations singleton ineqs)
+            in
+            (add_rho_subst tp rho rho_subst, unsolved')
+        | t, Ast.RhoAdd (t1, t2) ->
+            let left = build_sorted_rho_param_list t in
+            let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
+            let left', right' = cancel_common_elements left right in
+            let left_rho = build_rho_from_param_list left' in
+            let right_rho = build_rho_from_param_list right' in
+            if left_rho = t && right_rho = Ast.RhoAdd (t1, t2) then
+              unify_rho_ineq_constraints state prev_unsolved_size
+                (EternalOrIneq (ty, left_rho, right_rho) :: unsolved)
+                ineqs
+            else
+              unify_rho_ineq_constraints state prev_unsolved_size unsolved
+                (EternalOrIneq (ty, left_rho, right_rho) :: ineqs)
+        | Ast.RhoAdd (t1, t2), t ->
+            let left = build_sorted_rho_param_list t in
+            let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
+            let left', right' = cancel_common_elements left right in
+            let left_rho = build_rho_from_param_list left' in
+            let right_rho = build_rho_from_param_list right' in
+            if left_rho = Ast.RhoAdd (t1, t2) && right_rho = t then
+              unify_rho_ineq_constraints state prev_unsolved_size
+                (EternalOrIneq (ty, left_rho, right_rho) :: unsolved)
+                ineqs
+            else
+              unify_rho_ineq_constraints state prev_unsolved_size unsolved
+                (EternalOrIneq (ty, left_rho, right_rho) :: ineqs)
+        | u1, u2 ->
+            unify_rho_ineq_constraints state prev_unsolved_size
+              (EternalOrIneq (ty, u1, u2) :: unsolved) ineqs)
     | Ineq (rho1, rho2) :: ineqs -> (
         let rho1' = simplify_rho rho1 in
         let rho2' = simplify_rho rho2 in
@@ -898,7 +957,7 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
             unify_rho_ineq_constraints state prev_unsolved_size unsolved ineqs
         | Ast.RhoParam tp, rho
           when (not (occurs_rho tp rho))
-               && rho2' = Ast.RhoConst ResourceGrade.zero
+               && rho = Ast.RhoConst ResourceGrade.zero
                && ResourceGrade.is_zero_minimal_sub_rho ->
             let rho_subst, unsolved' =
               unify_rho_ineq_constraints state prev_unsolved_size
@@ -908,22 +967,6 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
                 (subst_rho_inequations (Ast.RhoParamMap.singleton tp rho) ineqs)
             in
             (add_rho_subst tp rho rho_subst, unsolved')
-        (* | rho, Ast.RhoParam tp when not (occurs_rho tp rho) ->
-            let rho_subst, unsolved' =
-              unify_rho_ineq_constraints state prev_unsolved_size
-                (subst_rho_inequations
-                   (Ast.RhoParamMap.singleton tp rho)
-                   unsolved)
-                (subst_rho_inequations (Ast.RhoParamMap.singleton tp rho) ineqs)
-            in
-            (add_rho_subst tp rho rho_subst, unsolved') *)
-        (* | Ast.RhoConst z, Ast.RhoAdd (t1, t2)
-        | Ast.RhoAdd (t1, t2), Ast.RhoConst z
-          when z = ResourceGrade.zero ->
-            unify_rho_ineq_constraints state prev_unsolved_size unsolved
-              (Ineq (t1, Ast.RhoConst ResourceGrade.zero)
-              :: Ineq (t2, Ast.RhoConst ResourceGrade.zero)
-              :: ineqs) *)
         | t, Ast.RhoAdd (t1, t2) ->
             let left = build_sorted_rho_param_list t in
             let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
@@ -1000,7 +1043,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
 
   let rec check_rho_ineq_constraints state = function
     | [] -> ()
-    | TyOrIneq _ :: _ -> assert false
+    | Eternal _ :: _ -> assert false
+    | EternalOrIneq _ :: _ -> assert false
     | Ineq (rho_smaller, rho_greater_or_equal) :: rho_ineqs -> (
         let rho_smaller_simplified = simplify_rho rho_smaller in
         let rho_greater_or_equal_simplified =
