@@ -885,6 +885,53 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
               ((u1, u2) :: unsolved) eqs)
 
   let rec unify_rho_ineq_constraints state prev_unsolved_size unsolved =
+    let process wrap rho1 rho2 ineqs =
+      let rho1' = simplify_rho rho1 in
+      let rho2' = simplify_rho rho2 in
+      match (rho1', rho2') with
+      | _ when rho1' = rho2' ->
+          unify_rho_ineq_constraints state prev_unsolved_size unsolved ineqs
+      | Ast.RhoParam tp, rho
+        when (not (occurs_rho tp rho))
+             && rho = Ast.RhoConst ResourceGrade.zero
+             && ResourceGrade.is_zero_minimal_sub_rho ->
+          let singleton = Ast.RhoParamMap.singleton tp rho in
+          let rho_subst, unsolved' =
+            unify_rho_ineq_constraints state prev_unsolved_size
+              (subst_rho_inequations singleton unsolved)
+              (subst_rho_inequations singleton ineqs)
+          in
+          (add_rho_subst tp rho rho_subst, unsolved')
+      | t, Ast.RhoAdd (t1, t2) ->
+          let left = build_sorted_rho_param_list t in
+          let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
+          let left', right' = cancel_common_elements left right in
+          let left_rho = build_rho_from_param_list left' in
+          let right_rho = build_rho_from_param_list right' in
+          if left_rho = t && right_rho = Ast.RhoAdd (t1, t2) then
+            unify_rho_ineq_constraints state prev_unsolved_size
+              (wrap left_rho right_rho :: unsolved)
+              ineqs
+          else
+            unify_rho_ineq_constraints state prev_unsolved_size unsolved
+              (wrap left_rho right_rho :: ineqs)
+      | Ast.RhoAdd (t1, t2), t ->
+          let left = build_sorted_rho_param_list t in
+          let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
+          let left', right' = cancel_common_elements left right in
+          let left_rho = build_rho_from_param_list left' in
+          let right_rho = build_rho_from_param_list right' in
+          if left_rho = Ast.RhoAdd (t1, t2) && right_rho = t then
+            unify_rho_ineq_constraints state prev_unsolved_size
+              (wrap left_rho right_rho :: unsolved)
+              ineqs
+          else
+            unify_rho_ineq_constraints state prev_unsolved_size unsolved
+              (wrap left_rho right_rho :: ineqs)
+      | rho1'', rho2'' ->
+          unify_rho_ineq_constraints state prev_unsolved_size
+            (wrap rho1'' rho2'' :: unsolved) ineqs
+    in
     function
     | [] ->
         let current_unsolved_size = List.length unsolved in
@@ -893,104 +940,10 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         else
           (* Retry with deferred constraints *)
           unify_rho_ineq_constraints state current_unsolved_size [] unsolved
-    | EternalOrIneq (ty, rho1, rho2) :: ineqs -> (
-        let rho1' = simplify_rho rho1 in
-        let rho2' = simplify_rho rho2 in
-        match (rho1', rho2') with
-        | _ when rho1' = rho2' ->
-            (* Inequational constraint holds trivially, 
-               so no need to check whether type is eternal. *)
-            unify_rho_ineq_constraints state prev_unsolved_size
-              unsolved ineqs
-        | Ast.RhoParam tp, rho
-          when (not (occurs_rho tp rho))
-               && rho = Ast.RhoConst ResourceGrade.zero
-               && ResourceGrade.is_zero_minimal_sub_rho ->
-            let singleton = Ast.RhoParamMap.singleton tp rho in
-            let rho_subst, unsolved' =
-              (* Inequational constraint holds because zero is minimal, 
-                 so no need to check whether the type is eternal. *)
-              unify_rho_ineq_constraints state prev_unsolved_size
-                (subst_rho_inequations singleton unsolved)
-                (subst_rho_inequations singleton ineqs)
-            in
-            (add_rho_subst tp rho rho_subst, unsolved')
-        | t, Ast.RhoAdd (t1, t2) ->
-            let left = build_sorted_rho_param_list t in
-            let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
-            let left', right' = cancel_common_elements left right in
-            let left_rho = build_rho_from_param_list left' in
-            let right_rho = build_rho_from_param_list right' in
-            if left_rho = t && right_rho = Ast.RhoAdd (t1, t2) then
-              unify_rho_ineq_constraints state prev_unsolved_size
-                (EternalOrIneq (ty, left_rho, right_rho) :: unsolved)
-                ineqs
-            else
-              unify_rho_ineq_constraints state prev_unsolved_size unsolved
-                (EternalOrIneq (ty, left_rho, right_rho) :: ineqs)
-        | Ast.RhoAdd (t1, t2), t ->
-            let left = build_sorted_rho_param_list t in
-            let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
-            let left', right' = cancel_common_elements left right in
-            let left_rho = build_rho_from_param_list left' in
-            let right_rho = build_rho_from_param_list right' in
-            if left_rho = Ast.RhoAdd (t1, t2) && right_rho = t then
-              unify_rho_ineq_constraints state prev_unsolved_size
-                (EternalOrIneq (ty, left_rho, right_rho) :: unsolved)
-                ineqs
-            else
-              unify_rho_ineq_constraints state prev_unsolved_size unsolved
-                (EternalOrIneq (ty, left_rho, right_rho) :: ineqs)
-        | u1, u2 ->
-            unify_rho_ineq_constraints state prev_unsolved_size
-              (EternalOrIneq (ty, u1, u2) :: unsolved) ineqs)
-    | Ineq (rho1, rho2) :: ineqs -> (
-        let rho1' = simplify_rho rho1 in
-        let rho2' = simplify_rho rho2 in
-        match (rho1', rho2') with
-        | _ when rho1' = rho2' ->
-            unify_rho_ineq_constraints state prev_unsolved_size unsolved ineqs
-        | Ast.RhoParam tp, rho
-          when (not (occurs_rho tp rho))
-               && rho = Ast.RhoConst ResourceGrade.zero
-               && ResourceGrade.is_zero_minimal_sub_rho ->
-            let rho_subst, unsolved' =
-              unify_rho_ineq_constraints state prev_unsolved_size
-                (subst_rho_inequations
-                   (Ast.RhoParamMap.singleton tp rho)
-                   unsolved)
-                (subst_rho_inequations (Ast.RhoParamMap.singleton tp rho) ineqs)
-            in
-            (add_rho_subst tp rho rho_subst, unsolved')
-        | t, Ast.RhoAdd (t1, t2) ->
-            let left = build_sorted_rho_param_list t in
-            let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
-            let left', right' = cancel_common_elements left right in
-            let left_rho = build_rho_from_param_list left' in
-            let right_rho = build_rho_from_param_list right' in
-            if left_rho = t && right_rho = Ast.RhoAdd (t1, t2) then
-              unify_rho_ineq_constraints state prev_unsolved_size
-                (Ineq (left_rho, right_rho) :: unsolved)
-                ineqs
-            else
-              unify_rho_ineq_constraints state prev_unsolved_size unsolved
-                (Ineq (left_rho, right_rho) :: ineqs)
-        | Ast.RhoAdd (t1, t2), t ->
-            let left = build_sorted_rho_param_list t in
-            let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
-            let left', right' = cancel_common_elements left right in
-            let left_rho = build_rho_from_param_list left' in
-            let right_rho = build_rho_from_param_list right' in
-            if left_rho = Ast.RhoAdd (t1, t2) && right_rho = t then
-              unify_rho_ineq_constraints state prev_unsolved_size
-                (Ineq (left_rho, right_rho) :: unsolved)
-                ineqs
-            else
-              unify_rho_ineq_constraints state prev_unsolved_size unsolved
-                (Ineq (left_rho, right_rho) :: ineqs)
-        | u1, u2 ->
-            unify_rho_ineq_constraints state prev_unsolved_size
-              (Ineq (u1, u2) :: unsolved) ineqs)
+    | EternalOrIneq (ty, rho1, rho2) :: ineqs ->
+        process (fun r1 r2 -> EternalOrIneq (ty, r1, r2)) rho1 rho2 ineqs
+    | Ineq (rho1, rho2) :: ineqs ->
+        process (fun r1 r2 -> Ineq (r1, r2)) rho1 rho2 ineqs
 
   let is_eternal state ty =
     (* [visited] tracks type names currently being unfolded to prevent infinite
