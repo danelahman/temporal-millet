@@ -51,7 +51,7 @@ let run_with (type t)
     (module ResourceGrade : Language.ResourceGrade.S with type t = t) config =
   let module Backend = CliInterpreter.Make (ResourceGrade) in
   let module Loader = Loader.Loader (Backend) in
-  let rec run (state : Backend.run_state) debug =
+  let rec run (state : Backend.run_state) =
     Backend.view_run_state state;
     match Backend.steps state with
     | [] -> ()
@@ -59,12 +59,7 @@ let run_with (type t)
         let i = Random.int (List.length steps) in
         let step = List.nth steps i in
         let state' = step.next_state () in
-        if debug && Backend.steps state' = [] then
-          print_string
-            (PrettyPrint.string_of_interpreter_state
-               (module ResourceGrade)
-               step.environment.state);
-        run state' debug
+        run state'
   in
   try
     Random.self_init ();
@@ -80,7 +75,7 @@ let run_with (type t)
         (PrettyPrint.string_of_variable_context
            (module ResourceGrade)
            state'.typechecker.variables);
-    run run_state config.debug
+    run run_state
   with Error.Error error ->
     Error.print error;
     exit 1
