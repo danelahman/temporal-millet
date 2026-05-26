@@ -252,7 +252,8 @@
   ======================================================================
   test_temporal.mlt
   ======================================================================
-  Typing error: Cannot compare non-ground resource values 0 and ρ₀ + ρ₀
+  Typing error: Type α → β # ρ₀ is not eternal and cannot compare non-ground resource values 0 and 
+  ρ₀ + ρ₀
   ======================================================================
   tydef.mlt
   ======================================================================
