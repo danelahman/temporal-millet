@@ -6,6 +6,9 @@
   "patterns": [
     { "include": "#comment" },
     { "include": "#string" },
+    { "include": "#operation-decl" },
+    { "include": "#perform-call" },
+    { "include": "#handler-block" },
     { "include": "#number" },
     { "include": "#keyword" },
     { "include": "#constructor" },
@@ -62,22 +65,48 @@
     "keyword": {
       "patterns": [
         {
-          "name": "keyword.control.millet",
-          "match": "\\b(if|then|else|match|with|run|handle|return|perform|continue)\\b"
-        },
-        {
           "name": "constant.language.boolean.millet",
           "match": "\\b(true|false)\\b"
         },
         {
           "name": "keyword.other.millet",
-          "match": "\\b(let|in|and|rec|fun|function|as|of|type|operation|resources|handler|box|unbox|delay|begin|end)\\b"
+          "match": "\\b(let|in|and|rec|fun|function|as|of|type|operation|resources|handler|box|unbox|delay|begin|end|if|then|else|match|with|run|handle|return|perform|continue)\\b"
         }
       ]
     },
     "constructor": {
       "name": "entity.name.type.constructor.millet",
       "match": "\\b[A-Z][A-Za-z0-9_']*\\b"
+    },
+    "operation-decl": {
+      "match": "\\b(operation)\\s+([A-Z][A-Za-z0-9_']*)",
+      "captures": {
+        "1": { "name": "keyword.other.millet" },
+        "2": { "name": "keyword.control.operation.millet" }
+      }
+    },
+    "perform-call": {
+      "match": "\\b(perform)\\s+([A-Z][A-Za-z0-9_']*)",
+      "captures": {
+        "1": { "name": "keyword.other.millet" },
+        "2": { "name": "keyword.control.operation.millet" }
+      }
+    },
+    "handler-block": {
+      "begin": "\\b(handler)\\b",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.millet" }
+      },
+      "end": "(?=^(let|run|operation|type|resources|and)\\b)",
+      "patterns": [
+        {
+          "match": "(\\|)\\s+([A-Z][A-Za-z0-9_']*)",
+          "captures": {
+            "2": { "name": "keyword.control.operation.millet" }
+          }
+        },
+        { "include": "$self" }
+      ]
     },
     "type-param": {
       "name": "variable.other.generic-type.millet",

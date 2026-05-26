@@ -188,14 +188,25 @@ handlers in Temporal Millet.
 ## Editor support
 
 A minimal VS Code extension providing OCaml-style syntax highlighting for
-`.mlt` source files is included in `editors/vscode/`. To install it locally,
-package it as a `.vsix` and install with the `code` CLI:
+`.mlt` source files is included in `editors/vscode/`. 
+
+To package and install it locally in one step, run
+
+    make vscode-extension
+
+from the repository root. This packages the extension as a `.vsix` with
+`vsce` and installs it via the `code` CLI, overwriting any previously
+installed version. 
+
+Equivalent manual steps for packaging and installing are
 
     cd editors/vscode
     npx --yes @vscode/vsce package
-    code --install-extension vscode-temporal-millet-*.vsix
+    code --install-extension vscode-temporal-millet-*.vsix --force
 
-Then fully restart VS Code and open any `.mlt` file. To uninstall, run
+Then fully restart VS Code and open any `.mlt` file. 
+
+To uninstall, run
 
     code --uninstall-extension temporal-millet.vscode-temporal-millet
 

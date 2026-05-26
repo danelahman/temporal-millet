@@ -6,6 +6,7 @@ let keywords =
     "let";
     "in";
     "fun";
+    "function";
     "rec";
     "match";
     "with";
@@ -57,6 +58,13 @@ let highlight_text s =
   let n = String.length s in
   let nodes = ref [] in
   let buf = Buffer.create 64 in
+  (* Lightweight context used to distinguish operation names (declared with
+     [operation], called with [perform], or matched in a [handler] clause)
+     from data constructors. Both look like uppercase identifiers; only the
+     surrounding tokens tell them apart. *)
+  let after_op_kw = ref false in
+  let after_bar = ref false in
+  let last_block = ref `None in
   let flush_text () =
     if Buffer.length buf > 0 then (
       nodes := Vdom.text (Buffer.contents buf) :: !nodes;
@@ -75,7 +83,8 @@ let highlight_text s =
          operator used as a value, the same convention as OCaml's lexer. *)
       && (!i + 2 >= n || s.[!i + 2] <> ')')
     then begin
-      (* OCaml-style nested comment. *)
+      (* OCaml-style nested comment. Comments are trivia and do not reset
+         the surrounding-token context. *)
       let start = !i in
       i := !i + 2;
       let depth = ref 1 in
@@ -99,14 +108,18 @@ let highlight_text s =
         if s.[!i] = '\\' && !i + 1 < n then i := !i + 2 else incr i
       done;
       if !i < n then incr i;
-      push_span "syn-str" (String.sub s start (!i - start))
+      push_span "syn-str" (String.sub s start (!i - start));
+      after_op_kw := false;
+      after_bar := false
     end
     else if is_digit c then begin
       let start = !i in
       while !i < n && (is_digit s.[!i] || s.[!i] = '.') do
         incr i
       done;
-      push_span "syn-num" (String.sub s start (!i - start))
+      push_span "syn-num" (String.sub s start (!i - start));
+      after_op_kw := false;
+      after_bar := false
     end
     else if c = resource_label_marker then begin
       incr i;
@@ -118,24 +131,62 @@ let highlight_text s =
       if !i < n then incr i;
       push_span "syn-resource" tok
     end
+    else if c = '|' && (!i + 1 >= n || s.[!i + 1] <> '|') then begin
+      (* A lone [|] starts a pattern clause. [||] is logical-or and does
+         not. *)
+      Buffer.add_char buf '|';
+      incr i;
+      after_bar := true;
+      after_op_kw := false
+    end
     else if is_ident_start c then begin
       let start = !i in
       while !i < n && is_ident_char s.[!i] do
         incr i
       done;
       let tok = String.sub s start (!i - start) in
-      if List.mem tok keywords then push_span "syn-kw" tok
-      else if is_upper c then push_span "syn-ctor" tok
-      else Buffer.add_string buf tok
+      if List.mem tok keywords then begin
+        push_span "syn-kw" tok;
+        (match tok with
+        | "operation" | "perform" -> after_op_kw := true
+        | _ -> after_op_kw := false);
+        (match tok with
+        | "handler" -> last_block := `Handler
+        | "match" | "function" -> last_block := `Match
+        | _ -> ());
+        after_bar := false
+      end
+      else if is_upper c then begin
+        let cls =
+          if !after_op_kw then "syn-op"
+          else if !after_bar && !last_block = `Handler then "syn-op"
+          else "syn-ctor"
+        in
+        push_span cls tok;
+        after_op_kw := false;
+        after_bar := false
+      end
+      else begin
+        Buffer.add_string buf tok;
+        after_op_kw := false;
+        after_bar := false
+      end
     end
     else if is_greek_lead (Char.code c) && !i + 1 < n then begin
       (* Single Greek letter (two-byte UTF-8); pass through as identifier. *)
       Buffer.add_substring buf s !i 2;
-      i := !i + 2
+      i := !i + 2;
+      after_op_kw := false;
+      after_bar := false
     end
     else begin
+      let was_space = c = ' ' || c = '\t' || c = '\n' || c = '\r' in
       Buffer.add_char buf c;
-      incr i
+      incr i;
+      if not was_space then begin
+        after_op_kw := false;
+        after_bar := false
+      end
     end
   done;
   flush_text ();
