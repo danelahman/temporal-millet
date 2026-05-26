@@ -60,9 +60,7 @@ let view_editor (model : Model.edit_model) =
       div
         ~a:[ class_ "code-editor" ]
         [
-          elt "pre"
-            ~a:[ class_ "code-editor-display syn-ml" ]
-            highlighted;
+          elt "pre" ~a:[ class_ "code-editor-display syn-ml" ] highlighted;
           elt "textarea"
             ~a:
               [

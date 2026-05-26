@@ -1,4 +1,4 @@
-default:
+default: format
 	dune build
 
 format:

@@ -128,7 +128,10 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
 
   type ineq_constraint =
     | Ineq of ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
-    | EternalOrIneq of ResourceGrade.t Ast.ty * ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
+    | EternalOrIneq of
+        ResourceGrade.t Ast.ty
+        * ContextHolderModule.base_rho
+        * ResourceGrade.t Ast.rho
 
   let print_rho_ineq_constraints_pp rho_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
@@ -302,9 +305,11 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         let rho_ineq =
           match var_type with
           | Local ->
-              [ EternalOrIneq ( ty, 
-                  ContextHolderModule.sum_rhos_added_after x state.variables,
-                  Ast.RhoConst ResourceGrade.zero );
+              [
+                EternalOrIneq
+                  ( ty,
+                    ContextHolderModule.sum_rhos_added_after x state.variables,
+                    Ast.RhoConst ResourceGrade.zero );
               ]
           | Global -> []
         in
@@ -320,7 +325,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         let ty_subst = refreshing_ty_subst ty_params in
         let rho_subst = refreshing_rho_subst rho_params in
         (Ast.substitute_ty ty_subst rho_subst ty, [], [], rho_ineq, [])
-        (* type, type constraints, rho constraints, rho inequational constraints, rho abstractness constraints *)
+        (* type, type constraints, rho constraints, 
+           rho inequational constraints, rho abstractness constraints *)
     | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [], [], [], [])
     | Ast.Annotated (expr, ty) ->
         let ty', ty_eqs, rho_eqs, rho_ineqs, rho_abs =
@@ -620,7 +626,9 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
   let subst_rho_inequations ty_subst rho_subst =
     let subst_inequation = function
       | Ineq (rho1, rho2) ->
-          Ineq (Ast.substitute_rho rho_subst rho1, Ast.substitute_rho rho_subst rho2)
+          Ineq
+            ( Ast.substitute_rho rho_subst rho1,
+              Ast.substitute_rho rho_subst rho2 )
       | EternalOrIneq (ty, rho1, rho2) ->
           EternalOrIneq
             ( Ast.substitute_ty ty_subst rho_subst ty,
@@ -930,7 +938,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
               (wrap left_rho right_rho :: ineqs)
       | rho1'', rho2'' ->
           unify_rho_ineq_constraints state prev_unsolved_size
-            (wrap rho1'' rho2'' :: unsolved) ineqs
+            (wrap rho1'' rho2'' :: unsolved)
+            ineqs
     in
     function
     | [] ->
@@ -953,34 +962,36 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
        checked in the outer call. *)
     let rec check visited = function
       | Ast.TyConst c -> Const.is_eternal_ty c
-      | Ast.TyApply (ty_name, args) ->
+      | Ast.TyApply (ty_name, args) -> (
           List.for_all (check visited) args
-          && (if List.mem ty_name visited then true
-             else
-               let visited' = ty_name :: visited in
-               match Ast.TyNameMap.find_opt ty_name state.type_definitions with
-               | None -> false
-               | Some (params, Ast.TyInline ty) ->
-                   let ty_subst =
-                     List.fold_left2
-                       (fun subst param arg -> Ast.TyParamMap.add param arg subst)
-                       Ast.TyParamMap.empty params args
-                   in
-                   check visited' (Ast.substitute_ty ty_subst Ast.RhoParamMap.empty ty)
-               | Some (params, Ast.TySum variants) ->
-                   let ty_subst =
-                     List.fold_left2
-                       (fun subst param arg -> Ast.TyParamMap.add param arg subst)
-                       Ast.TyParamMap.empty params args
-                   in
-                   List.for_all
-                     (fun (_, arg_ty) ->
-                       match arg_ty with
-                       | None -> true
-                       | Some ty ->
-                           check visited'
-                             (Ast.substitute_ty ty_subst Ast.RhoParamMap.empty ty))
-                     variants)
+          &&
+          if List.mem ty_name visited then true
+          else
+            let visited' = ty_name :: visited in
+            match Ast.TyNameMap.find_opt ty_name state.type_definitions with
+            | None -> false
+            | Some (params, Ast.TyInline ty) ->
+                let ty_subst =
+                  List.fold_left2
+                    (fun subst param arg -> Ast.TyParamMap.add param arg subst)
+                    Ast.TyParamMap.empty params args
+                in
+                check visited'
+                  (Ast.substitute_ty ty_subst Ast.RhoParamMap.empty ty)
+            | Some (params, Ast.TySum variants) ->
+                let ty_subst =
+                  List.fold_left2
+                    (fun subst param arg -> Ast.TyParamMap.add param arg subst)
+                    Ast.TyParamMap.empty params args
+                in
+                List.for_all
+                  (fun (_, arg_ty) ->
+                    match arg_ty with
+                    | None -> true
+                    | Some ty ->
+                        check visited'
+                          (Ast.substitute_ty ty_subst Ast.RhoParamMap.empty ty))
+                  variants)
       | Ast.TyParam _ -> false
       | Ast.TyArrow _ -> false
       | Ast.TyTuple tys -> List.for_all (check visited) tys
@@ -1011,8 +1022,7 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
           in
           if
             not
-              (ResourceGrade.is_sub_rho rho_smaller_val
-                 rho_greater_or_equal_val)
+              (ResourceGrade.is_sub_rho rho_smaller_val rho_greater_or_equal_val)
           then
             raise
               (Exception.InequalityCheckFailed
@@ -1040,8 +1050,8 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
           | Some ty ->
               let ty_pp = PrettyPrint.TyPrintParam.create () in
               Error.typing
-                "Type %t is not eternal and cannot compare non-ground \
-                 resource values %t and %t"
+                "Type %t is not eternal and cannot compare non-ground resource \
+                 values %t and %t"
                 (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
                 (print_rho rho_smaller_simplified)
                 (print_rho rho_greater_or_equal_simplified)

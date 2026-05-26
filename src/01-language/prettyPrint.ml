@@ -209,7 +209,8 @@ and print_expression rho_module =
             (OpNameMap.bindings op_cases)
         in
         print "@[<v 0>handler@,| return %t%t@]"
-          (print_abstraction rho_module ret_case) print_op_cases
+          (print_abstraction rho_module ret_case)
+          print_op_cases
   in
   aux
 
@@ -224,9 +225,7 @@ and print_computation rho_module =
         print ~at_level:2 "@[<v 0>%t;@,%t@]" (aux ~max_level:1 c1) (aux c2)
     | Do (c1, (pat, c2)) ->
         print ~at_level:2 "@[<v 0>@[<hov 2>let %t =@ %t@] in@,%t@]"
-          (print_pattern pat)
-          (aux ~max_level:1 c1)
-          (aux c2)
+          (print_pattern pat) (aux ~max_level:1 c1) (aux c2)
     | Match (e, lst) ->
         let print_cases ppf =
           List.iter

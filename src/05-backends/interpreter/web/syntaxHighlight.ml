@@ -78,7 +78,9 @@ let highlight_text s =
   while !i < n do
     let c = s.[!i] in
     if
-      c = '(' && !i + 1 < n && s.[!i + 1] = '*'
+      c = '('
+      && !i + 1 < n
+      && s.[!i + 1] = '*'
       (* Don't treat "(*)" as a comment opener — it's the multiplication
          operator used as a value, the same convention as OCaml's lexer. *)
       && (!i + 2 >= n || s.[!i + 2] <> ')')
