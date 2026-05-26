@@ -128,13 +128,22 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
 
   type ineq_constraint =
     | Ineq of ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
+    | TyOrIneq of ResourceGrade.t Ast.ty * ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
 
   let print_rho_ineq_constraints_pp rho_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
       (Format.pp_print_list
          ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
          (fun _ppf constraint_ ->
-           match constraint_ with Ineq (rho1, rho2) -> print_rho_geq rho1 rho2 rho_pp))
+           match constraint_ with
+           | Ineq (rho1, rho2) -> print_rho_geq rho1 rho2 rho_pp
+           | TyOrIneq (ty, rho1, rho2) ->
+               let ty_pp = PrettyPrint.TyPrintParam.create () in
+               Format.printf "%t ∨ (%t %s %t)"
+                 (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
+                 (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho1)
+                 ResourceGrade.is_sub_rho_symbol
+                 (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho2)))
       constraints
 
   let print_rho_ineq_constraints constraints =
@@ -612,6 +621,7 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
     let subst_inequation = function
       | Ineq (rho1, rho2) ->
           Ineq (Ast.substitute_rho rho_subst rho1, Ast.substitute_rho rho_subst rho2)
+      | TyOrIneq _ -> assert false
     in
     List.map subst_inequation
 
@@ -879,6 +889,7 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
         else
           (* Retry with deferred constraints *)
           unify_rho_ineq_constraints state current_unsolved_size [] unsolved
+    | TyOrIneq _ :: _ -> assert false
     | Ineq (rho1, rho2) :: ineqs -> (
         let rho1' = simplify_rho rho1 in
         let rho2' = simplify_rho rho2 in
@@ -943,8 +954,53 @@ module Make (ResourceGrade : Language.ResourceGrade.S) = struct
             unify_rho_ineq_constraints state prev_unsolved_size
               (Ineq (u1, u2) :: unsolved) ineqs)
 
+  let is_eternal state ty =
+    (* [visited] tracks type names currently being unfolded to prevent infinite
+       recursion on recursive types (e.g. list). When a type name is encountered
+       again in [visited], we return true as a coinductive assumption: the
+       recursive occurrence is guarded and the non-recursive parts were already
+       checked in the outer call. *)
+    let rec check visited = function
+      | Ast.TyConst c -> Const.is_eternal_ty c
+      | Ast.TyApply (ty_name, args) ->
+          List.for_all (check visited) args
+          && (if List.mem ty_name visited then true
+             else
+               let visited' = ty_name :: visited in
+               match Ast.TyNameMap.find_opt ty_name state.type_definitions with
+               | None -> false
+               | Some (params, Ast.TyInline ty) ->
+                   let ty_subst =
+                     List.fold_left2
+                       (fun subst param arg -> Ast.TyParamMap.add param arg subst)
+                       Ast.TyParamMap.empty params args
+                   in
+                   check visited' (Ast.substitute_ty ty_subst Ast.RhoParamMap.empty ty)
+               | Some (params, Ast.TySum variants) ->
+                   let ty_subst =
+                     List.fold_left2
+                       (fun subst param arg -> Ast.TyParamMap.add param arg subst)
+                       Ast.TyParamMap.empty params args
+                   in
+                   List.for_all
+                     (fun (_, arg_ty) ->
+                       match arg_ty with
+                       | None -> true
+                       | Some ty ->
+                           check visited'
+                             (Ast.substitute_ty ty_subst Ast.RhoParamMap.empty ty))
+                     variants)
+      | Ast.TyParam _ -> false
+      | Ast.TyArrow _ -> false
+      | Ast.TyTuple tys -> List.for_all (check visited) tys
+      | Ast.TyBox _ -> false
+      | Ast.TyHandler _ -> false
+    in
+    check [] ty
+
   let rec check_rho_ineq_constraints state = function
     | [] -> ()
+    | TyOrIneq _ :: _ -> assert false
     | Ineq (rho_smaller, rho_greater_or_equal) :: rho_ineqs -> (
         let rho_smaller_simplified = simplify_rho rho_smaller in
         let rho_greater_or_equal_simplified =
