@@ -5,7 +5,7 @@ module Context = Language.Context
 module Exception = Language.Exception
 module PrettyPrint = Language.PrettyPrint
 
-module Make (ResourceGrade : Language.ResourceGrade.S) = struct
+module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   module ContextHolderModule =
     Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (ResourceGrade)
 

@@ -1,0 +1,76 @@
+resources time-interval
+
+(* Correctly accepted by the typechecker. *)
+let foo1 () = 
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  unbox r as y in
+  1
+
+(* Correctly accepted by the typechecker. *)
+let foo2 () = 
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  unbox r as y in
+  y
+
+(* Correctly accepted by the typechecker. *)
+let foo3 () = 
+  let x = 7 in
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  let z = 3 in
+  unbox r as y in
+  y + z
+
+(* Correctly accepted by the typechecker because int is an eternal type. *)
+let foo4 () = 
+  let x = 7 in
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  let z = 3 in
+  unbox r as y in
+  y + x
+
+(* Correctly accepted by the typechecker because boxing x requires x to be usable after *)
+(* (3,3) interval, which is possible because x's its type (int) is an eternal type. *)
+let foo5 () = 
+  let x = 7 in
+  box (2,5) x as x' in
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  let z = 3 in
+  unbox r as y in
+  unbox x' as x'' in
+  y + x + x''
+
+(* Correctly rejected by the typechecker. *)
+(*
+let foo6 () = 
+  let r = box (1,4) 1 in
+  delay 5;
+  unbox r as y in
+  y + 1
+*)
+
+(* Correctly rejected by the typechecker. *)
+(*
+let foo7 () =
+  let r = box (1,4) 1 in
+  delay 3;
+  let r' = r in
+  delay 3;
+  unbox r' as y in
+  y + 1
+*)
+
+run foo1 ()
+run foo2 ()
+run foo3 ()
+run foo4 ()
+run foo5 ()

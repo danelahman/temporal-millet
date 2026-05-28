@@ -73,14 +73,20 @@ additional properties) used to track resource usage throughout the file:
 resources grade-name
 ```
 
-If no such declaration is present, the `time` grading monoid is used by
-default. Two grading monoids are currently available:
+If no such declaration is present, the `time-lower-bound` grading monoid is used
+by default. Three grading monoids are currently available:
 
-- **`time`** — grades are non-negative integers representing discrete time
-  units. The zero grade is the *top* element of the sub-grade order: grade
-  `rho` is considered a sub-grade of grade `rho'` when `rho >= rho'`. Grades
-  of this kind are written as plain integer literals, e.g. `3`. Intuitively, 
-  these grades track the lower bound of the time-cost of computations.
+- **`time-lower-bound`** — grades are non-negative integers representing
+  discrete time units tracking the lower bound of the time-cost of computations.
+  The zero grade is the *top* element of the sub-grade order: grade `rho` is
+  considered a sub-grade of grade `rho'` when `rho >= rho'`. Grades of this kind
+  are written as plain integer literals, e.g. `3`.
+
+- **`time-upper-bound`** — grades are non-negative integers representing
+  discrete time units tracking the upper bound of the time-cost of computations.
+  The zero grade is the *minimal* element of the sub-grade order: grade `rho`
+  is considered a sub-grade of grade `rho'` when `rho <= rho'`. Grades of this
+  kind are written as plain integer literals, e.g. `3`.
 
 - **`time-interval`** — grades are pairs of non-negative integers `(n, m)` with
   `n <= m`, representing time intervals describing both the lower and upper
@@ -143,11 +149,19 @@ an *eternal-or-inequality* constraint: either `a` is eternal, or the grade
 accumulated in the context since `x` was bound is a sub-grade of zero. The
 practical effect of this constraint depends on the chosen grading monoid:
 
-- For the **`time`** monoid, where zero is the *top* element of the sub-grade
+- For the **`time-lower-bound`** monoid, where zero is the *top* element of the sub-grade
   order, the inequality `accumulated_grade ≤ zero` holds trivially for every
   non-negative integer grade. Consequently, local variables of **any** type may
   be freely referenced at any later point in the computation regardless of how
   much time has elapsed.
+
+- For the **`time-upper-bound`** monoid, where zero is the *minimal* element of
+  the sub-grade order, the inequality `accumulated_grade ≤ zero` holds only when
+  the accumulated grade is exactly `0` (i.e. no grade has been accumulated at
+  all). This means that local variables whose types are not eternal must be
+  used in the very same time-step in which they were bound — before any `delay`
+  or operation calls have occurred — while variables with eternal types may be
+  referenced freely at any later point.
 
 - For the **`time-interval`** monoid, where zero `(0, 0)` is the *minimal*
   element of the sub-grade order, the inequality `accumulated_grade ≤ (0, 0)`

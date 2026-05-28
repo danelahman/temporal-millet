@@ -3,7 +3,7 @@ module Print = Utils.Print
 module Ast = Language.Ast
 module PrettyPrint = Language.PrettyPrint
 
-module Make (ResourceGrade : Language.ResourceGrade.S) = struct
+module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   module I = Interpreter.Make (ResourceGrade)
   open I
 

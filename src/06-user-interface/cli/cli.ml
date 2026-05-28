@@ -63,7 +63,8 @@ let parse_args_to_config () =
   }
 
 let run_with (type t)
-    (module ResourceGrade : Language.ResourceGrade.S with type t = t) config =
+    (module ResourceGrade : Language.ResourceGrade.Grade with type t = t) config
+    =
   let module Backend = CliInterpreter.Make (ResourceGrade) in
   let module Loader = Loader.Loader (Backend) in
   let rec run (state : Backend.run_state) run_num =
@@ -119,7 +120,7 @@ let main () =
     List.assoc_opt config.resource_type
       Language.ResourceGrade.resource_grade_modules
   with
-  | Some (module ResourceGrade : Language.ResourceGrade.S) ->
+  | Some (module ResourceGrade : Language.ResourceGrade.Grade) ->
       run_with (module ResourceGrade) config
   | None ->
       Printf.eprintf "Unknown type of resource grades '%s'. Accepted: %s\n"

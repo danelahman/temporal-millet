@@ -138,7 +138,7 @@ let update model = function
               Error
                 (Printf.sprintf "Unknown resource grade '%s'"
                    model.edit_model.selected_resource)
-          | Some (module RG : Language.ResourceGrade.S) ->
+          | Some (module RG : Language.ResourceGrade.Grade) ->
               let module B = WebInterpreter.Make (RG) in
               let module L = Loader.Loader (B) in
               let source =

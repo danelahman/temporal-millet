@@ -21,7 +21,7 @@ end
 module Make
     (Variable : Symbol.S)
     (VariableMap : Map.S with type key = Variable.t)
-    (Base : ResourceGrade.S) =
+    (Base : ResourceGrade.Grade) =
 struct
   type var = Variable.t
   type base = Base.t

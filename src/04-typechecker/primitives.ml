@@ -3,7 +3,7 @@ module Context = Language.Context
 module Const = Language.Const
 module Primitives = Language.Primitives
 
-module Make (ResourceGrade : Language.ResourceGrade.S) = struct
+module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let poly_type ty =
     let a = Ast.TyParamModule.fresh "poly" in
     ([ a ], [], ty (Ast.TyParam a))

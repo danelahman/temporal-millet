@@ -4,7 +4,7 @@ module Const = Language.Const
 module Primitives = Language.Primitives
 module PrettyPrint = Language.PrettyPrint
 
-module Make (ResourceGrade : Language.ResourceGrade.S) = struct
+module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let binary_function f = function
     | Ast.Tuple [ expr1; expr2 ] -> f expr1 expr2
     | expr ->

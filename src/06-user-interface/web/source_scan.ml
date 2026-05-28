@@ -57,14 +57,16 @@ let find_resources_declaration source =
           match read_ident source n k with
           | None -> ()
           | Some (name1, k1) ->
-              let k2 = skip_trivia source n k1 in
-              if k2 < n && source.[k2] = '-' then begin
-                let k3 = skip_trivia source n (k2 + 1) in
-                match read_ident source n k3 with
-                | Some (name2, _) -> found := Some (name1 ^ "-" ^ name2)
-                | None -> found := Some name1
-              end
-              else found := Some name1
+              let rec extend name pos =
+                let k2 = skip_trivia source n pos in
+                if k2 < n && source.[k2] = '-' then
+                  let k3 = skip_trivia source n (k2 + 1) in
+                  match read_ident source n k3 with
+                  | Some (segment, k4) -> extend (name ^ "-" ^ segment) k4
+                  | None -> name
+                else name
+              in
+              found := Some (extend name1 k1)
         end
   done;
   !found

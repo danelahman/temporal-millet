@@ -1,4 +1,4 @@
-resources time
+resources time-lower-bound
 
 type nat =
   | Zero

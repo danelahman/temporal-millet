@@ -3,7 +3,7 @@
   open Utils
 %}
 
-%parameter<ResourceGrade : Language.ResourceGrade.S>
+%parameter<ResourceGrade : Language.ResourceGrade.Grade>
 
 %token LPAREN RPAREN LBRACK RBRACK
 %token COLON COMMA SEMI EQUAL CONS
@@ -77,7 +77,7 @@ plain_command:
 resource_name:
   | s = LNAME
     { s }
-  | s1 = LNAME MINUS s2 = LNAME
+  | s1 = LNAME MINUS s2 = resource_name
     { s1 ^ "-" ^ s2 }
 
 payload:

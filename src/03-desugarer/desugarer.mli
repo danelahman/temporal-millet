@@ -5,7 +5,7 @@
     ([desugar_ty], [desugar_pattern], etc.) are intentionally hidden — only the
     command-level entry points are part of the public API. *)
 
-module Make (ResourceGrade : Language.ResourceGrade.S) : sig
+module Make (ResourceGrade : Language.ResourceGrade.Grade) : sig
   type state
 
   val initial_state : state

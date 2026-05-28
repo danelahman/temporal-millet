@@ -4,7 +4,7 @@ type lit =
   | Pair of int * int
       (** A pair of integers, e.g. [(1, 5)] for interval grades *)
 
-module type S = sig
+module type Grade = sig
   type t
 
   val name : string
@@ -29,10 +29,10 @@ module type S = sig
   val show : t -> string
 end
 
-module NatResourceGrade : S = struct
+module TimeLowerBoundGrade : Grade = struct
   type t = int
 
-  let name = "time"
+  let name = "time-lower-bound"
   let zero = 0
   let add = ( + )
   let is_sub_rho = ( >= )
@@ -43,20 +43,51 @@ module NatResourceGrade : S = struct
   let of_lit = function
     | Int n ->
         if n < 0 then
-          invalid_arg "NatResourceGrade.of_lit: expected non-negative integer"
+          invalid_arg
+            "TimeLowerBoundGrade.of_lit: expected non-negative integer"
         else n
     | Pair _ ->
-        invalid_arg "NatResourceGrade.of_lit: pair literals are not supported"
+        invalid_arg
+          "TimeLowerBoundGrade.of_lit: pair literals are not supported"
 
   let of_nat n =
     if n < 0 then
-      invalid_arg "NatResourceGrade.of_nat: expected non-negative integer"
+      invalid_arg "TimeLowerBoundGrade.of_nat: expected non-negative integer"
     else n
 
   let show = string_of_int
 end
 
-module IntervalResourceGrade : S = struct
+module TimeUpperBoundGrade : Grade = struct
+  type t = int
+
+  let name = "time-upper-bound"
+  let zero = 0
+  let add = ( + )
+  let is_sub_rho = ( <= )
+  let is_sub_rho_symbol = "<="
+  let is_zero_minimal_sub_rho = true
+  let is_zero_top_sub_rho = false
+
+  let of_lit = function
+    | Int n ->
+        if n < 0 then
+          invalid_arg
+            "TimeUpperBoundGrade.of_lit: expected non-negative integer"
+        else n
+    | Pair _ ->
+        invalid_arg
+          "TimeUpperBoundGrade.of_lit: pair literals are not supported"
+
+  let of_nat n =
+    if n < 0 then
+      invalid_arg "TimeUpperBoundGrade.of_nat: expected non-negative integer"
+    else n
+
+  let show = string_of_int
+end
+
+module IntervalResourceGrade : Grade = struct
   type t = int * int
 
   let name = "time-interval"
@@ -90,8 +121,9 @@ end
 (** All available resource modules, in order of definition. The accepted
     resource names for the [resources] declaration are taken from the [name]
     fields of these modules. *)
-let resource_grade_modules : (string * (module S)) list =
+let resource_grade_modules : (string * (module Grade)) list =
   [
-    (NatResourceGrade.name, (module NatResourceGrade));
+    (TimeLowerBoundGrade.name, (module TimeLowerBoundGrade));
+    (TimeUpperBoundGrade.name, (module TimeUpperBoundGrade));
     (IntervalResourceGrade.name, (module IntervalResourceGrade));
   ]

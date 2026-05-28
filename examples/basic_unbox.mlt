@@ -1,4 +1,4 @@
-resources time
+resources time-lower-bound
 
 run
     let x = (10, 10) in

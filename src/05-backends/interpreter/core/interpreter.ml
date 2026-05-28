@@ -24,7 +24,7 @@ module Types = struct
   type step_label = ComputationReduction of computation_reduction | Return
 end
 
-module Make (T : Language.ResourceGrade.S) = struct
+module Make (T : Language.ResourceGrade.Grade) = struct
   module ResourceGrade = T
 
   module ContextHolderModule =
