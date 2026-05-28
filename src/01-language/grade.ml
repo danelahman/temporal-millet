@@ -1,33 +1,36 @@
-(** Concrete representation of resource grades as they appear in source. *)
+(** Concrete representation of grades as they appear in source code. *)
 type lit =
   | Int of int  (** A single non-negative integer, e.g. [42] *)
   | Pair of int * int
       (** A pair of integers, e.g. [(1, 5)] for interval grades *)
 
+(** Grades are ordered monoids with optional properties about zero. *)
 module type S = sig
   type t
 
   val name : string
-  (** The name of the resource grade type, e.g. ["time-interval"]. *)
+  (** The name of the grade type, e.g. ["time-interval"]. *)
 
   val zero : t
   val add : t -> t -> t
 
   val is_sub_rho : t -> t -> bool
-  (** Compare whether one resource grade is a sub-grade of another. *)
+  (** Compare whether one grade is a sub-grade of another. *)
 
   val is_sub_rho_symbol : string
   val is_zero_minimal_sub_rho : bool
   val is_zero_top_sub_rho : bool
 
   val of_lit : lit -> t
-  (** Converts a parsed resource grade literal to a value of type [t]. *)
+  (** Converts a parsed grade literal to a value of type [t]. *)
 
   val of_nat : int -> t
-  (** Converts a parsed integer constant into a value of type [t]. *)
+  (** Converts a parsed constant into a value of type [t]. *)
 
   val show : t -> string
 end
+
+(* Example definitions of grades. *)
 
 module TimeLowerBoundGrade : S = struct
   type t = int

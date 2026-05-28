@@ -85,10 +85,10 @@ module Loader (Backend : Backend.S) = struct
         let backend_state' = Backend.load_top_do state.backend comp in
         { state with backend = backend_state' }
     | Ast.Grades grade_name ->
-        if grade_name <> Backend.GradeSystem.ResourceGrade.name then
+        if grade_name <> Backend.GradeSystem.name then
           Error.typing
             "File specifies grades '%s' but interpreter is using '%s'."
-            grade_name Backend.GradeSystem.ResourceGrade.name;
+            grade_name Backend.GradeSystem.name;
         state
 
   let load_commands state cmds =

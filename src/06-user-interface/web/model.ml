@@ -1,7 +1,7 @@
 module Error = Utils.Error
 
-(* Abstract representation of a single reduction step, with all resource-grade-specific
-   types captured in closures. This allows the model to work with any resource grade
+(* Abstract representation of a single reduction step, with all grade-system-specific
+   types captured in closures. This allows the model to work with any grade system
    without fixing the type at module-definition time. *)
 type concrete_step = {
   label_vdom : msg Vdom.vdom;
@@ -29,7 +29,7 @@ and run_model_state = {
           have completed and their snapshots are in [completed_runs]). *)
 }
 (** A snapshot of an interpreter run state together with its available steps,
-    all resource-grade types hidden behind closures. *)
+    all grade-system types hidden behind closures. *)
 
 and edit_msg =
   | UseStdlib of bool
@@ -143,26 +143,26 @@ let update model = function
                 (if model.edit_model.use_stdlib then L.stdlib_source else "")
                 ^ "\n\n\n" ^ model.edit_model.unparsed_code
               in
-              (* The parser is parameterized by the selected resource grade
-                 and will raise on syntactic forms (e.g. pair literals) that
-                 the grade does not support — masking a mismatch with the
-                 user's [grades X] declaration. Detect that mismatch up front
-                 so the user gets a clear error. *)
+              (* The parser is parameterized by the selected grade system and
+                 will raise on syntactic forms (e.g. pair literals) that the
+                 grade does not support — masking a mismatch with the user's
+                 [grades X] declaration. Detect that mismatch up front so the
+                 user gets a clear error. *)
               (match
                  Source_scan.find_grades_declaration
                    model.edit_model.unparsed_code
                with
-              | Some declared when declared <> GS.ResourceGrade.name ->
+              | Some declared when declared <> GS.name ->
                   Utils.Error.typing
                     "Source declares 'grades %s' but the selected grades are \
                      '%s'."
-                    declared GS.ResourceGrade.name
+                    declared GS.name
               | _ -> ());
               let state = L.load_source L.initial_state source in
               let run_state = B.run state.backend in
               (* Build a run_model_state from a B.run_state, capturing all
-                 resource-grade-specific types in closures so the rest of the
-                 application is independent of the chosen resource grade. *)
+                 grade-system-specific types in closures so the rest of the
+                 application is independent of the chosen grade system. *)
               let rec make_run_state ~completed_runs (rs : B.run_state) :
                   run_model_state =
                 {

@@ -3,15 +3,15 @@ grades time-upper-bound
 (* Correctly accepted by the typechecker. *)
 let foo1 () = 
   box 3 1 as r in
-  let _ = delay 1 in
-  let _ = delay 2 in
+  delay 1;
+  delay 2;
   unbox r as y in
   y
 
 (* Correctly accepted by the typechecker. *)
 let foo2 () = 
   box 3 1 as r in
-  let _ = delay 2 in
+  delay 2;
   unbox r as y in
   y
 
@@ -19,7 +19,7 @@ let foo2 () =
 (*
 let foo3 () = 
   box 3 1 as r in
-  let _ = delay 4 in
+  delay 4;
   unbox r as y in
   y
 *)

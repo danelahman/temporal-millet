@@ -70,7 +70,7 @@
         },
         {
           "name": "keyword.other.millet",
-          "match": "\\b(let|in|and|rec|fun|function|as|of|type|operation|resources|handler|box|unbox|delay|begin|end|if|then|else|match|with|run|handle|return|perform|continue)\\b"
+          "match": "\\b(let|in|and|rec|fun|function|as|of|type|operation|grades|handler|box|unbox|delay|begin|end|if|then|else|match|with|run|handle|return|perform|continue)\\b"
         }
       ]
     },
@@ -97,7 +97,7 @@
       "beginCaptures": {
         "1": { "name": "keyword.other.millet" }
       },
-      "end": "(?=^(let|run|operation|type|resources|and)\\b)",
+      "end": "(?=^(let|run|operation|type|grades|and)\\b)",
       "patterns": [
         {
           "match": "(\\|)\\s+([A-Z][A-Za-z0-9_']*)",

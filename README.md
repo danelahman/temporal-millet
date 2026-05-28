@@ -66,12 +66,15 @@ Temporal Millet, like original Millet, gives you two options to run programs:
 ## Grading monoids
 
 A Temporal Millet source file can optionally begin with a `grades`
-declaration that selects the grading monoid (an ordered monoid satisfying some
+declaration that selects the grading monoids (ordered monoids satisfying some
 additional properties) used to track resource usage throughout the file:
 
 ```
 grades grade-name
 ```
+
+Currently, the resources and effects are graded by the same monoid, but in the
+future they can be graded by possibly different monoids connected by a morphism.
 
 If no such declaration is present, the `time-lower-bound` grading monoid is used
 by default. Three grading monoids are currently available:

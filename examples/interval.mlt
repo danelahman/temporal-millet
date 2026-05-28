@@ -11,8 +11,8 @@ let foo1 () =
 (* Correctly accepted by the typechecker. *)
 let foo2 () = 
   box (1,4) 1 as r in
-  let _ = delay 1 in
-  let _ = delay 2 in
+  delay 1;
+  delay 2;
   unbox r as y in
   y
 
@@ -20,8 +20,8 @@ let foo2 () =
 let foo3 () = 
   let x = 7 in
   box (1,4) 1 as r in
-  let _ = delay 1 in
-  let _ = delay 2 in
+  delay 1;
+  delay 2;
   let z = 3 in
   unbox r as y in
   y + z
@@ -30,8 +30,8 @@ let foo3 () =
 let foo4 () = 
   let x = 7 in
   box (1,4) 1 as r in
-  let _ = delay 1 in
-  let _ = delay 2 in
+  delay 1;
+  delay 2;
   let z = 3 in
   unbox r as y in
   y + x
@@ -42,8 +42,8 @@ let foo5 () =
   let x = 7 in
   box (2,5) x as x' in
   box (1,4) 1 as r in
-  let _ = delay 1 in
-  let _ = delay 2 in
+  delay 1;
+  delay 2;
   let z = 3 in
   unbox r as y in
   unbox x' as x'' in
