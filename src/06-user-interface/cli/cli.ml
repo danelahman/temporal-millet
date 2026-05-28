@@ -20,19 +20,17 @@ type config = {
   filenames : string list;
   use_stdlib : bool;
   debug : bool;
-  resource_type : string;
+  grade_type : string;
 }
 
-let accepted_resource_names =
-  List.map fst Language.ResourceGrade.resource_grade_modules
-
-let default_resource_name = List.hd accepted_resource_names
+let accepted_grade_names = List.map fst Language.GradeSystem.grade_systems
+let default_grade_name = List.hd accepted_grade_names
 
 let parse_args_to_config () =
   let filenames = ref []
   and use_stdlib = ref true
   and debug = ref false
-  and resource_type = ref default_resource_name in
+  and grade_type = ref default_grade_name in
   let usage = "Run Temporal Millet as '" ^ Sys.argv.(0) ^ " [filename.mlt] ...'"
   and anonymous filename = filenames := filename :: !filenames
   and options =
@@ -45,13 +43,12 @@ let parse_args_to_config () =
           Arg.Set debug,
           " Show final internal state and top level typing results after \
            execution" );
-        ( "--resources",
-          Arg.Set_string resource_type,
-          Printf.sprintf
-            " Type of resource grades to use (default: %s). Accepted: %s"
-            default_resource_name
+        ( "--grades",
+          Arg.Set_string grade_type,
+          Printf.sprintf " Type of grades to use (default: %s). Accepted: %s"
+            default_grade_name
             (String.concat ", "
-               (List.map (fun s -> "'" ^ s ^ "'") accepted_resource_names)) );
+               (List.map (fun s -> "'" ^ s ^ "'") accepted_grade_names)) );
       ]
   in
   Arg.parse options anonymous usage;
@@ -59,14 +56,13 @@ let parse_args_to_config () =
     filenames = List.rev !filenames;
     use_stdlib = !use_stdlib;
     debug = !debug;
-    resource_type = !resource_type;
+    grade_type = !grade_type;
   }
 
-let run_with (type t)
-    (module ResourceGrade : Language.ResourceGrade.Grade with type t = t) config
-    =
-  let module Backend = CliInterpreter.Make (ResourceGrade) in
+let run_with (module GS : Language.GradeSystem.S) config =
+  let module Backend = CliInterpreter.Make (GS) in
   let module Loader = Loader.Loader (Backend) in
+  let module ResourceGrade = GS.ResourceGrade in
   let rec run (state : Backend.run_state) run_num =
     let printed = Backend.view_run_state state ~run_num in
     let next_run_num = if printed then run_num + 1 else run_num in
@@ -116,17 +112,13 @@ let run_with (type t)
 
 let main () =
   let config = parse_args_to_config () in
-  match
-    List.assoc_opt config.resource_type
-      Language.ResourceGrade.resource_grade_modules
-  with
-  | Some (module ResourceGrade : Language.ResourceGrade.Grade) ->
-      run_with (module ResourceGrade) config
+  match List.assoc_opt config.grade_type Language.GradeSystem.grade_systems with
+  | Some (module GS : Language.GradeSystem.S) -> run_with (module GS) config
   | None ->
-      Printf.eprintf "Unknown type of resource grades '%s'. Accepted: %s\n"
-        config.resource_type
+      Printf.eprintf "Unknown type of grades '%s'. Accepted: %s\n"
+        config.grade_type
         (String.concat ", "
-           (List.map (fun s -> "'" ^ s ^ "'") accepted_resource_names));
+           (List.map (fun s -> "'" ^ s ^ "'") accepted_grade_names));
       exit 1
 
 let _ = main ()

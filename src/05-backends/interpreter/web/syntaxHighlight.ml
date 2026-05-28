@@ -19,7 +19,7 @@ let keywords =
     "of";
     "type";
     "operation";
-    "resources";
+    "grades";
     "run";
     "return";
     "perform";

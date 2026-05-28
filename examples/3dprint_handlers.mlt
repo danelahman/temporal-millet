@@ -1,4 +1,4 @@
-resources time-lower-bound
+grades time-lower-bound
 
 type model = Model of string
 type fresh = Fresh of model

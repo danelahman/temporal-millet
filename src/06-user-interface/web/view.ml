@@ -135,17 +135,17 @@ let view_compiler (model : Model.model) =
         div
           ~a:[ class_ "field" ]
           [
-            elt "label" ~a:[ class_ "label" ] [ text "Resource grade" ];
+            elt "label" ~a:[ class_ "label" ] [ text "Grades" ];
             div
               ~a:[ class_ "control is-expanded" ]
               [
                 select
                   ~a:[ class_ "select is-fullwidth" ]
-                  "Select resource grade"
-                  (fun name -> Model.EditMsg (Model.SelectResource name))
+                  "Select grades"
+                  (fun name -> Model.EditMsg (Model.SelectGrades name))
                   (fun name -> name)
-                  (fun name -> name = model.edit_model.selected_resource)
-                  (List.map fst Language.ResourceGrade.resource_grade_modules);
+                  (fun name -> name = model.edit_model.selected_grades)
+                  (List.map fst Language.GradeSystem.grade_systems);
               ];
           ];
       ]

@@ -5,9 +5,9 @@ module Ast = Language.Ast
 open Backend
 
 module Loader (Backend : Backend.S) = struct
-  module D = Desugarer.Make (Backend.ResourceGrade)
-  module TC = Typechecker.Make (Backend.ResourceGrade)
-  module G = Parser.Grammar.Make (Backend.ResourceGrade)
+  module D = Desugarer.Make (Backend.GradeSystem)
+  module TC = Typechecker.Make (Backend.GradeSystem)
+  module G = Parser.Grammar.Make (Backend.GradeSystem.ResourceGrade)
 
   type state = {
     desugarer : D.state;
@@ -84,11 +84,11 @@ module Loader (Backend : Backend.S) = struct
         let _ = TC.infer state.typechecker comp in
         let backend_state' = Backend.load_top_do state.backend comp in
         { state with backend = backend_state' }
-    | Ast.Resources resource_name ->
-        if resource_name <> Backend.ResourceGrade.name then
+    | Ast.Grades grade_name ->
+        if grade_name <> Backend.GradeSystem.ResourceGrade.name then
           Error.typing
-            "File specifies resources '%s' but interpreter is using '%s'."
-            resource_name Backend.ResourceGrade.name;
+            "File specifies grades '%s' but interpreter is using '%s'."
+            grade_name Backend.GradeSystem.ResourceGrade.name;
         state
 
   let load_commands state cmds =

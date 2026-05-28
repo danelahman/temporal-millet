@@ -112,8 +112,7 @@ let print_rho_params ?max_level:_ rho_pp rho_params ppf =
   print_helper rho_params;
   Format.fprintf ppf "]"
 
-let print_rho (type a)
-    (module ResourceGrade : ResourceGrade.Grade with type t = a) rho_pp =
+let print_rho (type a) (module ResourceGrade : Grade.S with type t = a) rho_pp =
   let rec aux (rho : a rho) ppf =
     match rho with
     | RhoConst i -> Format.fprintf ppf "%s" (ResourceGrade.show i)
@@ -126,9 +125,7 @@ let print_rho (type a)
   aux
 
 let print_ty (type a) ?max_level rho_module ty_print_param rho_print_param =
-  let module ResourceGrade =
-    (val rho_module : ResourceGrade.Grade with type t = a)
-  in
+  let module ResourceGrade = (val rho_module : Grade.S with type t = a) in
   let rec aux ?max_level p ppf =
     let print ?at_level = Print.print ?max_level ?at_level ppf in
     match p with

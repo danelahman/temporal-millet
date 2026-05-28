@@ -1,4 +1,4 @@
-resources time-upper-bound
+grades time-upper-bound
 
 (* Correctly accepted by the typechecker. *)
 let foo1 () = 

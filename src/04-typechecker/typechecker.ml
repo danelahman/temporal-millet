@@ -5,11 +5,13 @@ module Context = Language.Context
 module Exception = Language.Exception
 module PrettyPrint = Language.PrettyPrint
 
-module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
+module Make (GS : Language.GradeSystem.S) = struct
+  module ResourceGrade = GS.ResourceGrade
+
   module ContextHolderModule =
     Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (ResourceGrade)
 
-  module P = Primitives.Make (ResourceGrade)
+  module P = Primitives.Make (GS)
 
   type var_type = Global | Local
 

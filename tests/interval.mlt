@@ -1,4 +1,4 @@
-resources time-interval
+grades time-interval
 
 (* Correctly accepted by the typechecker. *)
 let foo1 () = 

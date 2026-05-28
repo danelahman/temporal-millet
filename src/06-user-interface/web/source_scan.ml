@@ -1,6 +1,6 @@
 (* Lightweight pre-parse helpers for source text. Used to extract bits of
-   metadata (currently just the [resources <name>] declaration) before
-   committing to a particular resource grade in the parser, which otherwise
+   metadata (currently just the [grades <name>] declaration) before
+   committing to a particular grade system in the parser, which otherwise
    raises on unsupported literal forms. *)
 
 let is_ident_char c =
@@ -36,13 +36,13 @@ let read_ident s n i =
   done;
   if !j > start then Some (String.sub s start (!j - start), !j) else None
 
-(* Find a top-level [resources <name>] declaration anywhere in [source].
+(* Find a top-level [grades <name>] declaration anywhere in [source].
    Returns the name (with the trailing [- <name>] segment, if present) of the
    first such declaration found, or [None] if there isn't one. The scan is
    intentionally permissive: it only looks at lexical position, ignoring
-   strings, so a stray "resources" inside a string literal would confuse it.
+   strings, so a stray "grades" inside a string literal would confuse it.
    In practice the keyword is reserved and not used elsewhere. *)
-let find_resources_declaration source =
+let find_grades_declaration source =
   let n = String.length source in
   let i = ref 0 in
   let found = ref None in
@@ -52,7 +52,7 @@ let find_resources_declaration source =
     | None -> incr i
     | Some (tok, j) ->
         i := j;
-        if tok = "resources" then begin
+        if tok = "grades" then begin
           let k = skip_trivia source n !i in
           match read_ident source n k with
           | None -> ()

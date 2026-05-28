@@ -5,7 +5,7 @@
     ([desugar_ty], [desugar_pattern], etc.) are intentionally hidden — only the
     command-level entry points are part of the public API. *)
 
-module Make (ResourceGrade : Language.ResourceGrade.Grade) : sig
+module Make (GS : Language.GradeSystem.S) : sig
   type state
 
   val initial_state : state
@@ -15,6 +15,6 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) : sig
 
   val desugar_command :
     state ->
-    ResourceGrade.t Parser.SugaredAst.command ->
-    state * ResourceGrade.t Language.Ast.command
+    GS.ResourceGrade.t Parser.SugaredAst.command ->
+    state * GS.ResourceGrade.t Language.Ast.command
 end

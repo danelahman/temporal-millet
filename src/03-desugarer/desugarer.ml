@@ -8,7 +8,9 @@ module Context = Language.Context
 module Const = Language.Const
 module StringMap = Map.Make (String)
 
-module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
+module Make (GS : Language.GradeSystem.S) = struct
+  module ResourceGrade = GS.ResourceGrade
+
   let add_unique ~loc kind str symb string_map =
     StringMap.update str
       (function
@@ -387,7 +389,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | Sugared.TopLetRec (f, term) ->
         let state', f, expr = desugar_let_rec_def state (f, term) in
         (state', Untyped.TopLet (f, expr))
-    | Sugared.Resources s -> (state, Untyped.Resources s)
+    | Sugared.Grades s -> (state, Untyped.Grades s)
 
   let load_primitive state x prim =
     let str = Language.Primitives.primitive_name prim in

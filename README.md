@@ -65,12 +65,12 @@ Temporal Millet, like original Millet, gives you two options to run programs:
 
 ## Grading monoids
 
-A Temporal Millet source file can optionally begin with a `resources`
+A Temporal Millet source file can optionally begin with a `grades`
 declaration that selects the grading monoid (an ordered monoid satisfying some
 additional properties) used to track resource usage throughout the file:
 
 ```
-resources grade-name
+grades grade-name
 ```
 
 If no such declaration is present, the `time-lower-bound` grading monoid is used

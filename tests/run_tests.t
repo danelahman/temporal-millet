@@ -4,8 +4,8 @@
   >   echo $f
   >   echo "======================================================================"
   >   case $f in
-  >     interval.mlt) ../cli.exe --resources time-interval $f;;
-  >     upper-bound.mlt) ../cli.exe --resources time-upper-bound $f;;
+  >     interval.mlt) ../cli.exe --grades time-interval $f;;
+  >     upper-bound.mlt) ../cli.exe --grades time-upper-bound $f;;
   >     *) ../cli.exe $f;;
   >   esac
   >   :  # this command is here to suppress potential non-zero exit codes in the output

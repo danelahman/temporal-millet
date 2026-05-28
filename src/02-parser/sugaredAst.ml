@@ -92,4 +92,4 @@ and 'rho plain_command =
   | TopLet of variable * 'rho term  (** [let x = t] *)
   | TopLetRec of variable * 'rho term  (** [let rec f = t] *)
   | TopDo of 'rho term  (** [do t] *)
-  | Resources of string  (** [resources "name"] *)
+  | Grades of string  (** [grades "name"] *)

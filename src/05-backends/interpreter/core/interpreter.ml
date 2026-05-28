@@ -24,13 +24,14 @@ module Types = struct
   type step_label = ComputationReduction of computation_reduction | Return
 end
 
-module Make (T : Language.ResourceGrade.Grade) = struct
-  module ResourceGrade = T
+module Make (GS : Language.GradeSystem.S) = struct
+  module GradeSystem = GS
+  module ResourceGrade = GS.ResourceGrade
 
   module ContextHolderModule =
     Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (ResourceGrade)
 
-  module P = Primitives.Make (ResourceGrade)
+  module P = Primitives.Make (GS)
   include Types
 
   type evaluation_environment = {

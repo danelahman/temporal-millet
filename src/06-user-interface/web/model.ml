@@ -34,9 +34,8 @@ and run_model_state = {
 and edit_msg =
   | UseStdlib of bool
   | ChangeSource of string
-  | SelectResource of string
-      (** Select the resource grade to use (by name from
-          [resource_grade_modules]). *)
+  | SelectGrades of string
+      (** Select the grade system to use (by name from [grade_systems]). *)
 
 and run_msg =
   | SelectStepIndex of int option
@@ -50,25 +49,24 @@ and msg = EditMsg of edit_msg | RunCode | RunMsg of run_msg | EditCode
 type edit_model = {
   use_stdlib : bool;
   unparsed_code : string;
-  selected_resource : string;
-      (** Name of the currently selected resource grade (key in
-          [resource_grade_modules]). *)
+  selected_grades : string;
+      (** Name of the currently selected grade system (key in [grade_systems]).
+      *)
 }
 
-let default_resource_name =
-  fst (List.hd Language.ResourceGrade.resource_grade_modules)
+let default_grade_name = fst (List.hd Language.GradeSystem.grade_systems)
 
 let edit_init =
   {
     use_stdlib = true;
     unparsed_code = "";
-    selected_resource = default_resource_name;
+    selected_grades = default_grade_name;
   }
 
 let edit_update edit_model = function
   | UseStdlib use_stdlib -> { edit_model with use_stdlib }
   | ChangeSource input -> { edit_model with unparsed_code = input }
-  | SelectResource name -> { edit_model with selected_resource = name }
+  | SelectGrades name -> { edit_model with selected_grades = name }
 
 type run_model = {
   current : run_model_state;
@@ -131,15 +129,15 @@ let update model = function
       let run_model =
         try
           match
-            List.assoc_opt model.edit_model.selected_resource
-              Language.ResourceGrade.resource_grade_modules
+            List.assoc_opt model.edit_model.selected_grades
+              Language.GradeSystem.grade_systems
           with
           | None ->
               Error
-                (Printf.sprintf "Unknown resource grade '%s'"
-                   model.edit_model.selected_resource)
-          | Some (module RG : Language.ResourceGrade.Grade) ->
-              let module B = WebInterpreter.Make (RG) in
+                (Printf.sprintf "Unknown grade system '%s'"
+                   model.edit_model.selected_grades)
+          | Some (module GS : Language.GradeSystem.S) ->
+              let module B = WebInterpreter.Make (GS) in
               let module L = Loader.Loader (B) in
               let source =
                 (if model.edit_model.use_stdlib then L.stdlib_source else "")
@@ -148,17 +146,17 @@ let update model = function
               (* The parser is parameterized by the selected resource grade
                  and will raise on syntactic forms (e.g. pair literals) that
                  the grade does not support — masking a mismatch with the
-                 user's [resources X] declaration. Detect that mismatch up
-                 front so the user gets a clear error. *)
+                 user's [grades X] declaration. Detect that mismatch up front
+                 so the user gets a clear error. *)
               (match
-                 Source_scan.find_resources_declaration
+                 Source_scan.find_grades_declaration
                    model.edit_model.unparsed_code
                with
-              | Some declared when declared <> RG.name ->
+              | Some declared when declared <> GS.ResourceGrade.name ->
                   Utils.Error.typing
-                    "Source declares 'resources %s' but the selected resource \
-                     grade is '%s'."
-                    declared RG.name
+                    "Source declares 'grades %s' but the selected grades are \
+                     '%s'."
+                    declared GS.ResourceGrade.name
               | _ -> ());
               let state = L.load_source L.initial_state source in
               let run_state = B.run state.backend in

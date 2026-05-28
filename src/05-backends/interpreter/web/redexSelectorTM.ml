@@ -3,8 +3,9 @@ module Print = Utils.Print
 module Ast = Language.Ast
 module PrettyPrint = Language.PrettyPrint
 
-module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
-  module I = Interpreter.Make (ResourceGrade)
+module Make (GS : Language.GradeSystem.S) = struct
+  module I = Interpreter.Make (GS)
+  module ResourceGrade = GS.ResourceGrade
   open I
 
   (* A NUL byte is used as the redex marker because it cannot appear in any

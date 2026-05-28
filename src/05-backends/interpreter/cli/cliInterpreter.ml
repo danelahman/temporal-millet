@@ -1,5 +1,5 @@
-module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
-  include Interpreter.Make (ResourceGrade)
+module Make (GS : Language.GradeSystem.S) = struct
+  include Interpreter.Make (GS)
   module Ast = Language.Ast
   module PrettyPrint = Language.PrettyPrint
 

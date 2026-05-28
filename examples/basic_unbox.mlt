@@ -1,4 +1,4 @@
-resources time-lower-bound
+grades time-lower-bound
 
 run
     let x = (10, 10) in

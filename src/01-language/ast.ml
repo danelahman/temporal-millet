@@ -96,7 +96,7 @@ type 'a command =
   | OpSig of (operation * 'a ty * 'a ty * 'a rho)
   | TopLet of variable * 'a expression
   | TopDo of 'a computation
-  | Resources of string
+  | Grades of string
 
 type ('var, 'map, 'rho) context_elem_ty = VarMap of 'map | Rho of 'rho
 type ('var, 'map, 'rho) context = ('var, 'map, 'rho) context_elem_ty list

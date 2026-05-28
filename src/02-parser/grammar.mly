@@ -3,7 +3,7 @@
   open Utils
 %}
 
-%parameter<ResourceGrade : Language.ResourceGrade.Grade>
+%parameter<ResourceGrade : Language.Grade.S>
 
 %token LPAREN RPAREN LBRACK RBRACK
 %token COLON COMMA SEMI EQUAL CONS
@@ -28,7 +28,7 @@
 %token AMPER AMPERAMPER
 %token LAND LOR LXOR
 %token <string> PREFIXOP INFIXOP0 INFIXOP1 INFIXOP2 INFIXOP3 INFIXOP4
-%token RESOURCES
+%token GRADES
 %token EOF
 
 %nonassoc ARROW IN
@@ -71,13 +71,13 @@ plain_command:
     { let (f, t) = def in TopLetRec (f, t) }
   | RUN trm = term
     { TopDo trm }
-  | RESOURCES name = resource_name
-    { Resources name }
+  | GRADES name = grade_name
+    { Grades name }
 
-resource_name:
+grade_name:
   | s = LNAME
     { s }
-  | s1 = LNAME MINUS s2 = resource_name
+  | s1 = LNAME MINUS s2 = grade_name
     { s1 ^ "-" ^ s2 }
 
 payload:
@@ -455,7 +455,7 @@ sum_case:
     { (lbl, Some t) }
 
 rho_grade:
-  | n = INT { ResourceGrade.of_lit (Language.ResourceGrade.Int n) }
-  | LPAREN n = INT COMMA m = INT RPAREN { ResourceGrade.of_lit (Language.ResourceGrade.Pair (n, m)) }
+  | n = INT { ResourceGrade.of_lit (Language.Grade.Int n) }
+  | LPAREN n = INT COMMA m = INT RPAREN { ResourceGrade.of_lit (Language.Grade.Pair (n, m)) }
 
 %%

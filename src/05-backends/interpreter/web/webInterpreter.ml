@@ -1,11 +1,11 @@
 module SyntaxHighlight = SyntaxHighlight
 
-module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
-  include Interpreter.Make (ResourceGrade)
+module Make (GS : Language.GradeSystem.S) = struct
+  include Interpreter.Make (GS)
   open Vdom
   module Ast = Language.Ast
   module PrettyPrint = Language.PrettyPrint
-  module RS = RedexSelectorTM.Make (ResourceGrade)
+  module RS = RedexSelectorTM.Make (GS)
 
   (* Renders the interpreter state with markers around binding-position
      resource names so the syntax highlighter colors only those (and not

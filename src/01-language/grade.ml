@@ -4,7 +4,7 @@ type lit =
   | Pair of int * int
       (** A pair of integers, e.g. [(1, 5)] for interval grades *)
 
-module type Grade = sig
+module type S = sig
   type t
 
   val name : string
@@ -29,7 +29,7 @@ module type Grade = sig
   val show : t -> string
 end
 
-module TimeLowerBoundGrade : Grade = struct
+module TimeLowerBoundGrade : S = struct
   type t = int
 
   let name = "time-lower-bound"
@@ -58,7 +58,7 @@ module TimeLowerBoundGrade : Grade = struct
   let show = string_of_int
 end
 
-module TimeUpperBoundGrade : Grade = struct
+module TimeUpperBoundGrade : S = struct
   type t = int
 
   let name = "time-upper-bound"
@@ -87,7 +87,7 @@ module TimeUpperBoundGrade : Grade = struct
   let show = string_of_int
 end
 
-module IntervalResourceGrade : Grade = struct
+module IntervalResourceGrade : S = struct
   type t = int * int
 
   let name = "time-interval"
@@ -117,13 +117,3 @@ module IntervalResourceGrade : Grade = struct
 
   let show (n, m) = "(" ^ string_of_int n ^ "," ^ string_of_int m ^ ")"
 end
-
-(** All available resource modules, in order of definition. The accepted
-    resource names for the [resources] declaration are taken from the [name]
-    fields of these modules. *)
-let resource_grade_modules : (string * (module Grade)) list =
-  [
-    (TimeLowerBoundGrade.name, (module TimeLowerBoundGrade));
-    (TimeUpperBoundGrade.name, (module TimeUpperBoundGrade));
-    (IntervalResourceGrade.name, (module IntervalResourceGrade));
-  ]
