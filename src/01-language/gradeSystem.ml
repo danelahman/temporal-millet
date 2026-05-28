@@ -17,8 +17,8 @@ module TimeUpperBoundSystem : S = struct
   module ResourceGrade = Grade.TimeUpperBoundGrade
 end
 
-module IntervalSystem : S = struct
-  module ResourceGrade = Grade.IntervalResourceGrade
+module TimeIntervalSystem : S = struct
+  module ResourceGrade = Grade.TimeIntervalGrade
 end
 
 (** All available grade systems, in order of definition. The accepted names
@@ -28,5 +28,5 @@ let grade_systems : (string * (module S)) list =
   [
     (TimeLowerBoundSystem.ResourceGrade.name, (module TimeLowerBoundSystem : S));
     (TimeUpperBoundSystem.ResourceGrade.name, (module TimeUpperBoundSystem : S));
-    (IntervalSystem.ResourceGrade.name, (module IntervalSystem : S));
+    (TimeIntervalSystem.ResourceGrade.name, (module TimeIntervalSystem : S));
   ]

@@ -87,7 +87,7 @@ module TimeUpperBoundGrade : S = struct
   let show = string_of_int
 end
 
-module IntervalResourceGrade : S = struct
+module TimeIntervalGrade : S = struct
   type t = int * int
 
   let name = "time-interval"
@@ -102,17 +102,17 @@ module IntervalResourceGrade : S = struct
   let is_zero_top_sub_rho = false
 
   let of_lit = function
-    | Int _ -> invalid_arg "IntervalResourceGrade.of_lit: pair literal expected"
+    | Int _ -> invalid_arg "TimeIntervalGrade.of_lit: pair literal expected"
     | Pair (n, m) ->
         if n < 0 then
-          invalid_arg "IntervalResourceGrade.of_lit: interval endpoint negative"
+          invalid_arg "TimeIntervalGrade.of_lit: interval endpoint negative"
         else if n > m then
-          invalid_arg "IntervalResourceGrade.of_lit: non-well-formed interval"
+          invalid_arg "TimeIntervalGrade.of_lit: non-well-formed interval"
         else (n, m)
 
   let of_nat n =
     if n < 0 then
-      invalid_arg "IntervalResourceGrade.of_nat: expected non-negative integer"
+      invalid_arg "TimeIntervalGrade.of_nat: expected non-negative integer"
     else (n, n)
 
   let show (n, m) = "(" ^ string_of_int n ^ "," ^ string_of_int m ^ ")"
