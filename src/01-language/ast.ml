@@ -38,16 +38,7 @@ let nil_label = Label.fresh nil_label_string
 let cons_label_string = "$cons$"
 let cons_label = Label.fresh cons_label_string
 
-(** The grade-dependent AST. [Make] is parameterised by a whole grade system
-    rather than just by the type of resource grade constants, so that the types
-    can refer to both [GS.ResourceGrade.t] and (in the future)
-    [GS.EffectGrade.t] constants. The grade-independent definitions above
-    (symbol modules, type names, the built-in [*_ty_name] constants, …) live
-    outside the functor and are re-exported below so that they keep a single
-    shared identity across all grade-system instantiations. *)
 module Make (GS : GradeSystem.S) = struct
-  (* Re-export the grade-independent definitions so that a single
-     [module Ast = Language.Ast.Make (GS)] gives access to the whole AST. *)
   module Symbol = Symbol
   module Variable = Variable
   module VariableMap = VariableMap
