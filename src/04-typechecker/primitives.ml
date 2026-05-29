@@ -1,10 +1,10 @@
-module Ast = Language.Ast
 module Context = Language.Context
 module Const = Language.Const
 module Primitives = Language.Primitives
 
 module Make (GS : Language.GradeSystem.S) = struct
   module ResourceGrade = GS.ResourceGrade
+  module Ast = Language.Ast.Make (GS)
 
   let poly_type ty =
     let a = Ast.TyParamModule.fresh "poly" in

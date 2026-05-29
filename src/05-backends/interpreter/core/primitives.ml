@@ -1,29 +1,27 @@
 module Error = Utils.Error
-module Ast = Language.Ast
 module Const = Language.Const
 module Primitives = Language.Primitives
 module PrettyPrint = Language.PrettyPrint
 
 module Make (GS : Language.GradeSystem.S) = struct
   module ResourceGrade = GS.ResourceGrade
+  module Ast = Language.Ast.Make (GS)
+  module PP = PrettyPrint.Make (GS)
 
   let binary_function f = function
     | Ast.Tuple [ expr1; expr2 ] -> f expr1 expr2
     | expr ->
-        Error.runtime "Pair expected but got %t"
-          (PrettyPrint.print_expression (module ResourceGrade) expr)
+        Error.runtime "Pair expected but got %t" (PP.print_expression expr)
 
   let get_int = function
     | Ast.Const (Const.Integer n) -> n
     | expr ->
-        Error.runtime "Integer expected but got %t"
-          (PrettyPrint.print_expression (module ResourceGrade) expr)
+        Error.runtime "Integer expected but got %t" (PP.print_expression expr)
 
   let get_float = function
     | Ast.Const (Const.Float n) -> n
     | expr ->
-        Error.runtime "Float expected but got %t"
-          (PrettyPrint.print_expression (module ResourceGrade) expr)
+        Error.runtime "Float expected but got %t" (PP.print_expression expr)
 
   let int_to f expr =
     let n = get_int expr in
@@ -82,14 +80,10 @@ module Make (GS : Language.GradeSystem.S) = struct
     binary_function (fun e1 e2 ->
         if not (comparable_expression e1) then
           Error.runtime "Incomparable expression %t"
-            (PrettyPrint.print_expression
-               (module ResourceGrade)
-               ~max_level:0 e1)
+            (PP.print_expression ~max_level:0 e1)
         else if not (comparable_expression e2) then
           Error.runtime "Incomparable expression %t"
-            (PrettyPrint.print_expression
-               (module ResourceGrade)
-               ~max_level:0 e2)
+            (PP.print_expression ~max_level:0 e2)
         else Ast.Return (Ast.Const (Const.Boolean (f e1 e2))))
 
   let primitive_function = function
@@ -113,8 +107,5 @@ module Make (GS : Language.GradeSystem.S) = struct
     | Primitives.FloatNeg -> float_to_float ( ~-. )
     | Primitives.ToString ->
         fun expr ->
-          Ast.Return
-            (Ast.Const
-               (Const.String
-                  (PrettyPrint.string_of_expression (module ResourceGrade) expr)))
+          Ast.Return (Ast.Const (Const.String (PP.string_of_expression expr)))
 end

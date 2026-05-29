@@ -1,21 +1,5 @@
 module Error = Utils.Error
-module Ast = Language.Ast
 module PrettyPrint = Language.PrettyPrint
-
-let user_defined_variables ~stdlib_vars ~final_vars =
-  let in_stdlib var =
-    List.exists
-      (function
-        | Ast.VarMap m -> Ast.VariableMap.mem var m
-        | Ast.ResourceGrade _ -> false)
-      stdlib_vars
-  in
-  List.map
-    (function
-      | Ast.VarMap m ->
-          Ast.VarMap (Ast.VariableMap.filter (fun k _ -> not (in_stdlib k)) m)
-      | Ast.ResourceGrade _ as r -> r)
-    final_vars
 
 type config = {
   filenames : string list;
@@ -63,7 +47,23 @@ let parse_args_to_config () =
 let run_with (module GS : Language.GradeSystem.S) config =
   let module Backend = CliInterpreter.Make (GS) in
   let module Loader = Loader.Loader (Backend) in
-  let module ResourceGrade = GS.ResourceGrade in
+  let module Ast = Language.Ast.Make (Backend.GradeSystem) in
+  let module PP = PrettyPrint.Make (Backend.GradeSystem) in
+  let user_defined_variables ~stdlib_vars ~final_vars =
+    let in_stdlib var =
+      List.exists
+        (function
+          | Ast.VarMap m -> Ast.VariableMap.mem var m
+          | Ast.ResourceGrade _ -> false)
+        stdlib_vars
+    in
+    List.map
+      (function
+        | Ast.VarMap m ->
+            Ast.VarMap (Ast.VariableMap.filter (fun k _ -> not (in_stdlib k)) m)
+        | Ast.ResourceGrade _ as r -> r)
+      final_vars
+  in
   let rec run (state : Backend.run_state) run_num =
     let printed = Backend.view_run_state state ~run_num in
     let next_run_num = if printed then run_num + 1 else run_num in
@@ -90,9 +90,7 @@ let run_with (module GS : Language.GradeSystem.S) config =
       if config.use_stdlib then begin
         print_endline "=== Standard library ===";
         print_string
-          (PrettyPrint.string_of_variable_context
-             (module ResourceGrade)
-             stdlib_state.typechecker.variables);
+          (PP.string_of_variable_context stdlib_state.typechecker.variables);
         print_newline ()
       end;
       print_endline "=== Top-level definitions ===";
@@ -100,10 +98,7 @@ let run_with (module GS : Language.GradeSystem.S) config =
         user_defined_variables ~stdlib_vars:stdlib_state.typechecker.variables
           ~final_vars:state'.typechecker.variables
       in
-      print_string
-        (PrettyPrint.string_of_variable_context
-           (module ResourceGrade)
-           user_vars);
+      print_string (PP.string_of_variable_context user_vars);
       print_newline ()
     end;
     run run_state 1

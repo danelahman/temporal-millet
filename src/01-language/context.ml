@@ -1,4 +1,3 @@
-open Ast
 open Exception
 module Error = Utils.Error
 module Symbol = Utils.Symbol
@@ -6,35 +5,39 @@ module Symbol = Utils.Symbol
 module type S = sig
   type var
   type base
+  type resource_grade
   type 'a map_or_resource_grade
   type 'a t
 
   val empty : 'a t
-  val add_temp : base resource_grade -> 'a t -> 'a t
+  val add_temp : resource_grade -> 'a t -> 'a t
   val add_variable : var -> 'a -> 'a t -> 'a t
   val find_variable : var -> 'a t -> 'a
   val find_variable_opt : var -> 'a t -> 'a option
-  val abstract_resource_grade_sum : 'a t -> base resource_grade
-  val eval_resource_grade : base resource_grade -> base
+  val abstract_resource_grade_sum : 'a t -> resource_grade
+  val eval_resource_grade : resource_grade -> base
 end
 
-module Make
-    (Variable : Symbol.S)
-    (VariableMap : Map.S with type key = Variable.t)
-    (Base : Grade.S) =
-struct
+module Make (GS : GradeSystem.S) = struct
+  module Ast = Ast.Make (GS)
+  module Base = GS.ResourceGrade
+  module Variable = Ast.Variable
+  module VariableMap = Ast.VariableMap
+  open Ast
+
   type var = Variable.t
   type base = Base.t
-  type base_resource_grade = base resource_grade
+  type resource_grade = Ast.resource_grade
+  type base_resource_grade = Ast.resource_grade
 
   type 'a map_or_resource_grade =
-    (var, 'a VariableMap.t, base_resource_grade) context_elem_ty
+    (var, 'a VariableMap.t, resource_grade) context_elem_ty
 
-  type 'a t = (var, 'a VariableMap.t, base_resource_grade) context
+  type 'a t = (var, 'a VariableMap.t, resource_grade) context
 
   let empty : 'a t = []
 
-  let add_temp (n : base_resource_grade) (lst : 'a t) : 'a t =
+  let add_temp (n : resource_grade) (lst : 'a t) : 'a t =
     match n with
     | ResourceGradeConst z when z = Base.zero -> lst
     | _ -> ResourceGrade n :: lst
@@ -71,20 +74,20 @@ struct
     in
     find lst
 
-  let sum_resource_grades_added_after (key : var) (lst : 'a t) :
-      base_resource_grade =
+  let sum_resource_grades_added_after (key : var) (lst : 'a t) : resource_grade
+      =
     let rec go acc = function
       | [] ->
           raise (VariableNotFound (Format.asprintf "%t" (Variable.print key)))
-      | ResourceGrade t :: rest -> go (Ast.ResourceGradeAdd (acc, t)) rest
+      | ResourceGrade t :: rest -> go (ResourceGradeAdd (acc, t)) rest
       | VarMap map :: rest -> (
           match VariableMap.find_opt key map with
           | Some _ -> acc
           | None -> go acc rest)
     in
-    go (Ast.ResourceGradeConst Base.zero) lst
+    go (ResourceGradeConst Base.zero) lst
 
-  let abstract_resource_grade_sum (lst : 'a t) : base_resource_grade =
+  let abstract_resource_grade_sum (lst : 'a t) : resource_grade =
     let rec sum acc = function
       | [] -> acc
       | ResourceGrade t :: rest -> sum (ResourceGradeAdd (acc, t)) rest
@@ -92,7 +95,7 @@ struct
     in
     sum (ResourceGradeConst Base.zero) lst
 
-  let rec eval_resource_grade (t : base_resource_grade) : base =
+  let rec eval_resource_grade (t : resource_grade) : base =
     match t with
     | ResourceGradeConst c -> c
     | ResourceGradeParam _ ->

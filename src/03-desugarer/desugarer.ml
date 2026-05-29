@@ -3,13 +3,13 @@
 module Error = Utils.Error
 module List = Utils.List
 module Sugared = Parser.SugaredAst
-module Untyped = Language.Ast
 module Context = Language.Context
 module Const = Language.Const
 module StringMap = Map.Make (String)
 
 module Make (GS : Language.GradeSystem.S) = struct
   module ResourceGrade = GS.ResourceGrade
+  module Untyped = Language.Ast.Make (GS)
 
   let add_unique ~loc kind str symb string_map =
     StringMap.update str

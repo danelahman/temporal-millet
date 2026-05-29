@@ -9,29 +9,29 @@ module type S = sig
   type evaluation_environment = {
     state :
       ( Ast.Variable.t,
-        (GradeSystem.ResourceGrade.t Ast.resource_grade
-        * GradeSystem.ResourceGrade.t Ast.expression)
+        (Language.Ast.Make(GradeSystem).resource_grade
+        * Language.Ast.Make(GradeSystem).expression)
         Ast.VariableMap.t,
-        GradeSystem.ResourceGrade.t Ast.resource_grade )
-      Ast.context_elem_ty
+        Language.Ast.Make(GradeSystem).resource_grade )
+      Language.Ast.Make(GradeSystem).context_elem_ty
       list;
     variables :
       ( Ast.Variable.t,
-        GradeSystem.ResourceGrade.t Ast.expression Ast.VariableMap.t,
-        GradeSystem.ResourceGrade.t Ast.resource_grade )
-      Ast.context_elem_ty
+        Language.Ast.Make(GradeSystem).expression Ast.VariableMap.t,
+        Language.Ast.Make(GradeSystem).resource_grade )
+      Language.Ast.Make(GradeSystem).context_elem_ty
       list;
     builtin_functions :
       ( Ast.Variable.t,
-        (GradeSystem.ResourceGrade.t Ast.expression ->
-        GradeSystem.ResourceGrade.t Ast.computation)
+        (Language.Ast.Make(GradeSystem).expression ->
+        Language.Ast.Make(GradeSystem).computation)
         Ast.VariableMap.t,
-        GradeSystem.ResourceGrade.t Ast.resource_grade )
-      Ast.context_elem_ty
+        Language.Ast.Make(GradeSystem).resource_grade )
+      Language.Ast.Make(GradeSystem).context_elem_ty
       list;
     resource_counter : int;
     op_signatures :
-      GradeSystem.ResourceGrade.t Ast.resource_grade Ast.OpNameMap.t;
+      Language.Ast.Make(GradeSystem).resource_grade Ast.OpNameMap.t;
   }
 
   val initial_load_state : load_state
@@ -41,23 +41,23 @@ module type S = sig
 
   val load_ty_def :
     load_state ->
-    (Ast.ty_param list * Ast.ty_name * GradeSystem.ResourceGrade.t Ast.ty_def)
+    (Ast.ty_param list * Ast.ty_name * Language.Ast.Make(GradeSystem).ty_def)
     list ->
     load_state
 
   val load_top_let :
     load_state ->
     Ast.variable ->
-    GradeSystem.ResourceGrade.t Ast.expression ->
+    Language.Ast.Make(GradeSystem).expression ->
     load_state
 
   val load_top_do :
-    load_state -> GradeSystem.ResourceGrade.t Ast.computation -> load_state
+    load_state -> Language.Ast.Make(GradeSystem).computation -> load_state
 
   val load_op_sig :
     load_state ->
     Ast.OpName.t ->
-    GradeSystem.ResourceGrade.t Ast.resource_grade ->
+    Language.Ast.Make(GradeSystem).resource_grade ->
     load_state
 
   type run_state

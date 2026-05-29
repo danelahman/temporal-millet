@@ -1,10 +1,9 @@
 module Location = Utils.Location
 module Error = Utils.Error
 module List = Utils.List
-module Ast = Language.Ast
-open Backend
 
 module Loader (Backend : Backend.S) = struct
+  module Ast = Language.Ast.Make (Backend.GradeSystem)
   module D = Desugarer.Make (Backend.GradeSystem)
   module TC = Typechecker.Make (Backend.GradeSystem)
   module G = Parser.Grammar.Make (Backend.GradeSystem.ResourceGrade)

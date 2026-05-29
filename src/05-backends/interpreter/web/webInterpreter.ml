@@ -1,11 +1,10 @@
 module SyntaxHighlight = SyntaxHighlight
 
 module Make (GS : Language.GradeSystem.S) = struct
-  include Interpreter.Make (GS)
-  open Vdom
-  module Ast = Language.Ast
-  module PrettyPrint = Language.PrettyPrint
   module RS = RedexSelectorTM.Make (GS)
+  include RS.I
+  open Vdom
+  module PrettyPrint = Language.PrettyPrint
 
   (* Renders the interpreter state with markers around binding-position
      resource names so the syntax highlighter colors only those (and not
@@ -31,14 +30,11 @@ module Make (GS : Language.GradeSystem.S) = struct
       let surround ppf = if is_active variable then active_mark ppf in
       Format.fprintf ppf "%t@[<hv 2>%t%t%t ↦@ %t@ # %t@]%t" surround label_mark
         (Ast.Variable.print variable)
-        label_mark
-        (PrettyPrint.print_expression (module ResourceGrade) expr)
-        (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho)
+        label_mark (PP.print_expression expr)
+        (PP.print_resource_grade rho_pp rho)
         surround
     in
-    PrettyPrint.print_vars_and_exprs
-      (module ResourceGrade)
-      print_var_and_expr state Format.str_formatter;
+    PP.print_vars_and_exprs print_var_and_expr state Format.str_formatter;
     Format.flush_str_formatter ()
 
   (* If the redex at the head of [red] is an [Unbox] applied to a variable,

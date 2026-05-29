@@ -1,5 +1,4 @@
 module Error = Utils.Error
-module Ast = Language.Ast
 module Const = Language.Const
 module Context = Language.Context
 module Exception = Language.Exception
@@ -7,28 +6,19 @@ module PrettyPrint = Language.PrettyPrint
 
 module Make (GS : Language.GradeSystem.S) = struct
   module ResourceGrade = GS.ResourceGrade
-
-  module ContextHolderModule =
-    Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (ResourceGrade)
-
+  module Ast = Language.Ast.Make (GS)
+  module PP = PrettyPrint.Make (GS)
+  module ContextHolderModule = Context.Make (GS)
   module P = Primitives.Make (GS)
 
   type var_type = Global | Local
 
   type state = {
     variables :
-      (Ast.ty_param list
-      * Ast.resource_grade_param list
-      * ResourceGrade.t Ast.ty
-      * var_type)
+      (Ast.ty_param list * Ast.resource_grade_param list * Ast.ty * var_type)
       ContextHolderModule.t;
-    type_definitions :
-      (Ast.ty_param list * ResourceGrade.t Ast.ty_def) Ast.TyNameMap.t;
-    op_signatures :
-      (ResourceGrade.t Ast.ty
-      * ResourceGrade.t Ast.ty
-      * ResourceGrade.t Ast.resource_grade)
-      Ast.OpNameMap.t;
+    type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
+    op_signatures : (Ast.ty * Ast.ty * Ast.resource_grade) Ast.OpNameMap.t;
   }
 
   let initial_state =
@@ -66,8 +56,8 @@ module Make (GS : Language.GradeSystem.S) = struct
 
   let print_type_constraint t1 t2 ty_pp rho_pp =
     Format.printf "TypeConstraint(%t = %t)"
-      (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp t1)
-      (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp t2)
+      (PP.print_ty ty_pp rho_pp t1)
+      (PP.print_ty ty_pp rho_pp t2)
 
   let print_one_type_constraint t1 t2 =
     let ty_pp = PrettyPrint.TyPrintParam.create () in
@@ -76,8 +66,8 @@ module Make (GS : Language.GradeSystem.S) = struct
 
   let print_resource_grade_constraint rho1 rho2 rho_pp =
     Format.printf "ResourceGradeConstraint(%t = %t)"
-      (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho1)
-      (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho2)
+      (PP.print_resource_grade rho_pp rho1)
+      (PP.print_resource_grade rho_pp rho2)
 
   let print_one_resource_grade_constraint rho1 rho2 =
     let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
@@ -85,9 +75,9 @@ module Make (GS : Language.GradeSystem.S) = struct
 
   let print_resource_grade_geq rho1 rho2 rho_pp =
     Format.printf "ResourceGradeGeq(%t %s %t)"
-      (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho1)
+      (PP.print_resource_grade rho_pp rho1)
       ResourceGrade.is_sub_resource_grade_symbol
-      (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho2)
+      (PP.print_resource_grade rho_pp rho2)
 
   let print_one_resource_grade_geq rho1 rho2 =
     let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
@@ -95,7 +85,7 @@ module Make (GS : Language.GradeSystem.S) = struct
 
   let print_fresh_resource_grade_constraint rho rho_pp =
     Format.printf "FreshResourceGradeConstraint(%t)"
-      (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho)
+      (PP.print_resource_grade rho_pp rho)
 
   let print_one_fresh_resource_grade_constraint rho =
     let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
@@ -129,13 +119,9 @@ module Make (GS : Language.GradeSystem.S) = struct
     print_resource_grade_eq_constraints_pp rho_pp constraints
 
   type ineq_constraint =
-    | Ineq of
-        ContextHolderModule.base_resource_grade
-        * ResourceGrade.t Ast.resource_grade
+    | Ineq of ContextHolderModule.base_resource_grade * Ast.resource_grade
     | EternalOrIneq of
-        ResourceGrade.t Ast.ty
-        * ContextHolderModule.base_resource_grade
-        * ResourceGrade.t Ast.resource_grade
+        Ast.ty * ContextHolderModule.base_resource_grade * Ast.resource_grade
 
   let print_resource_grade_ineq_constraints_pp rho_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
@@ -147,14 +133,10 @@ module Make (GS : Language.GradeSystem.S) = struct
            | EternalOrIneq (ty, rho1, rho2) ->
                let ty_pp = PrettyPrint.TyPrintParam.create () in
                Format.printf "%t ∨ (%t %s %t)"
-                 (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
-                 (PrettyPrint.print_resource_grade
-                    (module ResourceGrade)
-                    rho_pp rho1)
+                 (PP.print_ty ty_pp rho_pp ty)
+                 (PP.print_resource_grade rho_pp rho1)
                  ResourceGrade.is_sub_resource_grade_symbol
-                 (PrettyPrint.print_resource_grade
-                    (module ResourceGrade)
-                    rho_pp rho2)))
+                 (PP.print_resource_grade rho_pp rho2)))
       constraints
 
   let print_resource_grade_ineq_constraints constraints =
@@ -324,11 +306,9 @@ module Make (GS : Language.GradeSystem.S) = struct
           | Global -> []
         in
         (* Format.fprintf Format.std_formatter "\n";
-        PrettyPrint.print_expression
-          (module ResourceGrade)
+        PP.print_expression
           (Ast.Var x) Format.std_formatter;
-        PrettyPrint.print_resource_grade
-          (module ResourceGrade)
+        PP.print_resource_grade
           (PrettyPrint.ResourceGradePrintParam.create ())
           sum_resource_grades_added_after Format.std_formatter;
         Format.fprintf Format.std_formatter "\n"; *)
@@ -834,8 +814,8 @@ module Make (GS : Language.GradeSystem.S) = struct
         let ty_pp = PrettyPrint.TyPrintParam.create () in
         let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
         Error.typing "Cannot unify types %t = %t"
-          (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp t1)
-          (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp t2)
+          (PP.print_ty ty_pp rho_pp t1)
+          (PP.print_ty ty_pp rho_pp t2)
 
   let rec unify_resource_grade_constraints state prev_unsolved_size unsolved =
     function
@@ -1058,7 +1038,7 @@ module Make (GS : Language.GradeSystem.S) = struct
       in
       let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
       let print_resource_grade rho ppf =
-        PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho ppf
+        PP.print_resource_grade rho_pp rho ppf
       in
       try
         let rho_greater_or_equal_val =
@@ -1089,7 +1069,7 @@ module Make (GS : Language.GradeSystem.S) = struct
               let ty_pp = PrettyPrint.TyPrintParam.create () in
               Error.typing
                 "Type %t is not eternal and resource inequality %t %s %t failed"
-                (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
+                (PP.print_ty ty_pp rho_pp ty)
                 (print_resource_grade rho_smaller_simplified)
                 ResourceGrade.is_sub_resource_grade_symbol
                 (print_resource_grade rho_greater_or_equal_simplified)
@@ -1106,7 +1086,7 @@ module Make (GS : Language.GradeSystem.S) = struct
               Error.typing
                 "Type %t is not eternal and cannot compare non-ground resource \
                  values %t and %t"
-                (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
+                (PP.print_ty ty_pp rho_pp ty)
                 (print_resource_grade rho_smaller_simplified)
                 (print_resource_grade rho_greater_or_equal_simplified)
           | None ->
@@ -1132,8 +1112,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         | _ ->
             Error.typing "ResourceGrade grade is not in abstract form %t"
               (fun ppf ->
-                PrettyPrint.print_resource_grade
-                  (module ResourceGrade)
+                PP.print_resource_grade
                   (PrettyPrint.ResourceGradePrintParam.create ())
                   rho ppf))
 
@@ -1191,7 +1170,7 @@ module Make (GS : Language.GradeSystem.S) = struct
 
   let add_top_definition state x e =
     (* Format.fprintf Format.std_formatter "\n";
-    PrettyPrint.print_expression (module ResourceGrade) e Format.std_formatter;
+    PP.print_expression e Format.std_formatter;
     Format.fprintf Format.std_formatter "\n"; *)
     let ty, ty_eqs, rho_eqs, rho_ineqs, rho_abs = infer_expression state e in
     let ty_subst, rho_subst = unify state ty_eqs rho_eqs rho_ineqs rho_abs in

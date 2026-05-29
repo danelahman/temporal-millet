@@ -16,5 +16,5 @@ module Make (GS : Language.GradeSystem.S) : sig
   val desugar_command :
     state ->
     GS.ResourceGrade.t Parser.SugaredAst.command ->
-    state * GS.ResourceGrade.t Language.Ast.command
+    state * Language.Ast.Make(GS).command
 end

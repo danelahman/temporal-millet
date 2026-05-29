@@ -1,5 +1,4 @@
 module Error = Utils.Error
-module Ast = Language.Ast
 module Const = Language.Const
 module Context = Language.Context
 module PrettyPrint = Language.PrettyPrint
@@ -24,26 +23,24 @@ module Types = struct
   type step_label = ComputationReduction of computation_reduction | Return
 end
 
+exception PatternMismatch
+
 module Make (GS : Language.GradeSystem.S) = struct
   module GradeSystem = GS
-  module ResourceGrade = GS.ResourceGrade
-
-  module ContextHolderModule =
-    Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (ResourceGrade)
-
-  module P = Primitives.Make (GS)
+  module ResourceGrade = GradeSystem.ResourceGrade
+  module Ast = Language.Ast.Make (GradeSystem)
+  module PP = PrettyPrint.Make (GradeSystem)
+  module ContextHolderModule = Context.Make (GradeSystem)
+  module P = Primitives.Make (GradeSystem)
   include Types
 
   type evaluation_environment = {
-    state :
-      (ResourceGrade.t Ast.resource_grade * ResourceGrade.t Ast.expression)
-      ContextHolderModule.t;
-    variables : ResourceGrade.t Ast.expression ContextHolderModule.t;
+    state : (Ast.resource_grade * Ast.expression) ContextHolderModule.t;
+    variables : Ast.expression ContextHolderModule.t;
     builtin_functions :
-      (ResourceGrade.t Ast.expression -> ResourceGrade.t Ast.computation)
-      ContextHolderModule.t;
+      (Ast.expression -> Ast.computation) ContextHolderModule.t;
     resource_counter : int;
-    op_signatures : ResourceGrade.t Ast.resource_grade Ast.OpNameMap.t;
+    op_signatures : Ast.resource_grade Ast.OpNameMap.t;
   }
 
   let initial_environment =
@@ -55,31 +52,26 @@ module Make (GS : Language.GradeSystem.S) = struct
       op_signatures = Ast.OpNameMap.empty;
     }
 
-  exception PatternMismatch
-
   let rec eval_tuple (env : evaluation_environment) = function
     | Ast.Tuple exprs -> exprs
     | Ast.Var x ->
         eval_tuple env (ContextHolderModule.find_variable x env.variables)
     | expr ->
-        Error.runtime "Tuple expected but got %t"
-          (PrettyPrint.print_expression (module ResourceGrade) expr)
+        Error.runtime "Tuple expected but got %t" (PP.print_expression expr)
 
   let rec eval_variant (env : evaluation_environment) = function
     | Ast.Variant (lbl, expr) -> (lbl, expr)
     | Ast.Var x ->
         eval_variant env (ContextHolderModule.find_variable x env.variables)
     | expr ->
-        Error.runtime "Variant expected but got %t"
-          (PrettyPrint.print_expression (module ResourceGrade) expr)
+        Error.runtime "Variant expected but got %t" (PP.print_expression expr)
 
   let rec eval_const (env : evaluation_environment) = function
     | Ast.Const c -> c
     | Ast.Var x ->
         eval_const env (ContextHolderModule.find_variable x env.variables)
     | expr ->
-        Error.runtime "Const expected but got %t"
-          (PrettyPrint.print_expression (module ResourceGrade) expr)
+        Error.runtime "Const expected but got %t" (PP.print_expression expr)
 
   let rec match_pattern_with_expression env pat expr =
     match pat with
@@ -277,8 +269,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         | Some expr -> eval_function env expr
         | None -> ContextHolderModule.find_variable x env.builtin_functions)
     | expr ->
-        Error.runtime "Function expected but got %t"
-          (PrettyPrint.print_expression (module ResourceGrade) expr)
+        Error.runtime "Function expected but got %t" (PP.print_expression expr)
 
   let rec eval_handler env = function
     | Ast.Handler (ret_case, op_cases) -> (ret_case, op_cases)
@@ -289,8 +280,7 @@ module Make (GS : Language.GradeSystem.S) = struct
             Error.runtime
               "Handler expected but did not find it from environment")
     | expr ->
-        Error.runtime "Handler expected but got %t"
-          (PrettyPrint.print_expression (module ResourceGrade) expr)
+        Error.runtime "Handler expected but got %t" (PP.print_expression expr)
 
   let step_in_context step env redCtx ctx term =
     let terms' = step env term in
@@ -379,7 +369,7 @@ module Make (GS : Language.GradeSystem.S) = struct
           | Ast.PAnnotated (pat', _) -> doBox rho expr pat' comp
           | _ ->
               Error.runtime "Box expected a variable but got pattern %t"
-                (PrettyPrint.print_pattern pat)
+                (PP.print_pattern pat)
         in
         doBox rho expr pat comp
     | Ast.Unbox (expr, (pat, comp)) ->
@@ -394,7 +384,7 @@ module Make (GS : Language.GradeSystem.S) = struct
           | Ast.Annotated (expr', _) -> doUnbox expr' pat comp
           | _ ->
               Error.runtime "Unbox expected a variable but got expression %t"
-                (PrettyPrint.print_expression (module ResourceGrade) expr)
+                (PP.print_expression expr)
         in
         doUnbox expr pat comp
     | Ast.Perform _ -> []
@@ -462,7 +452,7 @@ module Make (GS : Language.GradeSystem.S) = struct
 
   type load_state = {
     environment : evaluation_environment;
-    computations : ResourceGrade.t Ast.computation list;
+    computations : Ast.computation list;
   }
 
   let initial_load_state =
