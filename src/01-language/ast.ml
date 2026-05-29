@@ -19,6 +19,12 @@ module Common = struct
 
   type ty_param = TyParam.t
 
+  module EffectGradeParam = Symbol.Make ()
+  module EffectGradeParamMap = Map.Make (EffectGradeParam)
+  module EffectGradeParamSet = Set.Make (EffectGradeParam)
+
+  type effect_grade_param = EffectGradeParam.t
+
   module ResourceGradeParam = Symbol.Make ()
   module ResourceGradeParamMap = Map.Make (ResourceGradeParam)
   module ResourceGradeParamSet = Set.Make (ResourceGradeParam)
@@ -49,6 +55,11 @@ include Common
 
 module Make (GS : GradeSystem.S) = struct
   include Common
+
+  type effect_grade =
+    | EffectGradeConst of GS.ResourceGrade.t
+    | EffectGradeParam of effect_grade_param
+    | EffectGradeAdd of effect_grade * effect_grade
 
   type resource_grade =
     | ResourceGradeConst of GS.ResourceGrade.t
@@ -108,12 +119,11 @@ module Make (GS : GradeSystem.S) = struct
     | TopDo of computation
     | Grades of string
 
-  type ('var, 'map, 'resource_grade) context_elem_ty =
-    | VarMap of 'map
-    | ResourceGrade of 'resource_grade
+  type 'a context_elem_ty =
+    | VarMap of 'a VariableMap.t
+    | ResourceGrade of resource_grade
 
-  type ('var, 'map, 'resource_grade) context =
-    ('var, 'map, 'resource_grade) context_elem_ty list
+  type 'a context = 'a context_elem_ty list
 
   let rec substitute_resource_grade subst = function
     | ResourceGradeConst _ as rho -> rho

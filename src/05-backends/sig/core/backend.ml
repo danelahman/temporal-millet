@@ -7,24 +7,10 @@ module type S = sig
   type load_state
 
   type evaluation_environment = {
-    state :
-      ( Ast.Variable.t,
-        (Ast.resource_grade * Ast.expression) Ast.VariableMap.t,
-        Ast.resource_grade )
-      Ast.context_elem_ty
-      list;
-    variables :
-      ( Ast.Variable.t,
-        Ast.expression Ast.VariableMap.t,
-        Ast.resource_grade )
-      Ast.context_elem_ty
-      list;
+    state : (Ast.resource_grade * Ast.expression) Ast.context_elem_ty list;
+    variables : Ast.expression Ast.context_elem_ty list;
     builtin_functions :
-      ( Ast.Variable.t,
-        (Ast.expression -> Ast.computation) Ast.VariableMap.t,
-        Ast.resource_grade )
-      Ast.context_elem_ty
-      list;
+      (Ast.expression -> Ast.computation) Ast.context_elem_ty list;
     resource_counter : int;
     op_signatures : Ast.resource_grade Ast.OpNameMap.t;
   }

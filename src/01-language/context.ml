@@ -29,11 +29,8 @@ module Make (GS : GradeSystem.S) = struct
   type base = Base.t
   type resource_grade = Ast.resource_grade
   type base_resource_grade = Ast.resource_grade
-
-  type 'a map_or_resource_grade =
-    (var, 'a VariableMap.t, resource_grade) context_elem_ty
-
-  type 'a t = (var, 'a VariableMap.t, resource_grade) context
+  type 'a map_or_resource_grade = 'a context_elem_ty
+  type 'a t = 'a context
 
   let empty : 'a t = []
 

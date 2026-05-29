@@ -299,8 +299,8 @@ module Make (GS : GradeSystem.S) = struct
     in
     print_list (List.rev lst)
 
-  let print_vars_and_exprs print_var_and_expr
-      (lst : (_, _, _) Ast.context_elem_ty list) ppf =
+  let print_vars_and_exprs print_var_and_expr (lst : _ Ast.context_elem_ty list)
+      ppf =
     let print_var_map map ppf =
       let elements = VariableMap.bindings map in
       Format.fprintf ppf "@[<hv 2>{ ";
