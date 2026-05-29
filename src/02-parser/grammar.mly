@@ -63,7 +63,7 @@ command: mark_position(plain_command) { $1 }
 plain_command:
   | TYPE defs = separated_nonempty_list(AND, ty_def)
     { TyDef defs }
-  | OPERATION op = UNAME COLON ty1 = ty SIGARROW ty2 = ty HASH grade = rho_grade
+  | OPERATION op = UNAME COLON ty1 = ty SIGARROW ty2 = ty HASH grade = resource_grade
     { OpSig (op, ty1, ty2, grade) }
   | LET x = ident t = lambdas0(EQUAL)
     { TopLet (x, t) }
@@ -104,9 +104,9 @@ plain_term:
     { Conditional (t_cond, t_true, t_false) }
   | DELAY grade = INT
     { Delay grade }
-  | BOX grade = rho_grade e = term AS p = pattern IN c = term
+  | BOX grade = resource_grade e = term AS p = pattern IN c = term
     { Box (grade, e, (p, c)) }
-  | BOX grade = rho_grade e = term
+  | BOX grade = resource_grade e = term
     { GenBox (grade, e) }
   | UNBOX e = term AS p = pattern IN c = term
     { Unbox (e, (p, c)) }
@@ -413,7 +413,7 @@ defined_ty:
 
 ty: mark_position(plain_ty) { $1 }
 plain_ty:
-  | t1 = ty_apply ARROW t2 = ty HASH grade = rho_grade
+  | t1 = ty_apply ARROW t2 = ty HASH grade = resource_grade
     { TyArrow (t1, CompTy (t2, grade)) }
   | t1 = ty_apply ARROW t2 = ty
     { TyArrow (t1, CompTy (t2, ResourceGrade.zero)) }
@@ -443,7 +443,7 @@ plain_simple_ty:
     { TyApply (t, []) }
   | t = PARAM
     { TyParam t }
-  | LBRACK grade = rho_grade RBRACK ty = ty
+  | LBRACK grade = resource_grade RBRACK ty = ty
     { TyBox (grade, ty) }
   | LPAREN t = ty RPAREN
     { t.it }
@@ -454,7 +454,7 @@ sum_case:
   | lbl = UNAME OF t = ty
     { (lbl, Some t) }
 
-rho_grade:
+resource_grade:
   | n = INT { ResourceGrade.of_lit (Language.Grade.Int n) }
   | LPAREN n = INT COMMA m = INT RPAREN { ResourceGrade.of_lit (Language.Grade.Pair (n, m)) }
 

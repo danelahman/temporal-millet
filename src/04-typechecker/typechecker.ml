@@ -18,7 +18,7 @@ module Make (GS : Language.GradeSystem.S) = struct
   type state = {
     variables :
       (Ast.ty_param list
-      * Ast.rho_param list
+      * Ast.resource_grade_param list
       * ResourceGrade.t Ast.ty
       * var_type)
       ContextHolderModule.t;
@@ -27,7 +27,7 @@ module Make (GS : Language.GradeSystem.S) = struct
     op_signatures :
       (ResourceGrade.t Ast.ty
       * ResourceGrade.t Ast.ty
-      * ResourceGrade.t Ast.rho)
+      * ResourceGrade.t Ast.resource_grade)
       Ast.OpNameMap.t;
   }
 
@@ -71,35 +71,35 @@ module Make (GS : Language.GradeSystem.S) = struct
 
   let print_one_type_constraint t1 t2 =
     let ty_pp = PrettyPrint.TyPrintParam.create () in
-    let rho_pp = PrettyPrint.RhoPrintParam.create () in
+    let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
     print_type_constraint t1 t2 ty_pp rho_pp
 
-  let print_rho_constraint rho1 rho2 rho_pp =
-    Format.printf "RhoConstraint(%t = %t)"
-      (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho1)
-      (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho2)
+  let print_resource_grade_constraint rho1 rho2 rho_pp =
+    Format.printf "ResourceGradeConstraint(%t = %t)"
+      (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho1)
+      (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho2)
 
-  let print_one_rho_constraint rho1 rho2 =
-    let rho_pp = PrettyPrint.RhoPrintParam.create () in
-    print_rho_constraint rho1 rho2 rho_pp
+  let print_one_resource_grade_constraint rho1 rho2 =
+    let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
+    print_resource_grade_constraint rho1 rho2 rho_pp
 
-  let print_rho_geq rho1 rho2 rho_pp =
-    Format.printf "RhoGeq(%t %s %t)"
-      (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho1)
-      ResourceGrade.is_sub_rho_symbol
-      (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho2)
+  let print_resource_grade_geq rho1 rho2 rho_pp =
+    Format.printf "ResourceGradeGeq(%t %s %t)"
+      (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho1)
+      ResourceGrade.is_sub_resource_grade_symbol
+      (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho2)
 
-  let print_one_rho_geq rho1 rho2 =
-    let rho_pp = PrettyPrint.RhoPrintParam.create () in
-    print_rho_geq rho1 rho2 rho_pp
+  let print_one_resource_grade_geq rho1 rho2 =
+    let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
+    print_resource_grade_geq rho1 rho2 rho_pp
 
-  let print_fresh_rho_constraint rho rho_pp =
-    Format.printf "FreshRhoConstraint(%t)"
-      (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho)
+  let print_fresh_resource_grade_constraint rho rho_pp =
+    Format.printf "FreshResourceGradeConstraint(%t)"
+      (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho)
 
-  let print_one_fresh_rho_constraint rho =
-    let rho_pp = PrettyPrint.RhoPrintParam.create () in
-    print_fresh_rho_constraint rho rho_pp
+  let print_one_fresh_resource_grade_constraint rho =
+    let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
+    print_fresh_resource_grade_constraint rho rho_pp
 
   let print_ty_constraints_pp ty_pp rho_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
@@ -112,60 +112,67 @@ module Make (GS : Language.GradeSystem.S) = struct
 
   let print_ty_constraints constraints =
     let ty_pp = PrettyPrint.TyPrintParam.create () in
-    let rho_pp = PrettyPrint.RhoPrintParam.create () in
+    let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
     print_ty_constraints_pp ty_pp rho_pp constraints
 
-  let print_rho_eq_constraints_pp rho_pp constraints =
+  let print_resource_grade_eq_constraints_pp rho_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
       (Format.pp_print_list
          ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
          (fun _ppf constraint_ ->
            match constraint_ with
-           | rho1, rho2 -> print_rho_constraint rho1 rho2 rho_pp))
+           | rho1, rho2 -> print_resource_grade_constraint rho1 rho2 rho_pp))
       constraints
 
-  let print_rho_eq_constraints constraints =
-    let rho_pp = PrettyPrint.RhoPrintParam.create () in
-    print_rho_eq_constraints_pp rho_pp constraints
+  let print_resource_grade_eq_constraints constraints =
+    let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
+    print_resource_grade_eq_constraints_pp rho_pp constraints
 
   type ineq_constraint =
-    | Ineq of ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
+    | Ineq of
+        ContextHolderModule.base_resource_grade
+        * ResourceGrade.t Ast.resource_grade
     | EternalOrIneq of
         ResourceGrade.t Ast.ty
-        * ContextHolderModule.base_rho
-        * ResourceGrade.t Ast.rho
+        * ContextHolderModule.base_resource_grade
+        * ResourceGrade.t Ast.resource_grade
 
-  let print_rho_ineq_constraints_pp rho_pp constraints =
+  let print_resource_grade_ineq_constraints_pp rho_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
       (Format.pp_print_list
          ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
          (fun _ppf constraint_ ->
            match constraint_ with
-           | Ineq (rho1, rho2) -> print_rho_geq rho1 rho2 rho_pp
+           | Ineq (rho1, rho2) -> print_resource_grade_geq rho1 rho2 rho_pp
            | EternalOrIneq (ty, rho1, rho2) ->
                let ty_pp = PrettyPrint.TyPrintParam.create () in
                Format.printf "%t ∨ (%t %s %t)"
                  (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
-                 (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho1)
-                 ResourceGrade.is_sub_rho_symbol
-                 (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho2)))
+                 (PrettyPrint.print_resource_grade
+                    (module ResourceGrade)
+                    rho_pp rho1)
+                 ResourceGrade.is_sub_resource_grade_symbol
+                 (PrettyPrint.print_resource_grade
+                    (module ResourceGrade)
+                    rho_pp rho2)))
       constraints
 
-  let print_rho_ineq_constraints constraints =
-    let rho_pp = PrettyPrint.RhoPrintParam.create () in
-    print_rho_ineq_constraints_pp rho_pp constraints
+  let print_resource_grade_ineq_constraints constraints =
+    let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
+    print_resource_grade_ineq_constraints_pp rho_pp constraints
 
-  let print_rho_abs_constraints_pp rho_pp constraints =
+  let print_resource_grade_abs_constraints_pp rho_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
       (Format.pp_print_list
          ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
          (fun _ppf constraint_ ->
-           match constraint_ with rho -> print_fresh_rho_constraint rho rho_pp))
+           match constraint_ with
+           | rho -> print_fresh_resource_grade_constraint rho rho_pp))
       constraints
 
-  let print_rho_abs_constraints constraints =
-    let rho_pp = PrettyPrint.RhoPrintParam.create () in
-    print_rho_abs_constraints_pp rho_pp constraints
+  let print_resource_grade_abs_constraints constraints =
+    let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
+    print_resource_grade_abs_constraints_pp rho_pp constraints
 
   let rec check_ty state = function
     | Ast.TyConst _ -> ()
@@ -200,11 +207,11 @@ module Make (GS : Language.GradeSystem.S) = struct
     let a = Ast.TyParamModule.fresh "ty" in
     Ast.TyParam a
 
-  let fresh_rho () =
-    let t = Ast.RhoParamModule.fresh "rho" in
-    Ast.RhoParam t
+  let fresh_resource_grade () =
+    let t = Ast.ResourceGradeParamModule.fresh "rho" in
+    Ast.ResourceGradeParam t
 
-  let fresh_comp_ty () = Ast.CompTy (fresh_ty (), fresh_rho ())
+  let fresh_comp_ty () = Ast.CompTy (fresh_ty (), fresh_resource_grade ())
 
   let extend_local_variables state vars =
     List.fold_left
@@ -236,12 +243,12 @@ module Make (GS : Language.GradeSystem.S) = struct
         Ast.TyParamMap.add param ty subst)
       Ast.TyParamMap.empty params
 
-  let refreshing_rho_subst params =
+  let refreshing_resource_grade_subst params =
     List.fold_left
       (fun subst param ->
-        let rho = fresh_rho () in
-        Ast.RhoParamMap.add param rho subst)
-      Ast.RhoParamMap.empty params
+        let rho = fresh_resource_grade () in
+        Ast.ResourceGradeParamMap.add param rho subst)
+      Ast.ResourceGradeParamMap.empty params
 
   let infer_variant state lbl =
     let rec find = function
@@ -256,7 +263,7 @@ module Make (GS : Language.GradeSystem.S) = struct
       find (Ast.TyNameMap.bindings state.type_definitions)
     in
     let ty_subst = refreshing_ty_subst params in
-    let rho_subst = refreshing_rho_subst [] in
+    let rho_subst = refreshing_resource_grade_subst [] in
     let args = List.map (fun param -> Ast.TyParamMap.find param ty_subst) params
     and ty' = Option.map (Ast.substitute_ty ty_subst rho_subst) ty in
     (ty', Ast.TyApply (ty_name, args))
@@ -310,8 +317,9 @@ module Make (GS : Language.GradeSystem.S) = struct
               [
                 EternalOrIneq
                   ( ty,
-                    ContextHolderModule.sum_rhos_added_after x state.variables,
-                    Ast.RhoConst ResourceGrade.zero );
+                    ContextHolderModule.sum_resource_grades_added_after x
+                      state.variables,
+                    Ast.ResourceGradeConst ResourceGrade.zero );
               ]
           | Global -> []
         in
@@ -319,13 +327,13 @@ module Make (GS : Language.GradeSystem.S) = struct
         PrettyPrint.print_expression
           (module ResourceGrade)
           (Ast.Var x) Format.std_formatter;
-        PrettyPrint.print_rho
+        PrettyPrint.print_resource_grade
           (module ResourceGrade)
-          (PrettyPrint.RhoPrintParam.create ())
-          sum_rhos_added_after Format.std_formatter;
+          (PrettyPrint.ResourceGradePrintParam.create ())
+          sum_resource_grades_added_after Format.std_formatter;
         Format.fprintf Format.std_formatter "\n"; *)
         let ty_subst = refreshing_ty_subst ty_params in
-        let rho_subst = refreshing_rho_subst rho_params in
+        let rho_subst = refreshing_resource_grade_subst rho_params in
         (Ast.substitute_ty ty_subst rho_subst ty, [], [], rho_ineq, [])
         (* type, type constraints, rho constraints, 
            rho inequational constraints, rho abstractness constraints *)
@@ -361,7 +369,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         in
         ( Ast.TyArrow (ty, CompTy (ty', rho)),
           ty_eqs,
-          (rho, Ast.RhoConst ResourceGrade.zero) :: rho_eqs,
+          (rho, Ast.ResourceGradeConst ResourceGrade.zero) :: rho_eqs,
           rho_ineqs,
           rho_abs )
     | Ast.RecLambda (f, abs) ->
@@ -373,7 +381,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         let out_ty = Ast.TyArrow (ty, CompTy (ty', rho)) in
         ( out_ty,
           (f_ty, out_ty) :: ty_eqs,
-          (rho, Ast.RhoConst ResourceGrade.zero) :: rho_eqs,
+          (rho, Ast.ResourceGradeConst ResourceGrade.zero) :: rho_eqs,
           rho_ineqs,
           rho_abs )
     | Ast.Variant (lbl, expr) -> (
@@ -388,7 +396,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         | None, Some _ | Some _, None ->
             Error.typing "Variant optional argument mismatch")
     | Ast.Handler (ret_case, op_cases) ->
-        let arg_rho = fresh_rho () in
+        let arg_rho = fresh_resource_grade () in
         let state' = extend_resource_grade state arg_rho in
         let ( arg_ty,
               Ast.CompTy (ret_ty, ret_rho),
@@ -413,7 +421,7 @@ module Make (GS : Language.GradeSystem.S) = struct
                         op_rho_abs ) =
                     infer_abstraction state op_case
                   in
-                  let rho = fresh_rho () in
+                  let rho = fresh_resource_grade () in
                   let op_ty_eqs' =
                     (op_case_ty, ret_ty)
                     :: ( op_args_ty,
@@ -427,7 +435,8 @@ module Make (GS : Language.GradeSystem.S) = struct
                     :: op_ty_eqs
                   in
                   let op_rho_eqs' =
-                    (op_case_rho, Ast.RhoAdd (op_rho, rho)) :: op_rho_eqs
+                    (op_case_rho, Ast.ResourceGradeAdd (op_rho, rho))
+                    :: op_rho_eqs
                   in
                   let op_rho_ineqs' = op_rho_ineqs in
                   let op_rho_abs' = rho :: op_rho_abs in
@@ -455,7 +464,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         let ty, ty_eqs, rho_eqs, rho_ineqs, rho_abs =
           infer_expression state expr
         in
-        ( Ast.CompTy (ty, Ast.RhoConst ResourceGrade.zero),
+        ( Ast.CompTy (ty, Ast.ResourceGradeConst ResourceGrade.zero),
           ty_eqs,
           rho_eqs,
           rho_ineqs,
@@ -464,7 +473,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         let CompTy (ty1, rho1), ty_eqs1, rho_eqs1, rho_ineqs1, rho_abs1 =
           infer_computation state comp1
         in
-        let comp_rho = fresh_rho () in
+        let comp_rho = fresh_resource_grade () in
         let state' = extend_resource_grade state comp_rho in
         let ( ty1',
               Ast.CompTy (ty2, rho2),
@@ -474,7 +483,7 @@ module Make (GS : Language.GradeSystem.S) = struct
               rho_abs2 ) =
           infer_abstraction state' comp2
         in
-        ( CompTy (ty2, Ast.RhoAdd (comp_rho, rho2)),
+        ( CompTy (ty2, Ast.ResourceGradeAdd (comp_rho, rho2)),
           ((ty1, ty1') :: ty_eqs1) @ ty_eqs2,
           ((rho1, comp_rho) :: rho_eqs1) @ rho_eqs2,
           rho_ineqs1 @ rho_ineqs2,
@@ -513,12 +522,12 @@ module Make (GS : Language.GradeSystem.S) = struct
         in
         (branch_comp_ty, ty_eqs'', rho_eqs'', rho_ineqs'', rho_abs'')
     | Ast.Delay (n, c) ->
-        let rho = Ast.RhoConst (ResourceGrade.of_nat n) in
+        let rho = Ast.ResourceGradeConst (ResourceGrade.of_nat n) in
         let state' = extend_resource_grade state rho in
         let CompTy (ty, rho'), ty_eqs, rho_eqs, rho_ineqs, rho_abs =
           infer_computation state' c
         in
-        ( CompTy (ty, Ast.RhoAdd (rho, rho')),
+        ( CompTy (ty, Ast.ResourceGradeAdd (rho, rho')),
           ty_eqs,
           rho_eqs,
           rho_ineqs,
@@ -548,19 +557,19 @@ module Make (GS : Language.GradeSystem.S) = struct
           ContextHolderModule.find_variable x state.variables
         in
         let ty_subst = refreshing_ty_subst ty_params in
-        let rho_subst = refreshing_rho_subst rho_params in
+        let rho_subst = refreshing_resource_grade_subst rho_params in
         let boxed_ty = Ast.substitute_ty ty_subst rho_subst ty in
         let value_ty, comp_ty, ty_eqs, rho_eqs, rho_ineqs, rho_abs =
           infer_abstraction state abs
         in
-        let sum_rhos_added_after =
-          ContextHolderModule.sum_rhos_added_after x state.variables
+        let sum_resource_grades_added_after =
+          ContextHolderModule.sum_resource_grades_added_after x state.variables
         in
-        let rho = fresh_rho () in
+        let rho = fresh_resource_grade () in
         ( comp_ty,
           [ (Ast.TyBox (rho, value_ty), boxed_ty) ] @ ty_eqs,
           rho_eqs,
-          [ Ineq (sum_rhos_added_after, rho) ] @ rho_ineqs,
+          [ Ineq (sum_resource_grades_added_after, rho) ] @ rho_ineqs,
           rho_abs )
     | Ast.Perform (op, e, abs) -> (
         let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
@@ -579,7 +588,7 @@ module Make (GS : Language.GradeSystem.S) = struct
                   rho_abs' ) =
               infer_abstraction state_ahead abs
             in
-            ( CompTy (cont_ty, Ast.RhoAdd (op_rho, cont_rho)),
+            ( CompTy (cont_ty, Ast.ResourceGradeAdd (op_rho, cont_rho)),
               ((value_ty, param_ty) :: (value_ty', arity_ty) :: ty_eqs)
               @ ty_eqs',
               rho_eqs @ rho_eqs',
@@ -593,8 +602,8 @@ module Make (GS : Language.GradeSystem.S) = struct
           infer_expression state h
         in
         let ty'' = fresh_ty () in
-        let rho'' = fresh_rho () in
-        ( CompTy (ty'', Ast.RhoAdd (rho, rho'')),
+        let rho'' = fresh_resource_grade () in
+        ( CompTy (ty'', Ast.ResourceGradeAdd (rho, rho'')),
           (ty', Ast.TyHandler (CompTy (ty, rho), CompTy (ty'', rho'')))
           :: ty_eqs
           @ ty_eqs',
@@ -618,38 +627,41 @@ module Make (GS : Language.GradeSystem.S) = struct
     in
     List.map subst_ty_equation
 
-  let subst_rho_equations rho_subst =
-    let subst_rho_equation = function
+  let subst_resource_grade_equations rho_subst =
+    let subst_resource_grade_equation = function
       | rho1, rho2 ->
-          (Ast.substitute_rho rho_subst rho1, Ast.substitute_rho rho_subst rho2)
+          ( Ast.substitute_resource_grade rho_subst rho1,
+            Ast.substitute_resource_grade rho_subst rho2 )
     in
-    List.map subst_rho_equation
+    List.map subst_resource_grade_equation
 
-  let subst_rho_inequations ty_subst rho_subst =
+  let subst_resource_grade_inequations ty_subst rho_subst =
     let subst_inequation = function
       | Ineq (rho1, rho2) ->
           Ineq
-            ( Ast.substitute_rho rho_subst rho1,
-              Ast.substitute_rho rho_subst rho2 )
+            ( Ast.substitute_resource_grade rho_subst rho1,
+              Ast.substitute_resource_grade rho_subst rho2 )
       | EternalOrIneq (ty, rho1, rho2) ->
           EternalOrIneq
             ( Ast.substitute_ty ty_subst rho_subst ty,
-              Ast.substitute_rho rho_subst rho1,
-              Ast.substitute_rho rho_subst rho2 )
+              Ast.substitute_resource_grade rho_subst rho1,
+              Ast.substitute_resource_grade rho_subst rho2 )
     in
     List.map subst_inequation
 
-  let subst_rho_abstract_constraints rho_subst =
+  let subst_resource_grade_abstract_constraints rho_subst =
     let subst_abstract_constraint = function
-      | rho -> Ast.substitute_rho rho_subst rho
+      | rho -> Ast.substitute_resource_grade rho_subst rho
     in
     List.map subst_abstract_constraint
 
   let add_ty_subst a ty ty_subst rho_subst =
     Ast.TyParamMap.add a (Ast.substitute_ty ty_subst rho_subst ty) ty_subst
 
-  let add_rho_subst tp rho rho_subst =
-    Ast.RhoParamMap.add tp (Ast.substitute_rho rho_subst rho) rho_subst
+  let add_resource_grade_subst tp rho rho_subst =
+    Ast.ResourceGradeParamMap.add tp
+      (Ast.substitute_resource_grade rho_subst rho)
+      rho_subst
 
   let rec occurs_ty a = function
     | Ast.TyParam a' -> a = a'
@@ -661,10 +673,11 @@ module Make (GS : Language.GradeSystem.S) = struct
     | Ast.TyHandler (CompTy (ty1, _), CompTy (ty2, _)) ->
         occurs_ty a ty1 || occurs_ty a ty2
 
-  let rec occurs_rho a = function
-    | Ast.RhoParam a' -> a = a'
-    | Ast.RhoConst _ -> false
-    | Ast.RhoAdd (rho, rho') -> occurs_rho a rho || occurs_rho a rho'
+  let rec occurs_resource_grade a = function
+    | Ast.ResourceGradeParam a' -> a = a'
+    | Ast.ResourceGradeConst _ -> false
+    | Ast.ResourceGradeAdd (rho, rho') ->
+        occurs_resource_grade a rho || occurs_resource_grade a rho'
 
   let is_transparent_type state ty_name =
     match Ast.TyNameMap.find ty_name state.type_definitions with
@@ -678,20 +691,21 @@ module Make (GS : Language.GradeSystem.S) = struct
         let ty_subst =
           List.combine params args |> List.to_seq |> Ast.TyParamMap.of_seq
         in
-        let rho_subst = refreshing_rho_subst [] in
+        let rho_subst = refreshing_resource_grade_subst [] in
         Ast.substitute_ty ty_subst rho_subst ty
 
-  let rec simplify_rho rho =
+  let rec simplify_resource_grade rho =
     match rho with
-    | Ast.RhoAdd (t1, t2) -> (
-        let t1' = simplify_rho t1 in
-        let t2' = simplify_rho t2 in
+    | Ast.ResourceGradeAdd (t1, t2) -> (
+        let t1' = simplify_resource_grade t1 in
+        let t2' = simplify_resource_grade t2 in
         match (t1', t2') with
-        | Ast.RhoConst c1, Ast.RhoConst c2 ->
-            Ast.RhoConst (ResourceGrade.add c1 c2)
-        | (Ast.RhoConst z, t | t, Ast.RhoConst z) when z = ResourceGrade.zero ->
+        | Ast.ResourceGradeConst c1, Ast.ResourceGradeConst c2 ->
+            Ast.ResourceGradeConst (ResourceGrade.add c1 c2)
+        | (Ast.ResourceGradeConst z, t | t, Ast.ResourceGradeConst z)
+          when z = ResourceGrade.zero ->
             t
-        | _ -> Ast.RhoAdd (t1', t2'))
+        | _ -> Ast.ResourceGradeAdd (t1', t2'))
     | _ -> rho
 
   and simplify_ty ty =
@@ -701,37 +715,40 @@ module Make (GS : Language.GradeSystem.S) = struct
         TyApply (ty_name, List.map simplify_ty ty_list)
     | TyParam ty_param -> TyParam ty_param
     | TyArrow (ty, Ast.CompTy (ty', rho')) ->
-        TyArrow (simplify_ty ty, Ast.CompTy (simplify_ty ty', simplify_rho rho'))
+        TyArrow
+          ( simplify_ty ty,
+            Ast.CompTy (simplify_ty ty', simplify_resource_grade rho') )
     | TyTuple ty_list -> TyTuple (List.map simplify_ty ty_list)
-    | TyBox (rho, ty) -> TyBox (simplify_rho rho, simplify_ty ty)
+    | TyBox (rho, ty) -> TyBox (simplify_resource_grade rho, simplify_ty ty)
     | TyHandler (Ast.CompTy (ty1, rho1), Ast.CompTy (ty2, rho2)) ->
         TyHandler
-          ( Ast.CompTy (simplify_ty ty1, simplify_rho rho1),
-            Ast.CompTy (simplify_ty ty2, simplify_rho rho2) )
+          ( Ast.CompTy (simplify_ty ty1, simplify_resource_grade rho1),
+            Ast.CompTy (simplify_ty ty2, simplify_resource_grade rho2) )
 
   let simplify_comp_ty = function
-    | Ast.CompTy (ty, rho) -> Ast.CompTy (simplify_ty ty, simplify_rho rho)
+    | Ast.CompTy (ty, rho) ->
+        Ast.CompTy (simplify_ty ty, simplify_resource_grade rho)
 
-  let compare_rho a b =
+  let compare_resource_grade a b =
     match (a, b) with
     | Either.Left p1, Either.Left p2 -> compare p1 p2 (* compare parameters *)
     | Either.Right c1, Either.Right c2 -> compare c1 c2 (* compare constants *)
     | Either.Left _, _ -> -1
     | _, Either.Left _ -> 1
 
-  let build_rho_param_list rho =
+  let build_resource_grade_param_list rho =
     let rec aux acc rho =
       match rho with
-      | Ast.RhoParam t -> Either.Left t :: acc
-      | Ast.RhoConst c -> Either.Right c :: acc
-      | Ast.RhoAdd (rho1, rho2) ->
+      | Ast.ResourceGradeParam t -> Either.Left t :: acc
+      | Ast.ResourceGradeConst c -> Either.Right c :: acc
+      | Ast.ResourceGradeAdd (rho1, rho2) ->
           let acc' = aux acc rho2 in
           aux acc' rho1
     in
     aux [] rho
 
-  let build_sorted_rho_param_list rho =
-    build_rho_param_list rho |> List.sort compare_rho
+  let build_sorted_resource_grade_param_list rho =
+    build_resource_grade_param_list rho |> List.sort compare_resource_grade
 
   let cancel_common_elements left right =
     let rec aux l r acc_left acc_right =
@@ -746,15 +763,17 @@ module Make (GS : Language.GradeSystem.S) = struct
     in
     aux left right [] []
 
-  let build_rho_from_param_list params =
-    let to_rho = function
-      | Either.Left x -> Ast.RhoParam x
-      | Either.Right x -> Ast.RhoConst x
+  let build_resource_grade_from_param_list params =
+    let to_resource_grade = function
+      | Either.Left x -> Ast.ResourceGradeParam x
+      | Either.Right x -> Ast.ResourceGradeConst x
     in
     match params with
-    | [] -> Ast.RhoConst ResourceGrade.zero
+    | [] -> Ast.ResourceGradeConst ResourceGrade.zero
     | hd :: tl ->
-        List.fold_left (fun acc e -> Ast.RhoAdd (acc, to_rho e)) (to_rho hd) tl
+        List.fold_left
+          (fun acc e -> Ast.ResourceGradeAdd (acc, to_resource_grade e))
+          (to_resource_grade hd) tl
 
   let rec unify_ty_constraints state rho_eqs = function
     | [] -> (Ast.TyParamMap.empty, rho_eqs)
@@ -791,17 +810,17 @@ module Make (GS : Language.GradeSystem.S) = struct
           unify_ty_constraints state rho_eqs
             (subst_ty_equations
                (Ast.TyParamMap.singleton a t)
-               Ast.RhoParamMap.empty ty_eqs)
+               Ast.ResourceGradeParamMap.empty ty_eqs)
         in
-        (add_ty_subst a t ty_subst Ast.RhoParamMap.empty, rho_eqs')
+        (add_ty_subst a t ty_subst Ast.ResourceGradeParamMap.empty, rho_eqs')
     | (t, Ast.TyParam a) :: ty_eqs when not (occurs_ty a t) ->
         let ty_subst, rho_eqs' =
           unify_ty_constraints state rho_eqs
             (subst_ty_equations
                (Ast.TyParamMap.singleton a t)
-               Ast.RhoParamMap.empty ty_eqs)
+               Ast.ResourceGradeParamMap.empty ty_eqs)
         in
-        (add_ty_subst a t ty_subst Ast.RhoParamMap.empty, rho_eqs')
+        (add_ty_subst a t ty_subst Ast.ResourceGradeParamMap.empty, rho_eqs')
     | (Ast.TyBox (rho1, ty1), Ast.TyBox (rho2, ty2)) :: ty_eqs ->
         unify_ty_constraints state ((rho1, rho2) :: rho_eqs)
           ((ty1, ty2) :: ty_eqs)
@@ -813,133 +832,160 @@ module Make (GS : Language.GradeSystem.S) = struct
           ((ty1, ty1') :: (ty2, ty2') :: ty_eqs)
     | (t1, t2) :: _ ->
         let ty_pp = PrettyPrint.TyPrintParam.create () in
-        let rho_pp = PrettyPrint.RhoPrintParam.create () in
+        let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
         Error.typing "Cannot unify types %t = %t"
           (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp t1)
           (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp t2)
 
-  let rec unify_rho_constraints state prev_unsolved_size unsolved = function
+  let rec unify_resource_grade_constraints state prev_unsolved_size unsolved =
+    function
     | [] ->
         let current_unsolved_size = List.length unsolved in
         if current_unsolved_size = 0 then
           (* All constraints solved *)
-          Ast.RhoParamMap.empty
+          Ast.ResourceGradeParamMap.empty
         else if current_unsolved_size = prev_unsolved_size then
           Error.typing
             "Unification stuck - could not solve remaining constraints %t"
             (fun ppf ->
-              print_rho_eq_constraints unsolved;
+              print_resource_grade_eq_constraints unsolved;
               Format.fprintf ppf "%s" "")
         else
           (* Retry with deferred constraints *)
-          unify_rho_constraints state current_unsolved_size [] unsolved
+          unify_resource_grade_constraints state current_unsolved_size []
+            unsolved
     | (rho1, rho2) :: eqs -> (
-        let rho1' = simplify_rho rho1 in
-        let rho2' = simplify_rho rho2 in
+        let rho1' = simplify_resource_grade rho1 in
+        let rho2' = simplify_resource_grade rho2 in
         match (rho1', rho2') with
         | _ when rho1' = rho2' ->
-            unify_rho_constraints state prev_unsolved_size unsolved eqs
-        | Ast.RhoParam tp, rho when not (occurs_rho tp rho) ->
+            unify_resource_grade_constraints state prev_unsolved_size unsolved
+              eqs
+        | Ast.ResourceGradeParam tp, rho when not (occurs_resource_grade tp rho)
+          ->
             let rho_subst =
-              unify_rho_constraints state prev_unsolved_size
-                (subst_rho_equations
-                   (Ast.RhoParamMap.singleton tp rho)
+              unify_resource_grade_constraints state prev_unsolved_size
+                (subst_resource_grade_equations
+                   (Ast.ResourceGradeParamMap.singleton tp rho)
                    unsolved)
-                (subst_rho_equations (Ast.RhoParamMap.singleton tp rho) eqs)
+                (subst_resource_grade_equations
+                   (Ast.ResourceGradeParamMap.singleton tp rho)
+                   eqs)
             in
-            add_rho_subst tp rho rho_subst
-        | rho, Ast.RhoParam tp when not (occurs_rho tp rho) ->
+            add_resource_grade_subst tp rho rho_subst
+        | rho, Ast.ResourceGradeParam tp when not (occurs_resource_grade tp rho)
+          ->
             let rho_subst =
-              unify_rho_constraints state prev_unsolved_size
-                (subst_rho_equations
-                   (Ast.RhoParamMap.singleton tp rho)
+              unify_resource_grade_constraints state prev_unsolved_size
+                (subst_resource_grade_equations
+                   (Ast.ResourceGradeParamMap.singleton tp rho)
                    unsolved)
-                (subst_rho_equations (Ast.RhoParamMap.singleton tp rho) eqs)
+                (subst_resource_grade_equations
+                   (Ast.ResourceGradeParamMap.singleton tp rho)
+                   eqs)
             in
-            add_rho_subst tp rho rho_subst
-        | Ast.RhoConst z, Ast.RhoAdd (t1, t2)
-        | Ast.RhoAdd (t1, t2), Ast.RhoConst z
+            add_resource_grade_subst tp rho rho_subst
+        | Ast.ResourceGradeConst z, Ast.ResourceGradeAdd (t1, t2)
+        | Ast.ResourceGradeAdd (t1, t2), Ast.ResourceGradeConst z
           when z = ResourceGrade.zero ->
-            unify_rho_constraints state prev_unsolved_size unsolved
-              ((t1, Ast.RhoConst ResourceGrade.zero)
-              :: (t2, Ast.RhoConst ResourceGrade.zero)
+            unify_resource_grade_constraints state prev_unsolved_size unsolved
+              ((t1, Ast.ResourceGradeConst ResourceGrade.zero)
+              :: (t2, Ast.ResourceGradeConst ResourceGrade.zero)
               :: eqs)
-        | t, Ast.RhoAdd (t1, t2) ->
-            let left = build_sorted_rho_param_list t in
-            let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
+        | t, Ast.ResourceGradeAdd (t1, t2) ->
+            let left = build_sorted_resource_grade_param_list t in
+            let right =
+              build_sorted_resource_grade_param_list
+                (Ast.ResourceGradeAdd (t1, t2))
+            in
             let left', right' = cancel_common_elements left right in
-            let left_rho = build_rho_from_param_list left' in
-            let right_rho = build_rho_from_param_list right' in
-            if left_rho = t && right_rho = Ast.RhoAdd (t1, t2) then
-              unify_rho_constraints state prev_unsolved_size
+            let left_rho = build_resource_grade_from_param_list left' in
+            let right_rho = build_resource_grade_from_param_list right' in
+            if left_rho = t && right_rho = Ast.ResourceGradeAdd (t1, t2) then
+              unify_resource_grade_constraints state prev_unsolved_size
                 ((left_rho, right_rho) :: unsolved)
                 eqs
             else
-              unify_rho_constraints state prev_unsolved_size unsolved
+              unify_resource_grade_constraints state prev_unsolved_size unsolved
                 ((left_rho, right_rho) :: eqs)
-        | Ast.RhoAdd (t1, t2), t ->
-            let left = build_sorted_rho_param_list t in
-            let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
+        | Ast.ResourceGradeAdd (t1, t2), t ->
+            let left = build_sorted_resource_grade_param_list t in
+            let right =
+              build_sorted_resource_grade_param_list
+                (Ast.ResourceGradeAdd (t1, t2))
+            in
             let left', right' = cancel_common_elements left right in
-            let left_rho = build_rho_from_param_list left' in
-            let right_rho = build_rho_from_param_list right' in
-            if left_rho = Ast.RhoAdd (t1, t2) && right_rho = t then
-              unify_rho_constraints state prev_unsolved_size
+            let left_rho = build_resource_grade_from_param_list left' in
+            let right_rho = build_resource_grade_from_param_list right' in
+            if left_rho = Ast.ResourceGradeAdd (t1, t2) && right_rho = t then
+              unify_resource_grade_constraints state prev_unsolved_size
                 ((left_rho, right_rho) :: unsolved)
                 eqs
             else
-              unify_rho_constraints state prev_unsolved_size unsolved
+              unify_resource_grade_constraints state prev_unsolved_size unsolved
                 ((left_rho, right_rho) :: eqs)
         | u1, u2 ->
-            unify_rho_constraints state prev_unsolved_size
+            unify_resource_grade_constraints state prev_unsolved_size
               ((u1, u2) :: unsolved) eqs)
 
-  let rec unify_rho_ineq_constraints state prev_unsolved_size unsolved =
+  let rec unify_resource_grade_ineq_constraints state prev_unsolved_size
+      unsolved =
     let process wrap rho1 rho2 ineqs =
-      let rho1' = simplify_rho rho1 in
-      let rho2' = simplify_rho rho2 in
+      let rho1' = simplify_resource_grade rho1 in
+      let rho2' = simplify_resource_grade rho2 in
       match (rho1', rho2') with
       | _ when rho1' = rho2' ->
-          unify_rho_ineq_constraints state prev_unsolved_size unsolved ineqs
-      | Ast.RhoParam tp, rho
-        when (not (occurs_rho tp rho))
-             && rho = Ast.RhoConst ResourceGrade.zero
-             && ResourceGrade.is_zero_minimal_sub_rho ->
-          let singleton = Ast.RhoParamMap.singleton tp rho in
+          unify_resource_grade_ineq_constraints state prev_unsolved_size
+            unsolved ineqs
+      | Ast.ResourceGradeParam tp, rho
+        when (not (occurs_resource_grade tp rho))
+             && rho = Ast.ResourceGradeConst ResourceGrade.zero
+             && ResourceGrade.is_zero_minimal_sub_resource_grade ->
+          let singleton = Ast.ResourceGradeParamMap.singleton tp rho in
           let rho_subst, unsolved' =
-            unify_rho_ineq_constraints state prev_unsolved_size
-              (subst_rho_inequations Ast.TyParamMap.empty singleton unsolved)
-              (subst_rho_inequations Ast.TyParamMap.empty singleton ineqs)
+            unify_resource_grade_ineq_constraints state prev_unsolved_size
+              (subst_resource_grade_inequations Ast.TyParamMap.empty singleton
+                 unsolved)
+              (subst_resource_grade_inequations Ast.TyParamMap.empty singleton
+                 ineqs)
           in
-          (add_rho_subst tp rho rho_subst, unsolved')
-      | t, Ast.RhoAdd (t1, t2) ->
-          let left = build_sorted_rho_param_list t in
-          let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
+          (add_resource_grade_subst tp rho rho_subst, unsolved')
+      | t, Ast.ResourceGradeAdd (t1, t2) ->
+          let left = build_sorted_resource_grade_param_list t in
+          let right =
+            build_sorted_resource_grade_param_list
+              (Ast.ResourceGradeAdd (t1, t2))
+          in
           let left', right' = cancel_common_elements left right in
-          let left_rho = build_rho_from_param_list left' in
-          let right_rho = build_rho_from_param_list right' in
-          if left_rho = t && right_rho = Ast.RhoAdd (t1, t2) then
-            unify_rho_ineq_constraints state prev_unsolved_size
+          let left_rho = build_resource_grade_from_param_list left' in
+          let right_rho = build_resource_grade_from_param_list right' in
+          if left_rho = t && right_rho = Ast.ResourceGradeAdd (t1, t2) then
+            unify_resource_grade_ineq_constraints state prev_unsolved_size
               (wrap left_rho right_rho :: unsolved)
               ineqs
           else
-            unify_rho_ineq_constraints state prev_unsolved_size unsolved
+            unify_resource_grade_ineq_constraints state prev_unsolved_size
+              unsolved
               (wrap left_rho right_rho :: ineqs)
-      | Ast.RhoAdd (t1, t2), t ->
-          let left = build_sorted_rho_param_list t in
-          let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
+      | Ast.ResourceGradeAdd (t1, t2), t ->
+          let left = build_sorted_resource_grade_param_list t in
+          let right =
+            build_sorted_resource_grade_param_list
+              (Ast.ResourceGradeAdd (t1, t2))
+          in
           let left', right' = cancel_common_elements left right in
-          let left_rho = build_rho_from_param_list left' in
-          let right_rho = build_rho_from_param_list right' in
-          if left_rho = Ast.RhoAdd (t1, t2) && right_rho = t then
-            unify_rho_ineq_constraints state prev_unsolved_size
+          let left_rho = build_resource_grade_from_param_list left' in
+          let right_rho = build_resource_grade_from_param_list right' in
+          if left_rho = Ast.ResourceGradeAdd (t1, t2) && right_rho = t then
+            unify_resource_grade_ineq_constraints state prev_unsolved_size
               (wrap left_rho right_rho :: unsolved)
               ineqs
           else
-            unify_rho_ineq_constraints state prev_unsolved_size unsolved
+            unify_resource_grade_ineq_constraints state prev_unsolved_size
+              unsolved
               (wrap left_rho right_rho :: ineqs)
       | rho1'', rho2'' ->
-          unify_rho_ineq_constraints state prev_unsolved_size
+          unify_resource_grade_ineq_constraints state prev_unsolved_size
             (wrap rho1'' rho2'' :: unsolved)
             ineqs
     in
@@ -947,10 +993,11 @@ module Make (GS : Language.GradeSystem.S) = struct
     | [] ->
         let current_unsolved_size = List.length unsolved in
         if current_unsolved_size = prev_unsolved_size then
-          (Ast.RhoParamMap.empty, unsolved)
+          (Ast.ResourceGradeParamMap.empty, unsolved)
         else
           (* Retry with deferred constraints *)
-          unify_rho_ineq_constraints state current_unsolved_size [] unsolved
+          unify_resource_grade_ineq_constraints state current_unsolved_size []
+            unsolved
     | EternalOrIneq (ty, rho1, rho2) :: ineqs ->
         process (fun r1 r2 -> EternalOrIneq (ty, r1, r2)) rho1 rho2 ineqs
     | Ineq (rho1, rho2) :: ineqs ->
@@ -979,7 +1026,7 @@ module Make (GS : Language.GradeSystem.S) = struct
                     Ast.TyParamMap.empty params args
                 in
                 check visited'
-                  (Ast.substitute_ty ty_subst Ast.RhoParamMap.empty ty)
+                  (Ast.substitute_ty ty_subst Ast.ResourceGradeParamMap.empty ty)
             | Some (params, Ast.TySum variants) ->
                 let ty_subst =
                   List.fold_left2
@@ -992,7 +1039,8 @@ module Make (GS : Language.GradeSystem.S) = struct
                     | None -> true
                     | Some ty ->
                         check visited'
-                          (Ast.substitute_ty ty_subst Ast.RhoParamMap.empty ty))
+                          (Ast.substitute_ty ty_subst
+                             Ast.ResourceGradeParamMap.empty ty))
                   variants)
       | Ast.TyParam _ -> false
       | Ast.TyArrow _ -> false
@@ -1002,29 +1050,33 @@ module Make (GS : Language.GradeSystem.S) = struct
     in
     check [] ty
 
-  let rec check_rho_ineq_constraints state =
+  let rec check_resource_grade_ineq_constraints state =
     let check_ineq ?eternal_ty rho_smaller rho_greater_or_equal =
-      let rho_smaller_simplified = simplify_rho rho_smaller in
-      let rho_greater_or_equal_simplified = simplify_rho rho_greater_or_equal in
-      let rho_pp = PrettyPrint.RhoPrintParam.create () in
-      let print_rho rho ppf =
-        PrettyPrint.print_rho (module ResourceGrade) rho_pp rho ppf
+      let rho_smaller_simplified = simplify_resource_grade rho_smaller in
+      let rho_greater_or_equal_simplified =
+        simplify_resource_grade rho_greater_or_equal
+      in
+      let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
+      let print_resource_grade rho ppf =
+        PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho ppf
       in
       try
         let rho_greater_or_equal_val =
-          ContextHolderModule.eval_rho rho_greater_or_equal_simplified
+          ContextHolderModule.eval_resource_grade
+            rho_greater_or_equal_simplified
         in
         if
           rho_greater_or_equal_val = ResourceGrade.zero
-          && ResourceGrade.is_zero_top_sub_rho
+          && ResourceGrade.is_zero_top_sub_resource_grade
         then ()
         else
           let rho_smaller_val =
-            ContextHolderModule.eval_rho rho_smaller_simplified
+            ContextHolderModule.eval_resource_grade rho_smaller_simplified
           in
           if
             not
-              (ResourceGrade.is_sub_rho rho_smaller_val rho_greater_or_equal_val)
+              (ResourceGrade.is_sub_resource_grade rho_smaller_val
+                 rho_greater_or_equal_val)
           then
             raise
               (Exception.InequalityCheckFailed
@@ -1038,15 +1090,15 @@ module Make (GS : Language.GradeSystem.S) = struct
               Error.typing
                 "Type %t is not eternal and resource inequality %t %s %t failed"
                 (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
-                (print_rho rho_smaller_simplified)
-                ResourceGrade.is_sub_rho_symbol
-                (print_rho rho_greater_or_equal_simplified)
+                (print_resource_grade rho_smaller_simplified)
+                ResourceGrade.is_sub_resource_grade_symbol
+                (print_resource_grade rho_greater_or_equal_simplified)
           | None ->
               Error.typing "Comparing resource inequality %t %s %t failed"
-                (print_rho rho_smaller_simplified)
-                ResourceGrade.is_sub_rho_symbol
-                (print_rho rho_greater_or_equal_simplified))
-      | Exception.RhoParamInEval _ -> (
+                (print_resource_grade rho_smaller_simplified)
+                ResourceGrade.is_sub_resource_grade_symbol
+                (print_resource_grade rho_greater_or_equal_simplified))
+      | Exception.ResourceGradeParamInEval _ -> (
           match eternal_ty with
           | Some ty when is_eternal state ty -> ()
           | Some ty ->
@@ -1055,62 +1107,67 @@ module Make (GS : Language.GradeSystem.S) = struct
                 "Type %t is not eternal and cannot compare non-ground resource \
                  values %t and %t"
                 (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
-                (print_rho rho_smaller_simplified)
-                (print_rho rho_greater_or_equal_simplified)
+                (print_resource_grade rho_smaller_simplified)
+                (print_resource_grade rho_greater_or_equal_simplified)
           | None ->
               Error.typing "Cannot compare non-ground resource values %t and %t"
-                (print_rho rho_smaller_simplified)
-                (print_rho rho_greater_or_equal_simplified))
+                (print_resource_grade rho_smaller_simplified)
+                (print_resource_grade rho_greater_or_equal_simplified))
     in
     function
     | [] -> ()
     | EternalOrIneq (ty, rho_smaller, rho_greater_or_equal) :: rho_ineqs ->
         check_ineq ~eternal_ty:ty rho_smaller rho_greater_or_equal;
-        check_rho_ineq_constraints state rho_ineqs
+        check_resource_grade_ineq_constraints state rho_ineqs
     | Ineq (rho_smaller, rho_greater_or_equal) :: rho_ineqs ->
         check_ineq rho_smaller rho_greater_or_equal;
-        check_rho_ineq_constraints state rho_ineqs
+        check_resource_grade_ineq_constraints state rho_ineqs
 
-  let rec check_rho_abs_constraints = function
+  let rec check_resource_grade_abs_constraints = function
     | [] -> ()
     | rho :: rho_abs -> (
         match rho with
-        | Ast.RhoParam _ -> check_rho_abs_constraints rho_abs
+        | Ast.ResourceGradeParam _ ->
+            check_resource_grade_abs_constraints rho_abs
         | _ ->
             Error.typing "ResourceGrade grade is not in abstract form %t"
               (fun ppf ->
-                PrettyPrint.print_rho
+                PrettyPrint.print_resource_grade
                   (module ResourceGrade)
-                  (PrettyPrint.RhoPrintParam.create ())
+                  (PrettyPrint.ResourceGradePrintParam.create ())
                   rho ppf))
 
   let unify state ty_eqs rho_eqs rho_ineqs rho_abs =
     (* let ty_pp = PrettyPrint.TyPrintParam.create () in
-    let rho_pp = PrettyPrint.RhoPrintParam.create () in
+    let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
     print_ty_constraints_pp ty_pp rho_pp ty_eqs;
-    print_rho_eq_constraints_pp rho_pp rho_eqs;
-    print_rho_ineq_constraints_pp rho_pp rho_ineqs; *)
+    print_resource_grade_eq_constraints_pp rho_pp rho_eqs;
+    print_resource_grade_ineq_constraints_pp rho_pp rho_ineqs; *)
     let ty_subst, rho_eqs' = unify_ty_constraints state [] ty_eqs in
-    (* print_rho_eq_constraints_pp rho_pp rho_eqs'; *)
-    let rho_subst = unify_rho_constraints state 0 [] (rho_eqs @ rho_eqs') in
-    let rho_ineqs' = subst_rho_inequations ty_subst rho_subst rho_ineqs in
+    (* print_resource_grade_eq_constraints_pp rho_pp rho_eqs'; *)
+    let rho_subst =
+      unify_resource_grade_constraints state 0 [] (rho_eqs @ rho_eqs')
+    in
+    let rho_ineqs' =
+      subst_resource_grade_inequations ty_subst rho_subst rho_ineqs
+    in
     let rho_subst', rho_ineqs'' =
-      unify_rho_ineq_constraints state 0 [] rho_ineqs'
+      unify_resource_grade_ineq_constraints state 0 [] rho_ineqs'
     in
     let rho_subst'' =
-      Ast.RhoParamMap.union
+      Ast.ResourceGradeParamMap.union
         (fun _ v _ -> Some v)
-        (Ast.RhoParamMap.map
-           (fun rho -> Ast.substitute_rho rho_subst' rho)
+        (Ast.ResourceGradeParamMap.map
+           (fun rho -> Ast.substitute_resource_grade rho_subst' rho)
            rho_subst)
         rho_subst'
     in
-    (* print_rho_ineq_constraints_pp rho_pp
-      (subst_rho_inequations ty_subst rho_subst'' rho_ineqs'')); *)
-    check_rho_ineq_constraints state
-      (subst_rho_inequations ty_subst rho_subst'' rho_ineqs'');
-    check_rho_abs_constraints
-      (subst_rho_abstract_constraints rho_subst'' rho_abs);
+    (* print_resource_grade_ineq_constraints_pp rho_pp
+      (subst_resource_grade_inequations ty_subst rho_subst'' rho_ineqs'')); *)
+    check_resource_grade_ineq_constraints state
+      (subst_resource_grade_inequations ty_subst rho_subst'' rho_ineqs'');
+    check_resource_grade_abs_constraints
+      (subst_resource_grade_abstract_constraints rho_subst'' rho_abs);
     let ty_subst' =
       Ast.TyParamMap.map
         (fun ty -> Ast.substitute_ty ty_subst rho_subst'' ty)
@@ -1140,10 +1197,10 @@ module Make (GS : Language.GradeSystem.S) = struct
     let ty_subst, rho_subst = unify state ty_eqs rho_eqs rho_ineqs rho_abs in
     let ty' = Ast.substitute_ty ty_subst rho_subst ty in
     let ty'' = simplify_ty ty' in
-    let free_vars, free_rhos = Ast.free_vars ty'' in
+    let free_vars, free_resource_grades = Ast.free_vars ty'' in
     let ty_sch =
       ( free_vars |> Ast.TyParamSet.elements,
-        free_rhos |> Ast.RhoParamSet.elements,
+        free_resource_grades |> Ast.ResourceGradeParamSet.elements,
         ty'',
         Global )
     in

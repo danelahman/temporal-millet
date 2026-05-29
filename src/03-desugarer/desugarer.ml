@@ -71,20 +71,20 @@ module Make (GS : Language.GradeSystem.S) = struct
     | Sugared.TyArrow (ty1, CompTy (ty2, rho)) ->
         let ty1' = desugar_ty state ty1 in
         let ty2' = desugar_ty state ty2 in
-        Untyped.TyArrow (ty1', CompTy (ty2', RhoConst rho))
+        Untyped.TyArrow (ty1', CompTy (ty2', ResourceGradeConst rho))
     | Sugared.TyTuple tys ->
         let tys' = List.map (desugar_ty state) tys in
         Untyped.TyTuple tys'
     | Sugared.TyConst c -> Untyped.TyConst c
     | Sugared.TyBox (rho, ty) ->
-        let rho' = Untyped.RhoConst rho in
+        let rho' = Untyped.ResourceGradeConst rho in
         let ty' = desugar_ty state ty in
         Untyped.TyBox (rho', ty')
     | Sugared.TyHandler (CompTy (ty1, rho1), CompTy (ty2, rho2)) ->
         let ty1' = desugar_ty state ty1 in
-        let rho1' = Untyped.RhoConst rho1 in
+        let rho1' = Untyped.ResourceGradeConst rho1 in
         let ty2' = desugar_ty state ty2 in
-        let rho2' = Untyped.RhoConst rho2 in
+        let rho2' = Untyped.ResourceGradeConst rho2 in
         Untyped.TyHandler (CompTy (ty1', rho1'), CompTy (ty2', rho2'))
 
   let rec desugar_pattern state vars { Sugared.it = pat; at = loc } =
@@ -236,13 +236,13 @@ module Make (GS : Language.GradeSystem.S) = struct
     | Sugared.Box (rho, e, (p, c)) ->
         let binds, e' = desugar_expression state e in
         let abs = desugar_abstraction state (p, c) in
-        (binds, Untyped.Box (RhoConst rho, e', abs))
+        (binds, Untyped.Box (ResourceGradeConst rho, e', abs))
     | Sugared.GenBox (rho, e) ->
         let binds, e' = desugar_expression state e in
         let var = Untyped.Variable.fresh "box_var" in
         ( binds,
           Untyped.Box
-            ( RhoConst rho,
+            ( ResourceGradeConst rho,
               e',
               (Untyped.PVar var, Untyped.Return (Untyped.Var var)) ) )
     | Sugared.Unbox (e, (p, c)) ->
@@ -375,7 +375,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         let operation = Untyped.OpName.fresh op_name in
         let ty1 = desugar_ty state ty1_name in
         let ty2 = desugar_ty state ty2_name in
-        let rho = Untyped.RhoConst rho_val in
+        let rho = Untyped.ResourceGradeConst rho_val in
         let state' = add_operation ~loc state op_name operation in
         (state', Untyped.OpSig (operation, ty1, ty2, rho))
     | Sugared.TopLet (x, term) ->

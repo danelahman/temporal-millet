@@ -50,7 +50,7 @@ let type_symbol n =
   if n < Array.length greek_letters then greek_letters.(n)
   else "σ" ^ subscript (n - Array.length greek_letters)
 
-let rho_symbol n = "ρ" ^ subscript n
+let resource_grade_symbol n = "ρ" ^ subscript n
 
 module MakeParamPrinter
     (ParamMap : Map.S)
@@ -81,11 +81,11 @@ module TyPrintParam =
       let symbol_for_index = type_symbol
     end)
 
-module RhoPrintParam =
+module ResourceGradePrintParam =
   MakeParamPrinter
-    (RhoParamMap)
+    (ResourceGradeParamMap)
     (struct
-      let symbol_for_index = rho_symbol
+      let symbol_for_index = resource_grade_symbol
     end)
 
 let print_ty_params ty_pp ty_params ppf =
@@ -100,7 +100,7 @@ let print_ty_params ty_pp ty_params ppf =
   print_helper ty_params;
   Format.fprintf ppf "]"
 
-let print_rho_params ?max_level:_ rho_pp rho_params ppf =
+let print_resource_grade_params ?max_level:_ rho_pp rho_params ppf =
   Format.fprintf ppf "[";
   let rec print_helper = function
     | [] -> ()
@@ -112,12 +112,13 @@ let print_rho_params ?max_level:_ rho_pp rho_params ppf =
   print_helper rho_params;
   Format.fprintf ppf "]"
 
-let print_rho (type a) (module ResourceGrade : Grade.S with type t = a) rho_pp =
-  let rec aux (rho : a rho) ppf =
+let print_resource_grade (type a)
+    (module ResourceGrade : Grade.S with type t = a) rho_pp =
+  let rec aux (rho : a resource_grade) ppf =
     match rho with
-    | RhoConst i -> Format.fprintf ppf "%s" (ResourceGrade.show i)
-    | RhoParam p -> rho_pp p ppf
-    | RhoAdd (t1, t2) ->
+    | ResourceGradeConst i -> Format.fprintf ppf "%s" (ResourceGrade.show i)
+    | ResourceGradeParam p -> rho_pp p ppf
+    | ResourceGradeAdd (t1, t2) ->
         Format.fprintf ppf "@[%t + %t@]"
           (fun ppf -> aux t1 ppf)
           (fun ppf -> aux t2 ppf)
@@ -138,26 +139,27 @@ let print_ty (type a) ?max_level rho_module ty_print_param rho_print_param =
           (Print.print_tuple aux tys)
           (TyName.print ty_name)
     | TyParam a -> print "%t" (ty_print_param a)
-    | TyArrow (ty1, CompTy (ty2, RhoConst z)) when z = ResourceGrade.zero ->
+    | TyArrow (ty1, CompTy (ty2, ResourceGradeConst z))
+      when z = ResourceGrade.zero ->
         print ~at_level:3 "%t → %t" (aux ~max_level:2 ty1)
           (aux ~max_level:3 ty2)
     | TyArrow (ty1, CompTy (ty2, rho)) ->
         print ~at_level:3 "%t → %t # %t" (aux ~max_level:2 ty1)
           (aux ~max_level:3 ty2)
-          (print_rho rho_module rho_print_param rho)
+          (print_resource_grade rho_module rho_print_param rho)
     | TyTuple [] -> print "unit"
     | TyTuple tys ->
         print ~at_level:2 "%t"
           (Print.print_sequence " × " (aux ~max_level:1) tys)
     | TyBox (rho, ty) ->
         print ~at_level:1 "[%t]%t"
-          (print_rho rho_module rho_print_param rho)
+          (print_resource_grade rho_module rho_print_param rho)
           (aux ~max_level:0 ty)
     | TyHandler (CompTy (ty1, rho1), CompTy (ty2, rho2)) ->
         print ~at_level:3 "%t # %t ⇒ %t # %t" (aux ~max_level:2 ty1)
-          (print_rho rho_module rho_print_param rho1)
+          (print_resource_grade rho_module rho_print_param rho1)
           (aux ~max_level:3 ty2)
-          (print_rho rho_module rho_print_param rho2)
+          (print_resource_grade rho_module rho_print_param rho2)
   in
   aux ?max_level
 
@@ -241,9 +243,9 @@ and print_computation rho_module =
     | Delay (n, c) ->
         print ~at_level:1 "@[<hov 2>delay %d@ %t@]" n (aux ~max_level:0 c)
     | Box (rho, e, (p, c)) ->
-        let rho_pp = RhoPrintParam.create () in
+        let rho_pp = ResourceGradePrintParam.create () in
         print ~at_level:2 "@[<v 0>box %t %t as %t in@,%t@]"
-          (print_rho rho_module rho_pp rho)
+          (print_resource_grade rho_module rho_pp rho)
           (print_expression rho_module ~max_level:0 e)
           (print_pattern ~max_level:0 p)
           (aux c)
@@ -278,20 +280,20 @@ let print_vars_and_tys rho_module print_var_and_ty lst ppf =
         List.iter
           (fun entry ->
             let ty_pp = TyPrintParam.create () in
-            let rho_pp = RhoPrintParam.create () in
+            let rho_pp = ResourceGradePrintParam.create () in
             print_var_and_ty ty_pp rho_pp entry ppf)
           (VariableMap.bindings map);
         print_list rest
-    | Rho n :: rest ->
-        let rho_pp = RhoPrintParam.create () in
-        print_rho rho_module rho_pp n ppf;
+    | ResourceGrade n :: rest ->
+        let rho_pp = ResourceGradePrintParam.create () in
+        print_resource_grade rho_module rho_pp n ppf;
         Print.print ppf "\n";
         print_list rest
   in
   print_list (List.rev lst)
 
 let print_vars_and_exprs rho_module print_var_and_expr
-    (lst : ('var, 'map, 'rho) Ast.context_elem_ty list) ppf =
+    (lst : ('var, 'map, 'resource_grade) Ast.context_elem_ty list) ppf =
   let print_var_map map ppf =
     let elements = VariableMap.bindings map in
     Format.fprintf ppf "@[<hv 2>{ ";
@@ -308,9 +310,9 @@ let print_vars_and_exprs rho_module print_var_and_expr
   in
   let print_elem ppf = function
     | VarMap map -> print_var_map map ppf
-    | Rho n ->
-        let rho_pp = RhoPrintParam.create () in
-        print_rho rho_module rho_pp n ppf
+    | ResourceGrade n ->
+        let rho_pp = ResourceGradePrintParam.create () in
+        print_resource_grade rho_module rho_pp n ppf
   in
   let elems = List.rev lst in
   match elems with
@@ -333,17 +335,17 @@ let print_variable_context rho_module ctx =
       ppf =
     Format.fprintf ppf "@[<h>%t -> %t, %t %t@]@." (Variable.print variable)
       (print_ty_params ty_pp ty_params)
-      (print_rho_params rho_pp rho_params)
+      (print_resource_grade_params rho_pp rho_params)
       (print_ty rho_module ty_pp rho_pp ty)
   in
   print_vars_and_tys rho_module print_var_and_ty ctx
 
 let print_interpreter_state rho_module ctx ppf =
   let print_var_and_expr (variable, (rho, expr)) ppf =
-    let rho_print_param = RhoPrintParam.create () in
+    let rho_print_param = ResourceGradePrintParam.create () in
     Format.fprintf ppf "@[<hv 2>%t ↦@ %t@ # %t@]" (Variable.print variable)
       (print_expression rho_module expr)
-      (print_rho rho_module rho_print_param rho)
+      (print_resource_grade rho_module rho_print_param rho)
   in
   print_vars_and_exprs rho_module print_var_and_expr ctx ppf
 

@@ -6,16 +6,16 @@ module Symbol = Utils.Symbol
 module type S = sig
   type var
   type base
-  type 'a map_or_rho
+  type 'a map_or_resource_grade
   type 'a t
 
   val empty : 'a t
-  val add_temp : base rho -> 'a t -> 'a t
+  val add_temp : base resource_grade -> 'a t -> 'a t
   val add_variable : var -> 'a -> 'a t -> 'a t
   val find_variable : var -> 'a t -> 'a
   val find_variable_opt : var -> 'a t -> 'a option
-  val abstract_rho_sum : 'a t -> base rho
-  val eval_rho : base rho -> base
+  val abstract_resource_grade_sum : 'a t -> base resource_grade
+  val eval_resource_grade : base resource_grade -> base
 end
 
 module Make
@@ -25,14 +25,19 @@ module Make
 struct
   type var = Variable.t
   type base = Base.t
-  type base_rho = base rho
-  type 'a map_or_rho = (var, 'a VariableMap.t, base_rho) context_elem_ty
-  type 'a t = (var, 'a VariableMap.t, base_rho) context
+  type base_resource_grade = base resource_grade
+
+  type 'a map_or_resource_grade =
+    (var, 'a VariableMap.t, base_resource_grade) context_elem_ty
+
+  type 'a t = (var, 'a VariableMap.t, base_resource_grade) context
 
   let empty : 'a t = []
 
-  let add_temp (n : base_rho) (lst : 'a t) : 'a t =
-    match n with RhoConst z when z = Base.zero -> lst | _ -> Rho n :: lst
+  let add_temp (n : base_resource_grade) (lst : 'a t) : 'a t =
+    match n with
+    | ResourceGradeConst z when z = Base.zero -> lst
+    | _ -> ResourceGrade n :: lst
 
   let add_variable (key : var) (value : 'a) (lst : 'a t) : 'a t =
     match lst with
@@ -51,7 +56,7 @@ struct
           match VariableMap.find_opt key map with
           | Some v -> v
           | None -> find rest)
-      | Rho _ :: rest -> find rest
+      | ResourceGrade _ :: rest -> find rest
     in
     find lst
 
@@ -62,33 +67,38 @@ struct
           match VariableMap.find_opt key map with
           | Some v -> Some v
           | None -> find rest)
-      | Rho _ :: rest -> find rest
+      | ResourceGrade _ :: rest -> find rest
     in
     find lst
 
-  let sum_rhos_added_after (key : var) (lst : 'a t) : base_rho =
+  let sum_resource_grades_added_after (key : var) (lst : 'a t) :
+      base_resource_grade =
     let rec go acc = function
       | [] ->
           raise (VariableNotFound (Format.asprintf "%t" (Variable.print key)))
-      | Rho t :: rest -> go (Ast.RhoAdd (acc, t)) rest
+      | ResourceGrade t :: rest -> go (Ast.ResourceGradeAdd (acc, t)) rest
       | VarMap map :: rest -> (
           match VariableMap.find_opt key map with
           | Some _ -> acc
           | None -> go acc rest)
     in
-    go (Ast.RhoConst Base.zero) lst
+    go (Ast.ResourceGradeConst Base.zero) lst
 
-  let abstract_rho_sum (lst : 'a t) : base_rho =
+  let abstract_resource_grade_sum (lst : 'a t) : base_resource_grade =
     let rec sum acc = function
       | [] -> acc
-      | Rho t :: rest -> sum (RhoAdd (acc, t)) rest
+      | ResourceGrade t :: rest -> sum (ResourceGradeAdd (acc, t)) rest
       | VarMap _ :: rest -> sum acc rest
     in
-    sum (RhoConst Base.zero) lst
+    sum (ResourceGradeConst Base.zero) lst
 
-  let rec eval_rho (t : base_rho) : base =
+  let rec eval_resource_grade (t : base_resource_grade) : base =
     match t with
-    | RhoConst c -> c
-    | RhoParam _ -> raise (RhoParamInEval "RhoParam not supported in eval_rho")
-    | RhoAdd (t1, t2) -> Base.add (eval_rho t1) (eval_rho t2)
+    | ResourceGradeConst c -> c
+    | ResourceGradeParam _ ->
+        raise
+          (ResourceGradeParamInEval
+             "ResourceGradeParam not supported in eval_resource_grade")
+    | ResourceGradeAdd (t1, t2) ->
+        Base.add (eval_resource_grade t1) (eval_resource_grade t2)
 end

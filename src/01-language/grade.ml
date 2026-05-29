@@ -14,12 +14,12 @@ module type S = sig
   val zero : t
   val add : t -> t -> t
 
-  val is_sub_rho : t -> t -> bool
+  val is_sub_resource_grade : t -> t -> bool
   (** Compare whether one grade is a sub-grade of another. *)
 
-  val is_sub_rho_symbol : string
-  val is_zero_minimal_sub_rho : bool
-  val is_zero_top_sub_rho : bool
+  val is_sub_resource_grade_symbol : string
+  val is_zero_minimal_sub_resource_grade : bool
+  val is_zero_top_sub_resource_grade : bool
 
   val of_lit : lit -> t
   (** Converts a parsed grade literal to a value of type [t]. *)
@@ -38,10 +38,10 @@ module TimeLowerBoundGrade : S = struct
   let name = "time-lower-bound"
   let zero = 0
   let add = ( + )
-  let is_sub_rho = ( >= )
-  let is_sub_rho_symbol = ">="
-  let is_zero_minimal_sub_rho = false
-  let is_zero_top_sub_rho = true
+  let is_sub_resource_grade = ( >= )
+  let is_sub_resource_grade_symbol = ">="
+  let is_zero_minimal_sub_resource_grade = false
+  let is_zero_top_sub_resource_grade = true
 
   let of_lit = function
     | Int n ->
@@ -67,10 +67,10 @@ module TimeUpperBoundGrade : S = struct
   let name = "time-upper-bound"
   let zero = 0
   let add = ( + )
-  let is_sub_rho = ( <= )
-  let is_sub_rho_symbol = "<="
-  let is_zero_minimal_sub_rho = true
-  let is_zero_top_sub_rho = false
+  let is_sub_resource_grade = ( <= )
+  let is_sub_resource_grade_symbol = "<="
+  let is_zero_minimal_sub_resource_grade = true
+  let is_zero_top_sub_resource_grade = false
 
   let of_lit = function
     | Int n ->
@@ -98,11 +98,11 @@ module TimeIntervalGrade : S = struct
   let add (n, m) (k, l) = (n + k, m + l)
 
   (** sub-interval order, (n, m) is sub-interval of (k, l) *)
-  let is_sub_rho (n, m) (k, l) = n >= k && l >= m
+  let is_sub_resource_grade (n, m) (k, l) = n >= k && l >= m
 
-  let is_sub_rho_symbol = "<="
-  let is_zero_minimal_sub_rho = true
-  let is_zero_top_sub_rho = false
+  let is_sub_resource_grade_symbol = "<="
+  let is_zero_minimal_sub_resource_grade = true
+  let is_zero_top_sub_resource_grade = false
 
   let of_lit = function
     | Int _ -> invalid_arg "TimeIntervalGrade.of_lit: pair literal expected"

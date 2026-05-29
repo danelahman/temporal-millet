@@ -9,16 +9,16 @@ module type S = sig
   type evaluation_environment = {
     state :
       ( Ast.Variable.t,
-        (GradeSystem.ResourceGrade.t Ast.rho
+        (GradeSystem.ResourceGrade.t Ast.resource_grade
         * GradeSystem.ResourceGrade.t Ast.expression)
         Ast.VariableMap.t,
-        GradeSystem.ResourceGrade.t Ast.rho )
+        GradeSystem.ResourceGrade.t Ast.resource_grade )
       Ast.context_elem_ty
       list;
     variables :
       ( Ast.Variable.t,
         GradeSystem.ResourceGrade.t Ast.expression Ast.VariableMap.t,
-        GradeSystem.ResourceGrade.t Ast.rho )
+        GradeSystem.ResourceGrade.t Ast.resource_grade )
       Ast.context_elem_ty
       list;
     builtin_functions :
@@ -26,11 +26,12 @@ module type S = sig
         (GradeSystem.ResourceGrade.t Ast.expression ->
         GradeSystem.ResourceGrade.t Ast.computation)
         Ast.VariableMap.t,
-        GradeSystem.ResourceGrade.t Ast.rho )
+        GradeSystem.ResourceGrade.t Ast.resource_grade )
       Ast.context_elem_ty
       list;
     resource_counter : int;
-    op_signatures : GradeSystem.ResourceGrade.t Ast.rho Ast.OpNameMap.t;
+    op_signatures :
+      GradeSystem.ResourceGrade.t Ast.resource_grade Ast.OpNameMap.t;
   }
 
   val initial_load_state : load_state
@@ -56,7 +57,7 @@ module type S = sig
   val load_op_sig :
     load_state ->
     Ast.OpName.t ->
-    GradeSystem.ResourceGrade.t Ast.rho ->
+    GradeSystem.ResourceGrade.t Ast.resource_grade ->
     load_state
 
   type run_state

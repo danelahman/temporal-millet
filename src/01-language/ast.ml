@@ -13,21 +13,21 @@ module TyParamSet = Set.Make (TyParamModule)
 
 type ty_param = TyParamModule.t
 
-module RhoParamModule = Symbol.Make ()
-module RhoParamMap = Map.Make (RhoParamModule)
-module RhoParamSet = Set.Make (RhoParamModule)
+module ResourceGradeParamModule = Symbol.Make ()
+module ResourceGradeParamMap = Map.Make (ResourceGradeParamModule)
+module ResourceGradeParamSet = Set.Make (ResourceGradeParamModule)
 
-type rho_param = RhoParamModule.t
+type resource_grade_param = ResourceGradeParamModule.t
 
 module OpName = Symbol.Make ()
 module OpNameMap = Map.Make (OpName)
 
 type operation = OpName.t
 
-type 'a rho =
-  | RhoConst of 'a
-  | RhoParam of rho_param
-  | RhoAdd of 'a rho * 'a rho
+type 'a resource_grade =
+  | ResourceGradeConst of 'a
+  | ResourceGradeParam of resource_grade_param
+  | ResourceGradeAdd of 'a resource_grade * 'a resource_grade
 
 type 'a ty =
   | TyConst of Const.ty
@@ -35,10 +35,10 @@ type 'a ty =
   | TyParam of ty_param  (** ['a] *)
   | TyArrow of 'a ty * 'a comp_ty  (** [ty1 -> ty2 ! rho] *)
   | TyTuple of 'a ty list  (** [ty1 * ty2 * ... * tyn] *)
-  | TyBox of 'a rho * 'a ty  (** [ [rho]ty ] *)
+  | TyBox of 'a resource_grade * 'a ty  (** [ [rho]ty ] *)
   | TyHandler of 'a comp_ty * 'a comp_ty
 
-and 'a comp_ty = CompTy of 'a ty * 'a rho  (** [ty ! rho] *)
+and 'a comp_ty = CompTy of 'a ty * 'a resource_grade  (** [ty ! rho] *)
 
 let bool_ty_name = TyName.fresh "bool"
 let int_ty_name = TyName.fresh "int"
@@ -82,7 +82,7 @@ and 'a computation =
   | Match of 'a expression * 'a abstraction list
   | Apply of 'a expression * 'a expression
   | Delay of int * 'a computation
-  | Box of 'a rho * 'a expression * 'a abstraction
+  | Box of 'a resource_grade * 'a expression * 'a abstraction
   | Unbox of 'a expression * 'a abstraction
   | Perform of operation * 'a expression * 'a abstraction
   | Handle of 'a computation * 'a expression
@@ -93,20 +93,28 @@ type 'a ty_def = TySum of (label * 'a ty option) list | TyInline of 'a ty
 
 type 'a command =
   | TyDef of (ty_param list * ty_name * 'a ty_def) list
-  | OpSig of (operation * 'a ty * 'a ty * 'a rho)
+  | OpSig of (operation * 'a ty * 'a ty * 'a resource_grade)
   | TopLet of variable * 'a expression
   | TopDo of 'a computation
   | Grades of string
 
-type ('var, 'map, 'rho) context_elem_ty = VarMap of 'map | Rho of 'rho
-type ('var, 'map, 'rho) context = ('var, 'map, 'rho) context_elem_ty list
+type ('var, 'map, 'resource_grade) context_elem_ty =
+  | VarMap of 'map
+  | ResourceGrade of 'resource_grade
 
-let rec substitute_rho subst = function
-  | RhoConst _ as rho -> rho
-  | RhoParam tp as rho -> (
-      match RhoParamMap.find_opt tp subst with None -> rho | Some rho' -> rho')
-  | RhoAdd (rho, rho') ->
-      RhoAdd (substitute_rho subst rho, substitute_rho subst rho')
+type ('var, 'map, 'resource_grade) context =
+  ('var, 'map, 'resource_grade) context_elem_ty list
+
+let rec substitute_resource_grade subst = function
+  | ResourceGradeConst _ as rho -> rho
+  | ResourceGradeParam tp as rho -> (
+      match ResourceGradeParamMap.find_opt tp subst with
+      | None -> rho
+      | Some rho' -> rho')
+  | ResourceGradeAdd (rho, rho') ->
+      ResourceGradeAdd
+        ( substitute_resource_grade subst rho,
+          substitute_resource_grade subst rho' )
 
 let rec substitute_ty ty_subst rho_subst = function
   | TyConst _ as ty -> ty
@@ -119,62 +127,72 @@ let rec substitute_ty ty_subst rho_subst = function
       TyArrow
         ( substitute_ty ty_subst rho_subst ty1,
           CompTy
-            (substitute_ty ty_subst rho_subst ty2, substitute_rho rho_subst rho)
-        )
+            ( substitute_ty ty_subst rho_subst ty2,
+              substitute_resource_grade rho_subst rho ) )
   | TyBox (rho, ty) ->
-      TyBox (substitute_rho rho_subst rho, substitute_ty ty_subst rho_subst ty)
+      TyBox
+        ( substitute_resource_grade rho_subst rho,
+          substitute_ty ty_subst rho_subst ty )
   | TyHandler (CompTy (ty1, rho1), CompTy (ty2, rho2)) ->
       TyHandler
         ( CompTy
-            (substitute_ty ty_subst rho_subst ty1, substitute_rho rho_subst rho1),
+            ( substitute_ty ty_subst rho_subst ty1,
+              substitute_resource_grade rho_subst rho1 ),
           CompTy
-            (substitute_ty ty_subst rho_subst ty2, substitute_rho rho_subst rho2)
-        )
+            ( substitute_ty ty_subst rho_subst ty2,
+              substitute_resource_grade rho_subst rho2 ) )
 
 let substitute_comp_ty ty_subst rho_subst = function
   | CompTy (ty, rho) ->
-      CompTy (substitute_ty ty_subst rho_subst ty, substitute_rho rho_subst rho)
+      CompTy
+        ( substitute_ty ty_subst rho_subst ty,
+          substitute_resource_grade rho_subst rho )
 
 let rec free_vars = function
-  | TyConst _ -> (TyParamSet.empty, RhoParamSet.empty)
-  | TyParam a -> (TyParamSet.singleton a, RhoParamSet.empty)
+  | TyConst _ -> (TyParamSet.empty, ResourceGradeParamSet.empty)
+  | TyParam a -> (TyParamSet.singleton a, ResourceGradeParamSet.empty)
   | TyApply (_, tys) ->
       List.fold_left
         (fun (ty_params, rho_params) ty ->
           let fv_ty, fv_rho = free_vars ty in
-          (TyParamSet.union ty_params fv_ty, RhoParamSet.union rho_params fv_rho))
-        (TyParamSet.empty, RhoParamSet.empty)
+          ( TyParamSet.union ty_params fv_ty,
+            ResourceGradeParamSet.union rho_params fv_rho ))
+        (TyParamSet.empty, ResourceGradeParamSet.empty)
         tys
   | TyTuple tys ->
       List.fold_left
         (fun (ty_params, rho_params) ty ->
           let fv_ty, fv_rho = free_vars ty in
-          (TyParamSet.union ty_params fv_ty, RhoParamSet.union rho_params fv_rho))
-        (TyParamSet.empty, RhoParamSet.empty)
+          ( TyParamSet.union ty_params fv_ty,
+            ResourceGradeParamSet.union rho_params fv_rho ))
+        (TyParamSet.empty, ResourceGradeParamSet.empty)
         tys
   | TyArrow (ty1, CompTy (ty2, rho)) ->
       let fv_ty1, fv_rho1 = free_vars ty1 in
       let fv_ty2, fv_rho2 = free_vars ty2 in
-      let nested_free_rhos = free_rhos rho in
+      let nested_free_rhos = free_resource_grades rho in
       ( TyParamSet.union fv_ty1 fv_ty2,
-        RhoParamSet.union (RhoParamSet.union fv_rho1 fv_rho2) nested_free_rhos
-      )
+        ResourceGradeParamSet.union
+          (ResourceGradeParamSet.union fv_rho1 fv_rho2)
+          nested_free_rhos )
   | TyBox (rho, ty) ->
       let fv_ty, fv_rho = free_vars ty in
-      let nested_free_rhos = free_rhos rho in
-      (fv_ty, RhoParamSet.union fv_rho nested_free_rhos)
+      let nested_free_rhos = free_resource_grades rho in
+      (fv_ty, ResourceGradeParamSet.union fv_rho nested_free_rhos)
   | TyHandler (CompTy (ty1, rho1), CompTy (ty2, rho2)) ->
       let fv_ty1, fv_rho1 = free_vars ty1 in
       let fv_ty2, fv_rho2 = free_vars ty2 in
-      let nested_free_rhos1 = free_rhos rho1 in
-      let nested_free_rhos2 = free_rhos rho2 in
+      let nested_free_rhos1 = free_resource_grades rho1 in
+      let nested_free_rhos2 = free_resource_grades rho2 in
       ( TyParamSet.union fv_ty1 fv_ty2,
-        RhoParamSet.union
-          (RhoParamSet.union fv_rho1 fv_rho2)
-          (RhoParamSet.union nested_free_rhos1 nested_free_rhos2) )
+        ResourceGradeParamSet.union
+          (ResourceGradeParamSet.union fv_rho1 fv_rho2)
+          (ResourceGradeParamSet.union nested_free_rhos1 nested_free_rhos2) )
 
-and free_rhos rho =
+and free_resource_grades rho =
   match rho with
-  | RhoConst _ -> RhoParamSet.empty
-  | RhoParam a -> RhoParamSet.singleton a
-  | RhoAdd (l, r) -> RhoParamSet.union (free_rhos l) (free_rhos r)
+  | ResourceGradeConst _ -> ResourceGradeParamSet.empty
+  | ResourceGradeParam a -> ResourceGradeParamSet.singleton a
+  | ResourceGradeAdd (l, r) ->
+      ResourceGradeParamSet.union (free_resource_grades l)
+        (free_resource_grades r)

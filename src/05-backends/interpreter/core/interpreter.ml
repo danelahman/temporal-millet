@@ -36,14 +36,14 @@ module Make (GS : Language.GradeSystem.S) = struct
 
   type evaluation_environment = {
     state :
-      (ResourceGrade.t Ast.rho * ResourceGrade.t Ast.expression)
+      (ResourceGrade.t Ast.resource_grade * ResourceGrade.t Ast.expression)
       ContextHolderModule.t;
     variables : ResourceGrade.t Ast.expression ContextHolderModule.t;
     builtin_functions :
       (ResourceGrade.t Ast.expression -> ResourceGrade.t Ast.computation)
       ContextHolderModule.t;
     resource_counter : int;
-    op_signatures : ResourceGrade.t Ast.rho Ast.OpNameMap.t;
+    op_signatures : ResourceGrade.t Ast.resource_grade Ast.OpNameMap.t;
   }
 
   let initial_environment =
@@ -345,7 +345,7 @@ module Make (GS : Language.GradeSystem.S) = struct
             :: comps1'
         | _ -> comps1')
     | Ast.Delay (n, comp) ->
-        let rho = Ast.RhoConst (ResourceGrade.of_nat n) in
+        let rho = Ast.ResourceGradeConst (ResourceGrade.of_nat n) in
         let env' =
           { env with state = ContextHolderModule.add_temp rho env.state }
         in

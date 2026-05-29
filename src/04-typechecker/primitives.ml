@@ -45,40 +45,47 @@ module Make (GS : Language.GradeSystem.S) = struct
           (Ast.TyTuple [ a; a ], Ast.CompTy (Ast.TyConst Const.BooleanTy, rho)))
 
   let primitive_type_scheme = function
-    | Primitives.CompareEq -> comparison_ty (Ast.RhoConst ResourceGrade.zero)
-    | Primitives.CompareLt -> comparison_ty (Ast.RhoConst ResourceGrade.zero)
-    | Primitives.CompareGt -> comparison_ty (Ast.RhoConst ResourceGrade.zero)
-    | Primitives.CompareLe -> comparison_ty (Ast.RhoConst ResourceGrade.zero)
-    | Primitives.CompareGe -> comparison_ty (Ast.RhoConst ResourceGrade.zero)
-    | Primitives.CompareNe -> comparison_ty (Ast.RhoConst ResourceGrade.zero)
+    | Primitives.CompareEq ->
+        comparison_ty (Ast.ResourceGradeConst ResourceGrade.zero)
+    | Primitives.CompareLt ->
+        comparison_ty (Ast.ResourceGradeConst ResourceGrade.zero)
+    | Primitives.CompareGt ->
+        comparison_ty (Ast.ResourceGradeConst ResourceGrade.zero)
+    | Primitives.CompareLe ->
+        comparison_ty (Ast.ResourceGradeConst ResourceGrade.zero)
+    | Primitives.CompareGe ->
+        comparison_ty (Ast.ResourceGradeConst ResourceGrade.zero)
+    | Primitives.CompareNe ->
+        comparison_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.IntegerAdd ->
-        binary_integer_op_ty (Ast.RhoConst ResourceGrade.zero)
+        binary_integer_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.IntegerMul ->
-        binary_integer_op_ty (Ast.RhoConst ResourceGrade.zero)
+        binary_integer_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.IntegerSub ->
-        binary_integer_op_ty (Ast.RhoConst ResourceGrade.zero)
+        binary_integer_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.IntegerDiv ->
-        binary_integer_op_ty (Ast.RhoConst ResourceGrade.zero)
+        binary_integer_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.IntegerMod ->
-        binary_integer_op_ty (Ast.RhoConst ResourceGrade.zero)
+        binary_integer_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.IntegerNeg ->
-        unary_integer_op_ty (Ast.RhoConst ResourceGrade.zero)
+        unary_integer_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.FloatAdd ->
-        binary_float_op_ty (Ast.RhoConst ResourceGrade.zero)
+        binary_float_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.FloatMul ->
-        binary_float_op_ty (Ast.RhoConst ResourceGrade.zero)
+        binary_float_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.FloatSub ->
-        binary_float_op_ty (Ast.RhoConst ResourceGrade.zero)
+        binary_float_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.FloatDiv ->
-        binary_float_op_ty (Ast.RhoConst ResourceGrade.zero)
+        binary_float_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.FloatPow ->
-        binary_float_op_ty (Ast.RhoConst ResourceGrade.zero)
-    | Primitives.FloatNeg -> unary_float_op_ty (Ast.RhoConst ResourceGrade.zero)
+        binary_float_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
+    | Primitives.FloatNeg ->
+        unary_float_op_ty (Ast.ResourceGradeConst ResourceGrade.zero)
     | Primitives.ToString ->
         poly_type (fun a ->
             Ast.TyArrow
               ( a,
                 Ast.CompTy
-                  (Ast.TyConst Const.StringTy, Ast.RhoConst ResourceGrade.zero)
-              ))
+                  ( Ast.TyConst Const.StringTy,
+                    Ast.ResourceGradeConst ResourceGrade.zero ) ))
 end

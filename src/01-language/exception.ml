@@ -1,3 +1,3 @@
 exception VariableNotFound of string
-exception RhoParamInEval of string
+exception ResourceGradeParamInEval of string
 exception InequalityCheckFailed of string

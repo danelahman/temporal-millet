@@ -25,10 +25,10 @@ module Make (GS : Language.GradeSystem.S) = struct
           print_mark
           (PrettyPrint.print_computation (module ResourceGrade) c2)
     | Box, Ast.Box (rho, e, (p, c)) ->
-        let rho_pp = PrettyPrint.RhoPrintParam.create () in
+        let rho_pp = PrettyPrint.ResourceGradePrintParam.create () in
         print ~at_level:2 "@[<v 0>%t@[<hov 2>box %t %t as %t@]%t in@,%t@]"
           print_mark
-          (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho)
+          (PrettyPrint.print_resource_grade (module ResourceGrade) rho_pp rho)
           (PrettyPrint.print_expression (module ResourceGrade) ~max_level:0 e)
           (PrettyPrint.print_pattern ~max_level:0 p)
           print_mark
