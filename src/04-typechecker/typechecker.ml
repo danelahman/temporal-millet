@@ -8,7 +8,7 @@ module Make (GS : Language.GradeSystem.S) = struct
   module ResourceGrade = GS.ResourceGrade
   module Ast = Language.Ast.Make (GS)
   module PP = PrettyPrint.Make (GS)
-  module ContextHolderModule = Context.Make (GS)
+  module ContextHolder = Context.Make (GS)
   module P = Primitives.Make (GS)
 
   type var_type = Global | Local
@@ -16,14 +16,14 @@ module Make (GS : Language.GradeSystem.S) = struct
   type state = {
     variables :
       (Ast.ty_param list * Ast.resource_grade_param list * Ast.ty * var_type)
-      ContextHolderModule.t;
+      ContextHolder.t;
     type_definitions : (Ast.ty_param list * Ast.ty_def) Ast.TyNameMap.t;
     op_signatures : (Ast.ty * Ast.ty * Ast.resource_grade) Ast.OpNameMap.t;
   }
 
   let initial_state =
     {
-      variables = ContextHolderModule.empty;
+      variables = ContextHolder.empty;
       type_definitions =
         (Ast.TyNameMap.empty
         |> Ast.TyNameMap.add Ast.bool_ty_name
@@ -37,7 +37,7 @@ module Make (GS : Language.GradeSystem.S) = struct
              ([], Ast.TyInline (Ast.TyConst Const.FloatTy))
         |> Ast.TyNameMap.add Ast.empty_ty_name ([], Ast.TySum [])
         |>
-        let a = Ast.TyParamModule.fresh "list" in
+        let a = Ast.TyParam.fresh "list" in
         Ast.TyNameMap.add Ast.list_ty_name
           ( [ a ],
             Ast.TySum
@@ -119,9 +119,9 @@ module Make (GS : Language.GradeSystem.S) = struct
     print_resource_grade_eq_constraints_pp rho_pp constraints
 
   type ineq_constraint =
-    | Ineq of ContextHolderModule.base_resource_grade * Ast.resource_grade
+    | Ineq of ContextHolder.base_resource_grade * Ast.resource_grade
     | EternalOrIneq of
-        Ast.ty * ContextHolderModule.base_resource_grade * Ast.resource_grade
+        Ast.ty * ContextHolder.base_resource_grade * Ast.resource_grade
 
   let print_resource_grade_ineq_constraints_pp rho_pp constraints =
     Format.fprintf Format.std_formatter "[%a]"
@@ -186,11 +186,11 @@ module Make (GS : Language.GradeSystem.S) = struct
     | Ast.TyInline ty -> check_ty state ty
 
   let fresh_ty () =
-    let a = Ast.TyParamModule.fresh "ty" in
+    let a = Ast.TyParam.fresh "ty" in
     Ast.TyParam a
 
   let fresh_resource_grade () =
-    let t = Ast.ResourceGradeParamModule.fresh "rho" in
+    let t = Ast.ResourceGradeParam.fresh "rho" in
     Ast.ResourceGradeParam t
 
   let fresh_comp_ty () = Ast.CompTy (fresh_ty (), fresh_resource_grade ())
@@ -199,7 +199,7 @@ module Make (GS : Language.GradeSystem.S) = struct
     List.fold_left
       (fun state (x, ty) ->
         let updated_variables =
-          ContextHolderModule.add_variable x ([], [], ty, Local) state.variables
+          ContextHolder.add_variable x ([], [], ty, Local) state.variables
         in
         { state with variables = updated_variables })
       state vars
@@ -208,14 +208,13 @@ module Make (GS : Language.GradeSystem.S) = struct
     List.fold_left
       (fun state (x, ty) ->
         let updated_variables =
-          ContextHolderModule.add_variable x ([], [], ty, Global)
-            state.variables
+          ContextHolder.add_variable x ([], [], ty, Global) state.variables
         in
         { state with variables = updated_variables })
       state vars
 
   let extend_resource_grade state t =
-    let updated_variables = ContextHolderModule.add_temp t state.variables in
+    let updated_variables = ContextHolder.add_temp t state.variables in
     { state with variables = updated_variables }
 
   let refreshing_ty_subst params =
@@ -291,7 +290,7 @@ module Make (GS : Language.GradeSystem.S) = struct
   let rec infer_expression state = function
     | Ast.Var x ->
         let ty_params, rho_params, ty, var_type =
-          ContextHolderModule.find_variable x state.variables
+          ContextHolder.find_variable x state.variables
         in
         let rho_ineq =
           match var_type with
@@ -299,7 +298,7 @@ module Make (GS : Language.GradeSystem.S) = struct
               [
                 EternalOrIneq
                   ( ty,
-                    ContextHolderModule.sum_resource_grades_added_after x
+                    ContextHolder.sum_resource_grades_added_after x
                       state.variables,
                     Ast.ResourceGradeConst ResourceGrade.zero );
               ]
@@ -534,7 +533,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         in
         let x = findVar e in
         let ty_params, rho_params, ty, _var_type =
-          ContextHolderModule.find_variable x state.variables
+          ContextHolder.find_variable x state.variables
         in
         let ty_subst = refreshing_ty_subst ty_params in
         let rho_subst = refreshing_resource_grade_subst rho_params in
@@ -543,7 +542,7 @@ module Make (GS : Language.GradeSystem.S) = struct
           infer_abstraction state abs
         in
         let sum_resource_grades_added_after =
-          ContextHolderModule.sum_resource_grades_added_after x state.variables
+          ContextHolder.sum_resource_grades_added_after x state.variables
         in
         let rho = fresh_resource_grade () in
         ( comp_ty,
@@ -1042,8 +1041,7 @@ module Make (GS : Language.GradeSystem.S) = struct
       in
       try
         let rho_greater_or_equal_val =
-          ContextHolderModule.eval_resource_grade
-            rho_greater_or_equal_simplified
+          ContextHolder.eval_resource_grade rho_greater_or_equal_simplified
         in
         if
           rho_greater_or_equal_val = ResourceGrade.zero
@@ -1051,7 +1049,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         then ()
         else
           let rho_smaller_val =
-            ContextHolderModule.eval_resource_grade rho_smaller_simplified
+            ContextHolder.eval_resource_grade rho_smaller_simplified
           in
           if
             not
@@ -1165,7 +1163,7 @@ module Make (GS : Language.GradeSystem.S) = struct
   let add_external_function x ty_sch state =
     {
       state with
-      variables = ContextHolderModule.add_variable x ty_sch state.variables;
+      variables = ContextHolder.add_variable x ty_sch state.variables;
     }
 
   let add_top_definition state x e =

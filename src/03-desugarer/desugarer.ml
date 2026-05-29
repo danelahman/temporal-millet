@@ -363,7 +363,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         let state' = add_fresh_ty_names ~loc state new_names in
         let aux (params, _, ty_def) (_, ty_name') (state', defs) =
           let params' =
-            List.map (fun a -> (a, Untyped.TyParamModule.fresh a)) params
+            List.map (fun a -> (a, Untyped.TyParam.fresh a)) params
           in
           let state'' = add_fresh_ty_params state' params' in
           let state''', ty_def' = desugar_ty_def ~loc state'' ty_def in

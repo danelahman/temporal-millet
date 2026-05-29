@@ -30,46 +30,43 @@ module Make (GS : Language.GradeSystem.S) = struct
   module ResourceGrade = GradeSystem.ResourceGrade
   module Ast = Language.Ast.Make (GradeSystem)
   module PP = PrettyPrint.Make (GradeSystem)
-  module ContextHolderModule = Context.Make (GradeSystem)
+  module ContextHolder = Context.Make (GradeSystem)
   module P = Primitives.Make (GradeSystem)
   include Types
 
   type evaluation_environment = {
-    state : (Ast.resource_grade * Ast.expression) ContextHolderModule.t;
-    variables : Ast.expression ContextHolderModule.t;
-    builtin_functions :
-      (Ast.expression -> Ast.computation) ContextHolderModule.t;
+    state : (Ast.resource_grade * Ast.expression) ContextHolder.t;
+    variables : Ast.expression ContextHolder.t;
+    builtin_functions : (Ast.expression -> Ast.computation) ContextHolder.t;
     resource_counter : int;
     op_signatures : Ast.resource_grade Ast.OpNameMap.t;
   }
 
   let initial_environment =
     {
-      state = ContextHolderModule.empty;
-      variables = ContextHolderModule.empty;
-      builtin_functions = ContextHolderModule.empty;
+      state = ContextHolder.empty;
+      variables = ContextHolder.empty;
+      builtin_functions = ContextHolder.empty;
       resource_counter = 0;
       op_signatures = Ast.OpNameMap.empty;
     }
 
   let rec eval_tuple (env : evaluation_environment) = function
     | Ast.Tuple exprs -> exprs
-    | Ast.Var x ->
-        eval_tuple env (ContextHolderModule.find_variable x env.variables)
+    | Ast.Var x -> eval_tuple env (ContextHolder.find_variable x env.variables)
     | expr ->
         Error.runtime "Tuple expected but got %t" (PP.print_expression expr)
 
   let rec eval_variant (env : evaluation_environment) = function
     | Ast.Variant (lbl, expr) -> (lbl, expr)
     | Ast.Var x ->
-        eval_variant env (ContextHolderModule.find_variable x env.variables)
+        eval_variant env (ContextHolder.find_variable x env.variables)
     | expr ->
         Error.runtime "Variant expected but got %t" (PP.print_expression expr)
 
   let rec eval_const (env : evaluation_environment) = function
     | Ast.Const c -> c
-    | Ast.Var x ->
-        eval_const env (ContextHolderModule.find_variable x env.variables)
+    | Ast.Var x -> eval_const env (ContextHolder.find_variable x env.variables)
     | expr ->
         Error.runtime "Const expected but got %t" (PP.print_expression expr)
 
@@ -265,16 +262,16 @@ module Make (GS : Language.GradeSystem.S) = struct
           in
           substitute subst comp
     | Ast.Var x -> (
-        match ContextHolderModule.find_variable_opt x env.variables with
+        match ContextHolder.find_variable_opt x env.variables with
         | Some expr -> eval_function env expr
-        | None -> ContextHolderModule.find_variable x env.builtin_functions)
+        | None -> ContextHolder.find_variable x env.builtin_functions)
     | expr ->
         Error.runtime "Function expected but got %t" (PP.print_expression expr)
 
   let rec eval_handler env = function
     | Ast.Handler (ret_case, op_cases) -> (ret_case, op_cases)
     | Ast.Var x -> (
-        match ContextHolderModule.find_variable_opt x env.variables with
+        match ContextHolder.find_variable_opt x env.variables with
         | Some expr -> eval_handler env expr
         | None ->
             Error.runtime
@@ -336,9 +333,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         | _ -> comps1')
     | Ast.Delay (n, comp) ->
         let rho = Ast.ResourceGradeConst (ResourceGrade.of_nat n) in
-        let env' =
-          { env with state = ContextHolderModule.add_temp rho env.state }
-        in
+        let env' = { env with state = ContextHolder.add_temp rho env.state } in
         [ (env', ComputationRedex Delay, fun () -> comp) ]
     | Ast.Box (rho, expr, (pat, comp)) ->
         let rec doBox rho expr pat comp =
@@ -352,7 +347,7 @@ module Make (GS : Language.GradeSystem.S) = struct
                 Ast.Variable.fresh ("resource_" ^ string_of_int resource_counter)
               in
               let state' =
-                ContextHolderModule.add_variable x' (rho, expr) env.state
+                ContextHolder.add_variable x' (rho, expr) env.state
               in
               let env' =
                 {
@@ -376,9 +371,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         let rec doUnbox expr pat comp =
           match expr with
           | Ast.Var x ->
-              let _rho', expr' =
-                ContextHolderModule.find_variable x env.state
-              in
+              let _rho', expr' = ContextHolder.find_variable x env.state in
               let subst = match_pattern_with_expression env pat expr' in
               [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
           | Ast.Annotated (expr', _) -> doUnbox expr' pat comp
@@ -465,7 +458,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         {
           load_state.environment with
           builtin_functions =
-            ContextHolderModule.add_variable x
+            ContextHolder.add_variable x
               (P.primitive_function prim)
               load_state.environment.builtin_functions;
         };
@@ -480,8 +473,7 @@ module Make (GS : Language.GradeSystem.S) = struct
         {
           load_state.environment with
           variables =
-            ContextHolderModule.add_variable x expr
-              load_state.environment.variables;
+            ContextHolder.add_variable x expr load_state.environment.variables;
         };
     }
 
@@ -526,7 +518,7 @@ module Make (GS : Language.GradeSystem.S) = struct
                 let environment' =
                   {
                     environment with
-                    state = ContextHolderModule.empty;
+                    state = ContextHolder.empty;
                     resource_counter = 0;
                   }
                 in

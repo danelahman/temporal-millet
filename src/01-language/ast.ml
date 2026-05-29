@@ -1,77 +1,54 @@
-module Symbol = Utils.Symbol
-module Variable = Symbol.Make ()
-module VariableMap = Map.Make (Variable)
-module Label = Symbol.Make ()
-module TyName = Symbol.Make ()
+(** Grade-independent definitions, shared across all grade-system
+    instantiations. Grouped in one module so that [Make] can re-export them with
+    a single [include], and so that every [Make (GS)] sees the *same* symbol
+    modules and type names (e.g.
+    [Make (GS1).Variable.t = Make (GS2).Variable.t]). *)
+module Common = struct
+  module Symbol = Utils.Symbol
+  module Variable = Symbol.Make ()
+  module VariableMap = Map.Make (Variable)
+  module Label = Symbol.Make ()
+  module TyName = Symbol.Make ()
 
-type ty_name = TyName.t
+  type ty_name = TyName.t
 
-module TyNameMap = Map.Make (TyName)
-module TyParamModule = Symbol.Make ()
-module TyParamMap = Map.Make (TyParamModule)
-module TyParamSet = Set.Make (TyParamModule)
+  module TyNameMap = Map.Make (TyName)
+  module TyParam = Symbol.Make ()
+  module TyParamMap = Map.Make (TyParam)
+  module TyParamSet = Set.Make (TyParam)
 
-type ty_param = TyParamModule.t
+  type ty_param = TyParam.t
 
-module ResourceGradeParamModule = Symbol.Make ()
-module ResourceGradeParamMap = Map.Make (ResourceGradeParamModule)
-module ResourceGradeParamSet = Set.Make (ResourceGradeParamModule)
+  module ResourceGradeParam = Symbol.Make ()
+  module ResourceGradeParamMap = Map.Make (ResourceGradeParam)
+  module ResourceGradeParamSet = Set.Make (ResourceGradeParam)
 
-type resource_grade_param = ResourceGradeParamModule.t
+  type resource_grade_param = ResourceGradeParam.t
 
-module OpName = Symbol.Make ()
-module OpNameMap = Map.Make (OpName)
+  module OpName = Symbol.Make ()
+  module OpNameMap = Map.Make (OpName)
 
-type operation = OpName.t
-type variable = Variable.t
-type label = Label.t
+  type operation = OpName.t
+  type variable = Variable.t
+  type label = Label.t
 
-let bool_ty_name = TyName.fresh "bool"
-let int_ty_name = TyName.fresh "int"
-let unit_ty_name = TyName.fresh "unit"
-let string_ty_name = TyName.fresh "string"
-let float_ty_name = TyName.fresh "float"
-let list_ty_name = TyName.fresh "list"
-let empty_ty_name = TyName.fresh "empty"
-let nil_label_string = "$nil$"
-let nil_label = Label.fresh nil_label_string
-let cons_label_string = "$cons$"
-let cons_label = Label.fresh cons_label_string
+  let bool_ty_name = TyName.fresh "bool"
+  let int_ty_name = TyName.fresh "int"
+  let unit_ty_name = TyName.fresh "unit"
+  let string_ty_name = TyName.fresh "string"
+  let float_ty_name = TyName.fresh "float"
+  let list_ty_name = TyName.fresh "list"
+  let empty_ty_name = TyName.fresh "empty"
+  let nil_label_string = "$nil$"
+  let nil_label = Label.fresh nil_label_string
+  let cons_label_string = "$cons$"
+  let cons_label = Label.fresh cons_label_string
+end
+
+include Common
 
 module Make (GS : GradeSystem.S) = struct
-  module Symbol = Symbol
-  module Variable = Variable
-  module VariableMap = VariableMap
-  module Label = Label
-  module TyName = TyName
-  module TyNameMap = TyNameMap
-  module TyParamModule = TyParamModule
-  module TyParamMap = TyParamMap
-  module TyParamSet = TyParamSet
-  module ResourceGradeParamModule = ResourceGradeParamModule
-  module ResourceGradeParamMap = ResourceGradeParamMap
-  module ResourceGradeParamSet = ResourceGradeParamSet
-  module OpName = OpName
-  module OpNameMap = OpNameMap
-
-  type nonrec ty_name = ty_name
-  type nonrec ty_param = ty_param
-  type nonrec resource_grade_param = resource_grade_param
-  type nonrec operation = operation
-  type nonrec variable = variable
-  type nonrec label = label
-
-  let bool_ty_name = bool_ty_name
-  let int_ty_name = int_ty_name
-  let unit_ty_name = unit_ty_name
-  let string_ty_name = string_ty_name
-  let float_ty_name = float_ty_name
-  let list_ty_name = list_ty_name
-  let empty_ty_name = empty_ty_name
-  let nil_label_string = nil_label_string
-  let nil_label = nil_label
-  let cons_label_string = cons_label_string
-  let cons_label = cons_label
+  include Common
 
   type resource_grade =
     | ResourceGradeConst of GS.ResourceGrade.t

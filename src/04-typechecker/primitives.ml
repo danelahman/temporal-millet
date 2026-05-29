@@ -7,7 +7,7 @@ module Make (GS : Language.GradeSystem.S) = struct
   module Ast = Language.Ast.Make (GS)
 
   let poly_type ty =
-    let a = Ast.TyParamModule.fresh "poly" in
+    let a = Ast.TyParam.fresh "poly" in
     ([ a ], [], ty (Ast.TyParam a))
 
   let unary_integer_op_ty rho =
