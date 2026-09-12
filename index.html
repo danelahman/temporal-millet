@@ -5,6 +5,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Temporal Millet</title>
+  <link rel="icon" type="image/svg+xml" href="logo/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="logo/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="logo/favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.0/css/bulma.min.css">
   <script src="web.bc.js"></script>
   <style>
@@ -76,6 +80,29 @@
       box-decoration-break: clone;
     }
 
+    /* Let the editor box stretch to the height of the side panel, so that the
+       two start out level; a longer program still grows the box as before. */
+    .contents.columns > .main.column {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .editor-box {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .editor-box .code-editor {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .editor-box .code-editor-input {
+      flex-grow: 1;
+    }
+
     .code-editor {
       position: relative;
       font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
@@ -122,6 +149,11 @@
       display: block;
     }
 
+    .code-editor-input::placeholder {
+      color: #9aa0a6;
+      opacity: 1;
+    }
+
     .code-editor-input:focus {
       border-color: #485fc7;
       box-shadow: 0 0 0 0.125em rgba(72, 95, 199, 0.25);
@@ -151,6 +183,11 @@
 
     /* Bulma paints the navbar white and above its neighbours, which would
        hide the top of the shadow of the box right below it. */
+    /* Bulma's section starts 3rem down; the header does not need that much. */
+    .section {
+      padding-top: 1.5rem;
+    }
+
     .navbar {
       background-color: transparent;
       margin-bottom: 1.5rem;
@@ -160,16 +197,63 @@
       flex-grow: 1;
     }
 
-    .navbar-brand .github-link {
-      margin-left: auto;
-      gap: 0.4rem;
-      color: #4a4a4a;
-      font-weight: 500;
+    .navbar-brand .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      /* Line the mark up with the left edge of the editor box below. */
+      padding-left: 0;
     }
 
-    .navbar-brand .github-link:hover {
-      color: #0366d6;
-      background-color: transparent;
+    .navbar-brand .brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .navbar-brand .brand-title .title {
+      margin: 0;
+      line-height: 1;
+    }
+
+    .navbar-brand .brand-tagline {
+      margin: 0;
+      color: #7a7a7a;
+      font-size: 0.95rem;
+      line-height: 1.2;
+    }
+
+    .navbar-brand .brand-logo {
+      /* Bulma caps navbar images at 1.75rem; the mark spans both lines of
+         the brand text. */
+      max-height: 3.5rem;
+      height: 3.5rem;
+      width: 3.5rem;
+      display: block;
+    }
+
+    .site-footer {
+      display: flex;
+      justify-content: center;
+      padding: 1rem 0 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .site-footer .github-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: #7a7a7a;
+    }
+
+    .site-footer .github-link:hover {
+      /* Bulma's is-info blue, as on the run button and in the logo. */
+      color: #3298dc;
+    }
+
+    .site-footer .github-link svg {
+      width: 18px;
+      height: 18px;
     }
   </style>
 </head>

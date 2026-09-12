@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Temporal Millet logo: elapsed time closing around a boxed delay [|||]. -->
+  <circle cx="100" cy="100" r="70" fill="none" stroke="currentColor" stroke-width="10" opacity="0.25"/>
+  <path d="M 100 30 A 70 70 0 1 1 39.4 135.0" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 76 66 H 62 V 134 H 76" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 124 66 H 138 V 134 H 124" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 86 90 V 110" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 100 90 V 110" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 114 90 V 110" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+</svg>
