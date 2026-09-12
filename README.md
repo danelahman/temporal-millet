@@ -434,6 +434,13 @@ make use of the rest of the program's effects. In particular, a default that
 performs its own operation typechecks, but never terminates, in the same way as
 any other non-terminating program.
 
+## Logo
+
+The logo of Temporal Millet, in SVG and PNG and in light, dark, and
+single-colour variants, lives in [`web/logo/`](web/logo/) together with a short
+description of its design and colours. The web interface uses it in its header
+and as its favicon.
+
 ## Editor support
 
 A minimal VS Code extension providing OCaml-style syntax highlighting for

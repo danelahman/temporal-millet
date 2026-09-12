@@ -67,6 +67,8 @@ let view_editor (model : Model.edit_model) =
                 class_ "code-editor-input";
                 oninput (fun input -> Model.ChangeSource input);
                 int_prop "rows" rows;
+                attr "placeholder"
+                  "Type a program, or load an example from the right";
                 attr "spellcheck" "false";
                 attr "autocapitalize" "off";
                 attr "autocorrect" "off";
@@ -335,8 +337,20 @@ let view_navbar =
       ~a:[ class_ "navbar-brand" ]
       [
         elt "a"
-          ~a:[ class_ "navbar-item" ]
-          [ elt "p" ~a:[ class_ "title" ] [ text "Temporal Millet" ] ];
+          ~a:[ class_ "navbar-item brand-title" ]
+          [
+            elt "img"
+              ~a:
+                [
+                  class_ "brand-logo";
+                  attr "src" "logo/temporal-millet-logo.svg";
+                  attr "alt" "";
+                  attr "width" "44";
+                  attr "height" "44";
+                ]
+              [];
+            elt "p" ~a:[ class_ "title" ] [ text "Temporal Millet" ];
+          ];
         elt "a"
           ~a:
             [
