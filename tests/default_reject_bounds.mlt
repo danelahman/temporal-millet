@@ -1,0 +1,7 @@
+(* Correctly rejected by the typechecker, under the default 'time-lower-bound'
+   grading monoid: the default implementation of 'Get' is faster than the grade
+   the operation promises its callers. *)
+
+operation Get : unit ~> unit # 3
+
+default Get () = delay 2

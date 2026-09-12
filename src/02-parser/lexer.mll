@@ -37,6 +37,7 @@
     ("box", BOX);
     ("unbox", UNBOX);
     ("operation", OPERATION);
+    ("default", DEFAULT);
     ("perform", PERFORM);
     ("handler", HANDLER);
     ("handle", HANDLE);

@@ -1,0 +1,9 @@
+(* Correctly rejected by the typechecker, under the 'timed-traces-interval'
+   grading monoid: both components of a default implementation are checked
+   against their own end of the runtime bounds, so a default that is faster
+   than the lower bound of its operation is rejected even though it stays
+   inside the upper one. *)
+
+operation Extrude : unit ~> unit # ({Extrude}, {Extrude}) within (3, 5)
+
+default Extrude () = delay 1

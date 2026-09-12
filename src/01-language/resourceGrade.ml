@@ -57,6 +57,19 @@ module type Grade = sig
   val of_nat : int -> t
   (** Converts a parsed integer constant into a value of type [t]. *)
 
+  val of_bounds : int * int -> t
+  (** [of_bounds (lo, hi)] is the "time shadow" of an operation declaring the
+      runtime bounds [within (lo, hi)]: the grade that records nothing but the
+      time such a call may take. It is the grade a default implementation of the
+      operation is checked against, since the operation's own grade can only be
+      realised by performing the operation itself. Each monoid reads the end of
+      the bounds its order uses, the two-sided ones both. *)
+
+  val is_atomic : string -> t -> bool
+  (** [is_atomic name rho] is whether [rho] is the grade of an atomic operation
+      named [name], i.e. the single run consisting of [name] alone. The time
+      grades name no operations and are all atomic. *)
+
   val show : t -> string
 end
 
@@ -99,6 +112,8 @@ module TimeLowerBoundGrade : Grade = struct
       invalid_arg "TimeLowerBoundGrade.of_nat: expected non-negative integer"
     else n
 
+  let of_bounds (lo, _hi) = lo
+  let is_atomic _name _ = true
   let show = string_of_int
 end
 
@@ -131,6 +146,8 @@ module TimeUpperBoundGrade : Grade = struct
       invalid_arg "TimeUpperBoundGrade.of_nat: expected non-negative integer"
     else n
 
+  let of_bounds (_lo, hi) = hi
+  let is_atomic _name _ = true
   let show = string_of_int
 end
 
@@ -168,6 +185,8 @@ module IntervalResourceGrade : Grade = struct
       invalid_arg "IntervalResourceGrade.of_nat: expected non-negative integer"
     else (n, n)
 
+  let of_bounds (lo, hi) = (lo, hi)
+  let is_atomic _name _ = true
   let show (n, m) = "(" ^ string_of_int n ^ "," ^ string_of_int m ^ ")"
 end
 
@@ -230,6 +249,8 @@ module TimedTracesLowerBoundGrade : Grade = struct
         "TimedTracesLowerBoundGrade.of_nat: expected non-negative integer"
     else TimedTrace.of_nat n
 
+  let of_bounds (lo, _hi) = TimedTrace.of_nat lo
+  let is_atomic name p = p = [ [ TimedTrace.Ev name ] ]
   let show = TimedTrace.show
 end
 
@@ -275,6 +296,8 @@ module TimedTracesUpperBoundGrade : Grade = struct
         "TimedTracesUpperBoundGrade.of_nat: expected non-negative integer"
     else TimedTrace.of_nat n
 
+  let of_bounds (_lo, hi) = TimedTrace.of_nat hi
+  let is_atomic name p = p = [ [ TimedTrace.Ev name ] ]
   let show = TimedTrace.show
 end
 
@@ -328,6 +351,11 @@ module TimedTracesIntervalGrade : Grade = struct
       invalid_arg
         "TimedTracesIntervalGrade.of_nat: expected non-negative integer"
     else (TimedTrace.of_nat n, TimedTrace.of_nat n)
+
+  let of_bounds (lo, hi) = (TimedTrace.of_nat lo, TimedTrace.of_nat hi)
+
+  let is_atomic name (lo, hi) =
+    lo = [ [ TimedTrace.Ev name ] ] && hi = [ [ TimedTrace.Ev name ] ]
 
   let show (lo, hi) = "(" ^ TimedTrace.show lo ^ "," ^ TimedTrace.show hi ^ ")"
 end

@@ -376,6 +376,9 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         let rho = Untyped.RhoConst rho_val in
         let state' = add_operation ~loc state op_name operation in
         (state', Untyped.OpSig (operation, ty1, ty2, rho, bounds))
+    | Sugared.OpDefault (op_name, abs) ->
+        let operation = lookup_operation ~loc state op_name in
+        (state, Untyped.OpDefault (operation, desugar_abstraction state abs))
     | Sugared.TopLet (x, term) ->
         let x' = Untyped.Variable.fresh x in
         let state' = add_fresh_variables state (StringMap.singleton x x') in

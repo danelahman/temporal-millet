@@ -1,0 +1,34 @@
+(* Correctly accepted by the typechecker, under the 'timed-traces-upper-bound'
+   grading monoid: the three atomic operations of a print are given default
+   implementations, checked against their runtime bounds rather than against
+   their grades, and the compound operation 'PrintModel' is handled by a
+   handler in terms of them. The run therefore completes instead of stopping at
+   the first unhandled operation. *)
+
+type model = Model of string
+type fresh = Fresh of model
+
+operation Heat : unit ~> unit # {Heat} within (1, 2)
+default Heat () = delay 1
+
+operation Extrude : unit ~> unit # {Extrude} within (3, 5)
+default Extrude () = delay 3
+
+operation Cool : unit ~> unit # {Cool} within (2, 2)
+default Cool () = delay 2
+
+operation PrintModel : model ~> fresh # {Heat; Extrude; Cool} within (6, 9)
+
+let printer =
+  handler
+  | x -> x
+  | PrintModel m k ->
+      perform Heat ();
+      perform Extrude ();
+      perform Cool ();
+      continue k with (Fresh m)
+
+run
+  handle
+    perform PrintModel (Model "Sword")
+  with printer

@@ -79,6 +79,15 @@ module Loader (Backend : Backend.S) = struct
           typechecker = typechecker_state';
           backend = Backend.load_op_sig state.backend op rho;
         }
+    | Ast.OpDefault (op, abs) ->
+        let typechecker_state' =
+          TC.add_operation_default state.typechecker (op, abs)
+        in
+        {
+          state with
+          typechecker = typechecker_state';
+          backend = Backend.load_op_default state.backend op abs;
+        }
     | Ast.TopLet (x, expr) ->
         let typechecker_state' =
           TC.add_top_definition state.typechecker x expr

@@ -3,30 +3,48 @@
      ./cli.exe --resources timed-traces-interval examples/timed_traces_interval.mlt *)
 
 type model = Model of string
-type fresh = Fresh of model
+type heated = Heated of model
+type extruded = Extruded of heated
+type cooled = Cooled of extruded
+type fresh = Fresh of cooled | Reheated of heated
 
-operation Heat : unit ~> unit # ({Heat}, {Heat}) within (1, 2)
-operation Extrude : unit ~> unit # ({Extrude}, {Extrude}) within (3, 5)
-operation Cool : unit ~> unit # ({Cool}, {Cool}) within (2, 2)
+(* The heater warms a model up, so that it can be extruded. *)
+operation Heat : model ~> heated # ({Heat}, {Heat}) within (1, 2)
+default Heat m = delay 1; Heated m
 
-(* A print is the three steps, in that order, on both sides of the pair. *)
-operation PrintModel : model ~> fresh
+(* A freshly extruded model is still hot: it may be handed to the cooler, but
+   not touched otherwise until it has rested for two ticks. *)
+operation Extrude : heated ~> [2] extruded
+  # ({Extrude}, {Extrude})
+  within (3, 5)
+default Extrude h = delay 3; box 2 (Extruded h)
+
+(* The cooler takes the hot extruded model, once it has rested, and cools it
+   down to something that can be handled. *)
+operation Cool : [2] extruded ~> cooled # ({Cool}, {Cool}) within (2, 2)
+default Cool p = delay 2; unbox p as e in Cooled e
+
+(* A print is the three steps, in that order, on both sides of the pair. The
+   finished print has to set for two ticks and be collected within eight. *)
+operation PrintModel : model ~> [(2, 8)] fresh
   # ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
   within (6, 9)
 
 (* A print job either extrudes a fresh model or is a quick reheat, again on both
    sides of the pair. *)
-operation Print : model ~> fresh
+operation Print : model ~> [(2, 8)] fresh
   # ({Heat; Extrude; Cool | Heat; Cool}, {Heat; Extrude; Cool | Heat; Cool})
   within (3, 9)
 
 (* An asymmetric job: the lower bound guarantees at least a reheat, while the
    upper bound allows a full print. *)
-operation Print2 : model ~> fresh
+operation Print2 : model ~> [(2, 8)] fresh
   # ({Heat; Cool}, {Heat; Extrude; Cool | Heat; Cool})
   within (3, 9)
 
+(* A single transmission of a message. *)
 operation Tx : string ~> unit # ({Tx}, {Tx}) within (2, 3)
+default Tx msg = delay 2
 
 (* A send is one or two transmissions, on both sides of the pair. *)
 operation Send : string ~> unit # ({Tx | Tx; Tx}, {Tx | Tx; Tx}) within (2, 6)
@@ -36,19 +54,21 @@ operation Send : string ~> unit # ({Tx | Tx; Tx}, {Tx | Tx; Tx}) within (2, 6)
    most 2 + 5 ticks of its upper bound, which allows seven. *)
 let make_cog () =
   box (3, 7) (Model "Cog") as blueprint in
-  perform Heat ();
-  perform Extrude ();
+  let h = perform Heat (Model "Cog") in
+  let p = perform Extrude h in
   unbox blueprint as m in
-  Fresh m
+  let c = perform Cool p in
+  (m, Fresh c)
 
 (* Correctly accepted by the typechecker: the same bound spelled out with the
    two events on each side of the pair instead of as a time interval. *)
 let make_gear () =
   box ({Heat; Extrude}, {Heat; Extrude}) (Model "Gear") as blueprint in
-  perform Heat ();
-  perform Extrude ();
+  let h = perform Heat (Model "Gear") in
+  let p = perform Extrude h in
   unbox blueprint as m in
-  Fresh m
+  let c = perform Cool p in
+  (m, Fresh c)
 
 (* Correctly accepted by the typechecker by sub-effecting: a clause may forward
    the operation it handles, since '({Heat}, {Heat})' is a sub-grade of itself
@@ -56,7 +76,7 @@ let make_gear () =
 let forward =
   handler
   | x -> x
-  | Heat () k -> perform Heat (); continue k with ()
+  | Heat m k -> let h = perform Heat m in continue k with h
 
 (* Correctly accepted by the typechecker: the clause performs exactly the three
    steps 'PrintModel' promises, in the promised order, which covers the lower
@@ -65,21 +85,24 @@ let printer =
   handler
   | x -> x
   | PrintModel m k ->
-      perform Heat ();
-      perform Extrude ();
-      perform Cool ();
-      continue k with (Fresh m)
+      let h = perform Heat m in
+      let p = perform Extrude h in
+      let c = perform Cool p in
+      continue k with (box (2, 8) (Fresh c))
 
 (* Correctly accepted by the typechecker: a whole 'PrintModel' banks the six
    ticks the lower bound of the box demands, because 1 + 3 + 2 = 6, and costs
    at most the nine the upper bound allows, because 2 + 5 + 2 = 9 --- both
-   endpoints exact. *)
+   endpoints exact. The closing wait then collects the print: it banks the two
+   ticks the '[(2, 8)]' box demands, well inside the eight it allows. *)
 let print_sword () =
   handle
     box (6, 9) (Model "Sword") as blueprint in
     let printed = perform PrintModel (Model "Sword") in
     unbox blueprint as m in
-    (m, printed)
+    delay 2;
+    unbox printed as p in
+    (m, p)
   with printer
 
 (* Correctly accepted by the typechecker: the same bound spelled out with the
@@ -90,7 +113,9 @@ let print_cog () =
         (Model "Cog") as blueprint in
     let printed = perform PrintModel (Model "Cog") in
     unbox blueprint as m in
-    (m, printed)
+    delay 2;
+    unbox printed as p in
+    (m, p)
   with printer
 
 (* Correctly accepted by the typechecker: the clause realises the first of the
@@ -100,17 +125,21 @@ let full_printer =
   handler
   | x -> x
   | Print m k ->
-      perform Heat ();
-      perform Extrude ();
-      perform Cool ();
-      continue k with (Fresh m)
+      let h = perform Heat m in
+      let p = perform Extrude h in
+      let c = perform Cool p in
+      continue k with (box (2, 8) (Fresh c))
 
 (* Correctly accepted by the typechecker: the clause realises the other run, a
-   reheat that skips the extrusion. *)
+   reheat that skips the extrusion --- the model was extruded in an earlier
+   job, so it goes straight from the heater to the cooler. *)
 let quick_printer =
   handler
   | x -> x
-  | Print m k -> perform Heat (); perform Cool (); continue k with (Fresh m)
+  | Print m k ->
+      let h = perform Heat m in
+      perform Cool (box 2 (Extruded h));
+      continue k with (box (2, 8) (Reheated h))
 
 (* Correctly accepted by the typechecker: a reheat is exactly what the lower
    bound of 'Print2' guarantees, and it fits inside the second run of its
@@ -118,7 +147,10 @@ let quick_printer =
 let reheater =
   handler
   | x -> x
-  | Print2 m k -> perform Heat (); perform Cool (); continue k with (Fresh m)
+  | Print2 m k ->
+      let h = perform Heat m in
+      perform Cool (box 2 (Extruded h));
+      continue k with (box (2, 8) (Reheated h))
 
 (* Correctly accepted by the typechecker: the upper bound of 'Print2' also
    allows a full print, and the extrusion in the middle does not stop the
@@ -127,10 +159,10 @@ let deluxe_printer =
   handler
   | x -> x
   | Print2 m k ->
-      perform Heat ();
-      perform Extrude ();
-      perform Cool ();
-      continue k with (Fresh m)
+      let h = perform Heat m in
+      let p = perform Extrude h in
+      let c = perform Cool p in
+      continue k with (box (2, 8) (Fresh c))
 
 (* Correctly accepted by the typechecker: transmitting once covers the first
    trace of the lower bound and fits inside the first trace of the upper
@@ -168,26 +200,28 @@ let send_by_events () =
   a
 
 (* Correctly rejected by the typechecker: the order of the events is part of
-   both sides of the pair, and this clause performs the three steps of a print
-   in the wrong one:
+   both sides of the pair, and this clause sends the model to the cooler before
+   it has been through the extruder. The types alone no longer allow a print to
+   be run backwards, so only the grade can catch this:
 
      Typing error: Comparing resource inequality
-       ({Cool; Extrude; Heat},{Cool; Extrude; Heat})
+       ({Heat; Cool; Extrude},{Heat; Cool; Extrude})
        <= ({Heat; Extrude; Cool},{Heat; Extrude; Cool}) failed
 *)
 (*
-let backwards =
+let early_cooler =
   handler
   | x -> x
   | PrintModel m k ->
-      perform Cool ();
-      perform Extrude ();
-      perform Heat ();
-      continue k with (Fresh m)
+      let h = perform Heat m in
+      perform Cool (box 2 (Extruded h));
+      perform Extrude h;
+      continue k with (box (2, 8) (Reheated h))
 *)
 
 (* Correctly rejected by the typechecker: neither run of 'Print' begins with a
-   'Cool', and the order of a bound is not negotiable:
+   'Cool', and the order of a bound is not negotiable, however the model that
+   is handed to the cooler came to be:
 
      Typing error: Comparing resource inequality
        ({Cool; Heat},{Cool; Heat})
@@ -198,7 +232,10 @@ let backwards =
 let twisted_printer =
   handler
   | x -> x
-  | Print m k -> perform Cool (); perform Heat (); continue k with (Fresh m)
+  | Print m k ->
+      perform Cool (box 2 (Extruded (Heated m)));
+      let h = perform Heat m in
+      continue k with (box (2, 8) (Reheated h))
 *)
 
 (* Correctly rejected by the typechecker on the lower bound, which demands the
@@ -215,7 +252,10 @@ let twisted_printer =
 let sloppy_printer =
   handler
   | x -> x
-  | Print m k -> perform Heat (); perform Extrude (); continue k with (Fresh m)
+  | Print m k ->
+      let h = perform Heat m in
+      perform Extrude h;
+      continue k with (box (2, 8) (Reheated h))
 *)
 
 (* Correctly rejected by the typechecker on the lower bound, whose seven ticks
@@ -231,7 +271,9 @@ let print_sword_lazy () =
     box (7, 9) (Model "Sword") as blueprint in
     let printed = perform PrintModel (Model "Sword") in
     unbox blueprint as m in
-    (m, printed)
+    delay 2;
+    unbox printed as p in
+    (m, p)
   with printer
 *)
 
@@ -248,7 +290,9 @@ let print_sword_impatient () =
     box (6, 8) (Model "Sword") as blueprint in
     let printed = perform PrintModel (Model "Sword") in
     unbox blueprint as m in
-    (m, printed)
+    delay 2;
+    unbox printed as p in
+    (m, p)
   with printer
 *)
 
@@ -262,10 +306,11 @@ let print_sword_impatient () =
 (*
 let make_cog_impatient () =
   box (3, 6) (Model "Cog") as blueprint in
-  perform Heat ();
-  perform Extrude ();
+  let h = perform Heat (Model "Cog") in
+  let p = perform Extrude h in
   unbox blueprint as m in
-  Fresh m
+  let c = perform Cool p in
+  (m, Fresh c)
 *)
 
 (* Correctly rejected by the typechecker: the lower bound of the box is not
@@ -278,10 +323,11 @@ let make_cog_impatient () =
 (*
 let make_cog_lazy () =
   box (5, 7) (Model "Cog") as blueprint in
-  perform Heat ();
-  perform Extrude ();
+  let h = perform Heat (Model "Cog") in
+  let p = perform Extrude h in
   unbox blueprint as m in
-  Fresh m
+  let c = perform Cool p in
+  (m, Fresh c)
 *)
 
 (* Correctly rejected by the typechecker: the upper bound of 'Send' allows at
@@ -352,7 +398,7 @@ let send_telemetry_lazy () =
 *)
 
 (* The single run below handles the 'PrintModel' with 'printer', which replaces
-   it by the three steps of a print. Nothing handles those, so the run stops at
-   the first of them and prints the rest of the program, the extrusion and the
-   cooling included, as the pending continuation. *)
+   it by the three steps of a print. Those are atomic, and the defaults given
+   for them above say what they mean, so the run completes and returns the
+   printed sword together with the blueprint it was made from. *)
 run print_sword ()

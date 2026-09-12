@@ -1,0 +1,33 @@
+(* Correctly accepted by the typechecker, under the default 'time-lower-bound'
+   grading monoid: an operation may be given a default implementation, which
+   runs when the operation reaches the top level unhandled. A handled operation
+   never uses its default, and a default may itself perform operations that are
+   defaulted in turn. The default is checked against the grade of the
+   operation, not against the grade of a handler clause, so it has to take at
+   least as long as the operation promises. *)
+
+operation Get : unit ~> int # 3
+operation Set : int ~> unit # 2
+operation Log : string ~> unit # 1
+
+default Get () = delay 3; 0
+default Set n = delay 1; perform Log "set"
+default Log msg = delay 1
+
+(* 'Set' is deliberately left out, so that it falls through to its default. *)
+let h =
+  handler
+  | x -> x
+  | Get () k -> delay 3; continue k with 7
+
+run
+  handle
+    let v = perform Get () in
+    perform Set (v + 1);
+    v
+  with h
+
+run
+  let v = perform Get () in
+  perform Log "done";
+  v

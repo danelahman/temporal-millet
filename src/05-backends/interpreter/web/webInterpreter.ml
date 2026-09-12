@@ -60,6 +60,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | Unbox -> "unbox"
     | HandleReturn -> "handleReturn"
     | HandleOp -> "handleOp"
+    | DefaultOp -> "defaultOp"
 
   let rec view_computation_reduction = function
     | DoCtx red -> view_computation_reduction red

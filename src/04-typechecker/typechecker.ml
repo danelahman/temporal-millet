@@ -33,6 +33,9 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             cost model the timed-trace orders read. Keyed by the operation's
             surface name, which is the name that appears inside trace literals;
             the desugarer has already rejected duplicate operation names. *)
+    op_defaults : Ast.OpNameSet.t;
+        (** The operations that have been given a default implementation, kept
+            so that a second one can be rejected. *)
   }
 
   let initial_state =
@@ -67,6 +70,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               ] ));
       op_signatures = Ast.OpNameMap.empty;
       op_bounds = StringMap.empty;
+      op_defaults = Ast.OpNameSet.empty;
     }
 
   let print_type_constraint t1 t2 ty_pp rho_pp =
@@ -1317,6 +1321,55 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
       op_signatures = Ast.OpNameMap.add op (ty1, ty2, rho) state.op_signatures;
       op_bounds = op_bounds';
     }
+
+  (* A default implementation cannot be checked the way an operation case of a
+     handler is: a case for [Op] may spend the grade of [Op] itself, because the
+     operation it handles has already been performed, while a default *is* the
+     operation and has nothing to spend. So it is checked against the time the
+     operation is allowed to take instead, its runtime bounds
+     [within (lo, hi)] read as a grade by [ResourceGrade.of_bounds]. Under the
+     time grading monoids the grade of an operation already is its runtime
+     bound, so there the operation's own grade is the bound to check against.
+     Under the trace grades a default is moreover only meaningful for an atomic
+     operation: a compound one names the operations it decomposes into and is
+     to be given meaning by a handler in terms of them. *)
+  let add_operation_default state (op, abs) =
+    let op_name = Ast.OpName.string_of op in
+    match Ast.OpNameMap.find_opt op state.op_signatures with
+    | None -> Error.typing "unknown operation %s" op_name
+    | Some (param_ty, arity_ty, op_rho) ->
+        if Ast.OpNameSet.mem op state.op_defaults then
+          Error.typing "operation %s already has a default implementation"
+            op_name;
+        (match op_rho with
+        | Ast.RhoConst grade when not (ResourceGrade.is_atomic op_name grade) ->
+            Error.typing
+              "a default implementation may only be given for an atomic \
+               operation, but the grade of %s is %s; handle it with a handler \
+               in terms of the operations it names"
+              op_name (ResourceGrade.show grade)
+        | Ast.RhoConst _ | Ast.RhoParam _ | Ast.RhoAdd _ -> ());
+        let bound_rho =
+          match StringMap.find_opt op_name state.op_bounds with
+          | Some bounds -> Ast.RhoConst (ResourceGrade.of_bounds bounds)
+          | None -> op_rho
+        in
+        let ( arg_ty,
+              CompTy (res_ty, impl_rho),
+              ty_eqs,
+              rho_eqs,
+              rho_ineqs,
+              rho_abs ) =
+          infer_abstraction state abs
+        in
+        let _ =
+          unify state
+            ((arg_ty, param_ty) :: (res_ty, arity_ty) :: ty_eqs)
+            rho_eqs
+            (Ineq (impl_rho, bound_rho) :: rho_ineqs)
+            rho_abs
+        in
+        { state with op_defaults = Ast.OpNameSet.add op state.op_defaults }
 
   let load_primitive state x prim =
     let ty_params, rho_params, ty = P.primitive_type_scheme prim in

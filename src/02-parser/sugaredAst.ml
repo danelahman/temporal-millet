@@ -90,6 +90,9 @@ and 'rho plain_command =
   | OpSig of (operation * 'rho ty * 'rho ty * 'rho * (int * int) option)
       (** [operation op : t1 -> t2 # rho within (lo, hi)]; the runtime bounds
           are optional and only the timed-trace grading monoids use them *)
+  | OpDefault of operation * 'rho abstraction
+      (** [default Op p = t]; the implementation the operation falls back on
+          when it reaches the top level unhandled *)
   | TopLet of variable * 'rho term  (** [let x = t] *)
   | TopLetRec of variable * 'rho term  (** [let rec f = t] *)
   | TopDo of 'rho term  (** [do t] *)

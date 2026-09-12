@@ -348,6 +348,69 @@ See [this](examples/handlers.mlt) and [this](examples/3dprint_handlers.mlt)
 example for a worked out examples of how to use algebraic effects and effect
 handlers in Temporal Millet.
 
+### Default implementations of operations
+
+An operation can also be given a *default implementation*, using the format
+```
+default OperationName p = t
+```
+where `p` is a pattern of type `operation-input-type` and `t` is a command of
+type `operation-result-type`. An operation may be given at most one default
+implementation, and only after it has been declared.
+
+A default implementation fires only when a call to the operation reaches the top
+level unhandled, that is, once it has been forwarded out of every enclosing
+`let ... in` and `handle ... with`. The body of the default then runs in place of
+the operation call and its result is passed to the continuation, just as the
+result of an operation case would be. An operation that *is* handled therefore
+never uses its default, and operations that have no default still stop the run
+when they reach the top level.
+
+Because a default *is* the implementation of the operation, it cannot be checked
+the way an operation case of a handler is. An operation case for `Heat` may spend
+the grade of `Heat` itself, since by the time it runs the operation has already
+been performed, whereas a default has nothing of the sort to spend — under the
+trace grading monoids the only way to realise `{Heat}` would be to perform `Heat`
+again. A default is checked against the runtime bounds of its operation instead:
+with
+```
+operation OperationName : operation-input-type ~> operation-result-type # operation-grade within (lo, hi)
+```
+the body of the default must have a grade that is a sub-grade of `{lo}` under
+`timed-traces-lower-bound`, of `{hi}` under `timed-traces-upper-bound`, and of
+`({lo}, {hi})` under `timed-traces-interval`. Under the time grading monoids no
+bounds are declared, because there the grade of an operation already is its
+runtime bound, and the default is checked against the operation grade itself.
+
+For instance, the default implementation
+```
+operation Heat : unit ~> unit # ({Heat}, {Heat}) within (1, 2)
+
+default Heat () = delay 1
+```
+is accepted under `timed-traces-interval`, because the grade `({1}, {1})` of its
+body is a sub-grade of `({1}, {2})`. Delaying for six ticks instead would be
+rejected with a message such as
+```
+Comparing resource inequality ({6},{6}) <= ({1},{2}) failed
+```
+
+Under the trace grading monoids a default implementation may moreover only be
+given for an *atomic* operation, one whose grade is the single run consisting of
+the operation itself, such as `Heat # {Heat}`. A compound operation such as
+`PrintModel # {Heat; Extrude; Cool}` names the operations it decomposes into, and
+is meant to be given meaning by a handler in terms of them; asking for a default
+for it is rejected with
+```
+a default implementation may only be given for an atomic operation, but the grade of PrintModel is {Heat; Extrude; Cool}; handle it with a handler in terms of the operations it names
+```
+
+The body of a default may itself perform operations, which are then handled or
+defaulted in turn — this is how a default that runs at the top level can still
+make use of the rest of the program's effects. In particular, a default that
+performs its own operation typechecks, but never terminates, in the same way as
+any other non-terminating program.
+
 ## Editor support
 
 A minimal VS Code extension providing OCaml-style syntax highlighting for

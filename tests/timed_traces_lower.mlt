@@ -3,21 +3,37 @@
      ./cli.exe --resources timed-traces-lower-bound examples/timed_traces_lower.mlt *)
 
 type model = Model of string
-type fresh = Fresh of model
+type heated = Heated of model
+type extruded = Extruded of heated
+type cooled = Cooled of extruded
+type fresh = Fresh of cooled | Reheated of heated
 
-operation Heat : unit ~> unit # {Heat} within (1, 2)
-operation Extrude : unit ~> unit # {Extrude} within (3, 5)
-operation Cool : unit ~> unit # {Cool} within (2, 2)
+(* The heater warms a model up, so that it can be extruded. *)
+operation Heat : model ~> heated # {Heat} within (1, 2)
+default Heat m = delay 1; Heated m
 
-(* A print is the three steps, in that order. *)
-operation PrintModel : model ~> fresh # {Heat; Extrude; Cool} within (6, 9)
+(* A freshly extruded model is still hot: it may be handed to the cooler, but
+   not touched otherwise until it has rested for two ticks. *)
+operation Extrude : heated ~> [2] extruded # {Extrude} within (3, 5)
+default Extrude h = delay 3; box 2 (Extruded h)
+
+(* The cooler takes the hot extruded model, once it has rested, and cools it
+   down to something that can be handled. *)
+operation Cool : [2] extruded ~> cooled # {Cool} within (2, 2)
+default Cool p = delay 2; unbox p as e in Cooled e
+
+(* A print is the three steps, in that order, and the finished print has to set
+   for two ticks before it may be collected. *)
+operation PrintModel : model ~> [2] fresh # {Heat; Extrude; Cool} within (6, 9)
 
 (* A print job either extrudes a fresh model or is a quick reheat. *)
-operation Print : model ~> fresh
+operation Print : model ~> [2] fresh
   # {Heat; Extrude; Cool | Heat; Cool}
   within (3, 9)
 
+(* A single transmission of a message. *)
 operation Tx : string ~> unit # {Tx} within (2, 3)
+default Tx msg = delay 2
 
 (* A delivery is one or two transmissions. *)
 operation Deliver : string ~> unit # {Tx | Tx; Tx} within (2, 6)
@@ -25,11 +41,11 @@ operation Deliver : string ~> unit # {Tx | Tx; Tx} within (2, 6)
 (* Correctly accepted by the typechecker: running 'Extrude' banks the lower end
    of its runtime bounds, three ticks, which covers the three ticks the box
    demands. *)
-let extrude_layer () =
+let extrude_layer h =
   box 3 "layer" as label in
-  perform Extrude ();
+  let p = perform Extrude h in
   unbox label as l in
-  l
+  (l, p)
 
 (* Correctly accepted by the typechecker: the clause performs exactly the three
    steps 'PrintModel' promises, in the promised order. *)
@@ -37,31 +53,34 @@ let printer =
   handler
   | x -> x
   | PrintModel m k ->
-      perform Heat ();
-      perform Extrude ();
-      perform Cool ();
-      continue k with (Fresh m)
+      let h = perform Heat m in
+      let p = perform Extrude h in
+      let c = perform Cool p in
+      continue k with (box 2 (Fresh c))
 
 (* Correctly accepted by the typechecker: a whole 'PrintModel' banks the six
    ticks the box demands, because the lower ends of the bounds of its three
-   steps are 1 + 3 + 2 = 6. *)
+   steps are 1 + 3 + 2 = 6. The closing wait then collects the print: it banks
+   the two ticks the '[2]' box demands. *)
 let print_sword () =
   handle
     box 6 (Model "Sword") as blueprint in
     let printed = perform PrintModel (Model "Sword") in
     unbox blueprint as m in
-    (m, printed)
+    delay 2;
+    unbox printed as p in
+    (m, p)
   with printer
 
 (* Correctly accepted by the typechecker: the same demand spelled out as a run
    of events, and covered by performing the three steps by hand. *)
 let print_cog () =
   box {Heat; Extrude; Cool} (Model "Cog") as blueprint in
-  perform Heat ();
-  perform Extrude ();
-  perform Cool ();
+  let h = perform Heat (Model "Cog") in
+  let p = perform Extrude h in
+  let c = perform Cool p in
   unbox blueprint as m in
-  Fresh m
+  (m, Fresh c)
 
 (* Correctly accepted by the typechecker: the clause covers the first of the two
    runs 'Print' promises. *)
@@ -69,17 +88,21 @@ let full_printer =
   handler
   | x -> x
   | Print m k ->
-      perform Heat ();
-      perform Extrude ();
-      perform Cool ();
-      continue k with (Fresh m)
+      let h = perform Heat m in
+      let p = perform Extrude h in
+      let c = perform Cool p in
+      continue k with (box 2 (Fresh c))
 
 (* Correctly accepted by the typechecker: the clause covers the other run, a
-   reheat that skips the extrusion. *)
+   reheat that skips the extrusion --- the model was extruded in an earlier
+   job, so it goes straight from the heater to the cooler. *)
 let quick_printer =
   handler
   | x -> x
-  | Print m k -> perform Heat (); perform Cool (); continue k with (Fresh m)
+  | Print m k ->
+      let h = perform Heat m in
+      perform Cool (box 2 (Extruded h));
+      continue k with (box 2 (Reheated h))
 
 (* Correctly accepted by the typechecker, which may be surprising: a lower
    bound only demands a minimum, so a clause may cool a second time on top of
@@ -88,11 +111,11 @@ let thorough_printer =
   handler
   | x -> x
   | Print m k ->
-      perform Heat ();
-      perform Extrude ();
-      perform Cool ();
-      perform Cool ();
-      continue k with (Fresh m)
+      let h = perform Heat m in
+      let p = perform Extrude h in
+      let c = perform Cool p in
+      perform Cool (box 2 (Extruded h));
+      continue k with (box 2 (Fresh c))
 
 (* Correctly accepted by the typechecker for the same reason: a full print
    followed by a tick of waiting still covers the run it realises. *)
@@ -100,11 +123,11 @@ let slow_printer =
   handler
   | x -> x
   | Print m k ->
-      perform Heat ();
-      perform Extrude ();
-      perform Cool ();
+      let h = perform Heat m in
+      let p = perform Extrude h in
+      let c = perform Cool p in
       delay 1;
-      continue k with (Fresh m)
+      continue k with (box 2 (Fresh c))
 
 (* Correctly accepted by the typechecker: the clause transmits once, which
    covers the first trace 'Deliver' promises. *)
@@ -159,24 +182,27 @@ let deliver_by_events () =
   a
 
 (* Correctly rejected by the typechecker: the order of the events is part of the
-   demand, and this clause performs the three steps of a print in the wrong one:
+   demand, and this clause sends the model to the cooler before it has been
+   through the extruder. The types alone no longer allow a print to be run
+   backwards, so only the grade can catch this:
 
-     Typing error: Comparing resource inequality {Cool; Extrude; Heat}
+     Typing error: Comparing resource inequality {Heat; Cool; Extrude}
        <= {Heat; Extrude; Cool} failed
 *)
 (*
-let backwards =
+let early_cooler =
   handler
   | x -> x
   | PrintModel m k ->
-      perform Cool ();
-      perform Extrude ();
-      perform Heat ();
-      continue k with (Fresh m)
+      let h = perform Heat m in
+      perform Cool (box 2 (Extruded h));
+      perform Extrude h;
+      continue k with (box 2 (Reheated h))
 *)
 
 (* Correctly rejected by the typechecker: neither run of 'Print' begins with a
-   'Cool', and the order of a demand is not negotiable:
+   'Cool', and the order of a demand is not negotiable, however the model that
+   is handed to the cooler came to be:
 
      Typing error: Comparing resource inequality {Cool; Heat}
        <= {Heat; Cool | Heat; Extrude; Cool} failed
@@ -185,7 +211,10 @@ let backwards =
 let twisted_printer =
   handler
   | x -> x
-  | Print m k -> perform Cool (); perform Heat (); continue k with (Fresh m)
+  | Print m k ->
+      perform Cool (box 2 (Extruded (Heated m)));
+      let h = perform Heat m in
+      continue k with (box 2 (Reheated h))
 *)
 
 (* Correctly rejected by the typechecker: a clause that stops after the
@@ -201,7 +230,10 @@ let twisted_printer =
 let sloppy_printer =
   handler
   | x -> x
-  | Print m k -> perform Heat (); perform Extrude (); continue k with (Fresh m)
+  | Print m k ->
+      let h = perform Heat m in
+      perform Extrude h;
+      continue k with (box 2 (Reheated h))
 *)
 
 (* Correctly rejected by the typechecker: a print banks only the six ticks of
@@ -216,7 +248,9 @@ let print_sword_eager () =
     box 7 (Model "Sword") as blueprint in
     let printed = perform PrintModel (Model "Sword") in
     unbox blueprint as m in
-    (m, printed)
+    delay 2;
+    unbox printed as p in
+    (m, p)
   with printer
 *)
 
@@ -251,11 +285,11 @@ let deliver_drop =
      Typing error: Comparing resource inequality {Extrude} <= {4} failed
 *)
 (*
-let extrude_layer_slow () =
+let extrude_layer_slow h =
   box 4 "layer" as label in
-  perform Extrude ();
+  let p = perform Extrude h in
   unbox label as l in
-  l
+  (l, p)
 *)
 
 (* Correctly rejected by the typechecker: a delivery may consist of a single
@@ -288,7 +322,7 @@ let deliver_by_two () =
 *)
 
 (* The single run below handles the 'PrintModel' with 'printer', which replaces
-   it by the three steps of a print. Nothing handles those, so the run stops at
-   the first of them and prints the rest of the program, the extrusion and the
-   cooling included, as the pending continuation. *)
+   it by the three steps of a print. Those are atomic, and the defaults given
+   for them above say what they mean, so the run completes and returns the
+   printed sword together with the blueprint it was made from. *)
 run print_sword ()

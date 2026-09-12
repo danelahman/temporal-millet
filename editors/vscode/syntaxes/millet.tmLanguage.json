@@ -7,6 +7,7 @@
     { "include": "#comment" },
     { "include": "#string" },
     { "include": "#operation-decl" },
+    { "include": "#default-decl" },
     { "include": "#perform-call" },
     { "include": "#handler-block" },
     { "include": "#number" },
@@ -70,7 +71,7 @@
         },
         {
           "name": "keyword.other.millet",
-          "match": "\\b(let|in|and|rec|fun|function|as|of|type|operation|handler|box|unbox|delay|begin|end|if|then|else|match|with|run|handle|return|perform|continue|within)\\b"
+          "match": "\\b(let|in|and|rec|fun|function|as|of|type|operation|handler|box|unbox|delay|begin|end|if|then|else|match|with|run|handle|return|perform|continue|within|default)\\b"
         }
       ]
     },
@@ -80,6 +81,13 @@
     },
     "operation-decl": {
       "match": "\\b(operation)\\s+([A-Z][A-Za-z0-9_']*)",
+      "captures": {
+        "1": { "name": "keyword.other.millet" },
+        "2": { "name": "keyword.control.operation.millet" }
+      }
+    },
+    "default-decl": {
+      "match": "\\b(default)\\s+([A-Z][A-Za-z0-9_']*)",
       "captures": {
         "1": { "name": "keyword.other.millet" },
         "2": { "name": "keyword.control.operation.millet" }
@@ -97,7 +105,7 @@
       "beginCaptures": {
         "1": { "name": "keyword.other.millet" }
       },
-      "end": "(?=^(let|run|operation|type|and)\\b)",
+      "end": "(?=^(let|run|operation|default|type|and)\\b)",
       "patterns": [
         {
           "match": "(\\|)\\s+([A-Z][A-Za-z0-9_']*)",

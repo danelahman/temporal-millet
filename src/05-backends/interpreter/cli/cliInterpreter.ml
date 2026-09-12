@@ -17,7 +17,10 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
              environment.state);
         print_newline ();
         true
-    | { computations = Ast.Perform (op, exp, cont) :: _; _ } ->
+    (* An operation with a default implementation is not stuck here: the
+       default is about to fire, so there is nothing to report yet. *)
+    | { computations = Ast.Perform (op, exp, cont) :: _; environment }
+      when not (Ast.OpNameMap.mem op environment.op_defaults) ->
         Format.printf "=== Run %d (unhandled operation) ===@." run_num;
         Format.printf "%t@."
           (PrettyPrint.print_computation

@@ -21,6 +21,7 @@ type rho_param = RhoParamModule.t
 
 module OpName = Symbol.Make ()
 module OpNameMap = Map.Make (OpName)
+module OpNameSet = Set.Make (OpName)
 
 type operation = OpName.t
 
@@ -94,6 +95,7 @@ type 'a ty_def = TySum of (label * 'a ty option) list | TyInline of 'a ty
 type 'a command =
   | TyDef of (ty_param list * ty_name * 'a ty_def) list
   | OpSig of (operation * 'a ty * 'a ty * 'a rho * (int * int) option)
+  | OpDefault of operation * 'a abstraction
   | TopLet of variable * 'a expression
   | TopDo of 'a computation
 

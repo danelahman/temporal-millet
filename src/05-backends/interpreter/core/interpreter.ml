@@ -15,6 +15,7 @@ module Types = struct
     | Unbox
     | HandleReturn
     | HandleOp
+    | DefaultOp
 
   type computation_reduction =
     | DoCtx of computation_reduction
@@ -43,6 +44,7 @@ module Make (T : Language.ResourceGrade.Grade) = struct
       ContextHolderModule.t;
     resource_counter : int;
     op_signatures : ResourceGrade.t Ast.rho Ast.OpNameMap.t;
+    op_defaults : ResourceGrade.t Ast.abstraction Ast.OpNameMap.t;
   }
 
   let initial_environment =
@@ -52,6 +54,7 @@ module Make (T : Language.ResourceGrade.Grade) = struct
       builtin_functions = ContextHolderModule.empty;
       resource_counter = 0;
       op_signatures = Ast.OpNameMap.empty;
+      op_defaults = Ast.OpNameMap.empty;
     }
 
   exception PatternMismatch
@@ -508,6 +511,17 @@ module Make (T : Language.ResourceGrade.Grade) = struct
         };
     }
 
+  let load_op_default load_state op abs =
+    {
+      load_state with
+      environment =
+        {
+          load_state.environment with
+          op_defaults =
+            Ast.OpNameMap.add op abs load_state.environment.op_defaults;
+        };
+    }
+
   type run_state = load_state
   type step_label = ComputationReduction of computation_reduction | Return
 
@@ -540,6 +554,33 @@ module Make (T : Language.ResourceGrade.Grade) = struct
                   }
                 in
                 { computations = comps; environment = environment' });
+          };
+        ]
+    (* A default implementation fires only here, where the operation call has
+       bubbled out of every enclosing [do] and [handle] and so is known to be
+       unhandled; [step_computation] deliberately gets no [Perform] rule. The
+       body runs in place of the call and its result is passed to the
+       continuation, exactly as a handled operation's result would be. *)
+    | {
+        computations = Ast.Perform (op, expr, (pat, cont)) :: comps;
+        environment;
+      }
+      when Ast.OpNameMap.mem op environment.op_defaults ->
+        let dpat, dcomp = Ast.OpNameMap.find op environment.op_defaults in
+        let dpat', vars = refresh_pattern dpat in
+        let dcomp' = refresh_computation vars dcomp in
+        let subst = match_pattern_with_expression environment dpat' expr in
+        [
+          {
+            environment;
+            label = ComputationReduction (ComputationRedex DefaultOp);
+            next_state =
+              (fun () ->
+                {
+                  computations =
+                    Ast.Do (substitute subst dcomp', (pat, cont)) :: comps;
+                  environment;
+                });
           };
         ]
     | { computations = comp :: comps; environment } ->

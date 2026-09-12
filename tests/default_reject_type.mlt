@@ -1,0 +1,7 @@
+(* Correctly rejected by the typechecker, under the default 'time-lower-bound'
+   grading monoid: the default implementation of 'Get' returns a string, while
+   the result type of the operation is 'int'. *)
+
+operation Get : unit ~> int # 3
+
+default Get () = delay 3; "zero"

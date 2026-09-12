@@ -29,6 +29,7 @@ module type S = sig
       list;
     resource_counter : int;
     op_signatures : ResourceGrade.t Ast.rho Ast.OpNameMap.t;
+    op_defaults : ResourceGrade.t Ast.abstraction Ast.OpNameMap.t;
   }
 
   val initial_load_state : load_state
@@ -48,6 +49,9 @@ module type S = sig
 
   val load_op_sig :
     load_state -> Ast.OpName.t -> ResourceGrade.t Ast.rho -> load_state
+
+  val load_op_default :
+    load_state -> Ast.OpName.t -> ResourceGrade.t Ast.abstraction -> load_state
 
   type run_state
   type step_label

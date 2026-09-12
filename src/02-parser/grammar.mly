@@ -16,7 +16,7 @@
 %token <float> FLOAT
 %token <SugaredAst.label> UNAME
 %token <SugaredAst.ty_param> PARAM
-%token TYPE OPERATION WITHIN ARROW SIGARROW OF HASH
+%token TYPE OPERATION DEFAULT WITHIN ARROW SIGARROW OF HASH
 %token MATCH WITH FUNCTION HANDLER HANDLE CONTINUE
 %token RUN LET REC AND IN
 %token DELAY BOX UNBOX PERFORM
@@ -65,6 +65,8 @@ plain_command:
   | OPERATION op = UNAME COLON ty1 = ty SIGARROW ty2 = ty HASH grade = rho_grade
     bounds = option(op_bounds)
     { OpSig (op, ty1, ty2, grade, bounds) }
+  | DEFAULT op = UNAME p = simple_pattern EQUAL t = term
+    { OpDefault (op, (p, t)) }
   | LET x = ident t = lambdas0(EQUAL)
     { TopLet (x, t) }
   | LET REC def = let_rec_def

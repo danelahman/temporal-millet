@@ -23,6 +23,7 @@ type token =
   | PARAM of SugaredAst.ty_param
   | TYPE
   | OPERATION
+  | DEFAULT
   | WITHIN
   | ARROW
   | SIGARROW

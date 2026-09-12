@@ -9,11 +9,58 @@
   >     timed_traces_lower.mlt) ../cli.exe --resources timed-traces-lower-bound $f;;
   >     timed_traces_interval.mlt) ../cli.exe --resources timed-traces-interval $f;;
   >     timed_traces_interval_bounds.mlt) ../cli.exe --resources timed-traces-interval $f;;
+  >     timed_traces_interval_default_bounds.mlt) ../cli.exe --resources timed-traces-interval $f;;
   >     timed_traces_*.mlt) ../cli.exe --resources timed-traces-upper-bound $f;;
   >     *) ../cli.exe $f;;
   >   esac
   >   :  # this command is here to suppress potential non-zero exit codes in the output
   > done
+  ======================================================================
+  default_ops.mlt
+  ======================================================================
+  === Run 1 ===
+  return 7
+  State: [
+    { resource_1 ↦
+        fun op_var ↦
+          handle
+            let v = return op_var in
+            (let b = (let b = (+) v in
+                      b 1) in
+             perform Set b (op_var. return op_var));
+            return v
+          with h
+        # 3
+    },
+    3,
+    1,
+    1
+  ]
+  
+  === Run 2 ===
+  return 0
+  State: [
+    3,
+    1
+  ]
+  
+  ======================================================================
+  default_reject_bounds.mlt
+  ======================================================================
+  Typing error: Comparing resource inequality 2 >= 3 failed
+  ======================================================================
+  default_reject_duplicate.mlt
+  ======================================================================
+  Typing error: operation Log already has a default implementation
+  ======================================================================
+  default_reject_type.mlt
+  ======================================================================
+  Typing error: Cannot unify types string = int
+  ======================================================================
+  default_reject_unknown.mlt
+  ======================================================================
+  Syntax error (file "default_reject_unknown.mlt", line 5, char 1):
+  Unknown name --Log--
   ======================================================================
   duplicate_variant_tydef_sum.mlt
   ======================================================================
@@ -923,15 +970,50 @@
   ======================================================================
   Typing error: runtime bounds are only used by the timed-trace grading monoids; under 'time-lower-bound' the operation grade already carries them
   ======================================================================
+  timed_traces_default.mlt
+  ======================================================================
+  === Run 1 ===
+  return (Fresh (Model "Sword"))
+  State: [
+    { resource_1 ↦
+        fun op_var ↦ handle
+                       return op_var
+                     with printer
+        # {Heat; Extrude; Cool}
+    },
+    {1},
+    {3},
+    {2}
+  ]
+  
+  ======================================================================
   timed_traces_interval.mlt
   ======================================================================
-  === Run 1 (unhandled operation) ===
-  perform Heat () (op_var.
-    (return op_var;
-     perform Extrude () (op_var. return op_var);
-     perform Cool () (op_var. return op_var);
-     unbox resource_2 as unbox_var in
-     unbox_var (Fresh (Model "Sword"))))
+  === Run 1 ===
+  return (Model "Sword", Fresh (Cooled (Extruded (Heated (Model "Sword")))))
+  State: [
+    { resource_0 ↦ Model "Sword" # ({6},{9}),
+      resource_2 ↦
+        fun op_var ↦
+          handle
+            let printed = return op_var in
+            unbox resource_0 as m in
+            delay 2 (return ());
+            unbox printed as p in
+            return (m, p)
+          with printer
+        # ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
+    },
+    ({1},{1}),
+    ({3},{3}),
+    { resource_3 ↦ Extruded (Heated (Model "Sword")) # ({2},{2}) },
+    ({2},{2}),
+    { resource_4 ↦
+        Fresh (Cooled (Extruded (Heated (Model "Sword"))))
+        # ({2},{8})
+    },
+    ({2},{2})
+  ]
   
   ======================================================================
   timed_traces_interval_bounds.mlt
@@ -941,15 +1023,34 @@
   State: []
   
   ======================================================================
+  timed_traces_interval_default_bounds.mlt
+  ======================================================================
+  Typing error: Comparing resource inequality ({1},{1}) <= ({3},{5}) failed
+  ======================================================================
   timed_traces_lower.mlt
   ======================================================================
-  === Run 1 (unhandled operation) ===
-  perform Heat () (op_var.
-    (return op_var;
-     perform Extrude () (op_var. return op_var);
-     perform Cool () (op_var. return op_var);
-     unbox resource_2 as unbox_var in
-     unbox_var (Fresh (Model "Sword"))))
+  === Run 1 ===
+  return (Model "Sword", Fresh (Cooled (Extruded (Heated (Model "Sword")))))
+  State: [
+    { resource_0 ↦ Model "Sword" # {6},
+      resource_2 ↦
+        fun op_var ↦
+          handle
+            let printed = return op_var in
+            unbox resource_0 as m in
+            delay 2 (return ());
+            unbox printed as p in
+            return (m, p)
+          with printer
+        # {Heat; Extrude; Cool}
+    },
+    {1},
+    {3},
+    { resource_3 ↦ Extruded (Heated (Model "Sword")) # {2} },
+    {2},
+    { resource_4 ↦ Fresh (Cooled (Extruded (Heated (Model "Sword")))) # {2} },
+    {2}
+  ]
   
   ======================================================================
   timed_traces_normalise.mlt
@@ -977,6 +1078,14 @@
   ======================================================================
   Typing error: the runtime bounds of operation Send, within (3, 6), are inconsistent with its grade {Tx | Tx; Tx}, whose runs take between 2 and 6 time units
   ======================================================================
+  timed_traces_reject_default_bounds.mlt
+  ======================================================================
+  Typing error: Comparing resource inequality {6} <= {5} failed
+  ======================================================================
+  timed_traces_reject_default_nonatomic.mlt
+  ======================================================================
+  Typing error: a default implementation may only be given for an atomic operation, but the grade of PrintModel is {Heat; Extrude; Cool}; handle it with a handler in terms of the operations it names
+  ======================================================================
   timed_traces_reject_missing_within.mlt
   ======================================================================
   Typing error: operation Heat needs runtime bounds `within (lo, hi)` under the 'timed-traces-upper-bound' grading monoid
@@ -995,12 +1104,22 @@
   ======================================================================
   timed_traces_upper.mlt
   ======================================================================
-  === Run 1 (unhandled operation) ===
-  perform Tx "telemetry" (op_var.
-    (return op_var;
-     perform Tx "telemetry" (op_var. return op_var);
-     unbox resource_2 as unbox_var in
-     unbox_var ()))
+  === Run 1 ===
+  return "ack"
+  State: [
+    { resource_0 ↦ "ack" # {6},
+      resource_2 ↦
+        fun op_var ↦
+          handle
+            return op_var;
+            unbox resource_0 as a in
+            return a
+          with send_retry
+        # {Tx | Tx; Tx}
+    },
+    {2},
+    {2}
+  ]
   
   ======================================================================
   tydef.mlt

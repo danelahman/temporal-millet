@@ -19,6 +19,7 @@ let keywords =
     "of";
     "type";
     "operation";
+    "default";
     "run";
     "return";
     "perform";
