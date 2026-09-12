@@ -20,9 +20,10 @@
       display: block
     }
 
-    /* Bulma's box shadow is offset downwards and so leaves the top edge bare;
-       spread it evenly around all four edges instead. */
-    .box {
+    /* Bulma's box and panel shadows are offset downwards and so leave the
+       top edge bare; spread them evenly around all four edges instead. */
+    .box,
+    .panel {
       box-shadow: 0 0 1em rgba(10, 10, 10, 0.12), 0 0 0 1px rgba(10, 10, 10, 0.02);
     }
 
@@ -149,9 +150,10 @@
     }
 
     /* Bulma paints the navbar white and above its neighbours, which would
-       hide the top shadow of the box right below it. */
+       hide the top of the shadow of the box right below it. */
     .navbar {
       background-color: transparent;
+      margin-bottom: 1.5rem;
     }
 
     .navbar-brand {
