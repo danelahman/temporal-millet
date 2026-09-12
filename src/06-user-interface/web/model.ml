@@ -132,9 +132,21 @@ let run_update run_model = function
       | _ -> run_model)
   | ChangeRandomStepSize random_step_size -> { run_model with random_step_size }
 
-type model = { edit_model : edit_model; run_model : (run_model, string) result }
+type load_error = {
+  kind : string;  (** "Syntax error", "Typing error", ... *)
+  location : string option;  (** e.g. "line 12, char 5", when known *)
+  line : int option;  (** the line of the editor the error is at, when known *)
+  message : string;
+}
+(** Why the source could not be loaded and run. *)
 
-let init = { edit_model = edit_init; run_model = Error "" }
+type model = {
+  edit_model : edit_model;
+  run_model : (run_model, load_error option) result;
+      (** [Error None] is the edit view with nothing to report. *)
+}
+
+let init = { edit_model = edit_init; run_model = Error None }
 
 let update model = function
   | EditMsg edit_msg ->
@@ -153,15 +165,23 @@ let update model = function
           with
           | None ->
               Error
-                (Printf.sprintf "Unknown resource grade '%s'"
-                   model.edit_model.selected_resource)
+                (Some
+                   {
+                     kind = "Error";
+                     location = None;
+                     line = None;
+                     message =
+                       Printf.sprintf "Unknown resource grade '%s'"
+                         model.edit_model.selected_resource;
+                   })
           | Some (module RG : Language.ResourceGrade.Grade) ->
               let module B = WebInterpreter.Make (RG) in
               let module L = Loader.Loader (B) in
-              let source =
+              let prefix =
                 (if model.edit_model.use_stdlib then L.stdlib_source else "")
-                ^ "\n\n\n" ^ model.edit_model.unparsed_code
+                ^ "\n\n\n"
               in
+              let source = prefix ^ model.edit_model.unparsed_code in
               let state = L.load_source L.initial_state source in
               let run_state = B.run state.backend in
               (* Build a run_model_state from a B.run_state, capturing all
@@ -202,9 +222,42 @@ let update model = function
               in
               Ok (run_init (make_run_state ~completed_runs:[] run_state))
         with
-        | Error.Error (_, _, msg) -> Error msg
-        | Invalid_argument msg -> Error msg
-        | exn -> Error (Printexc.to_string exn)
+        | Error.Error (loc, kind, message) ->
+            (* Locations count from the start of [source], which begins with
+               the standard library; report them relative to the editor. *)
+            let prefix_lines =
+              String.fold_left
+                (fun n c -> if c = '\n' then n + 1 else n)
+                0
+                ((if model.edit_model.use_stdlib then Loader.stdlib_source
+                  else "")
+                ^ "\n\n\n")
+            in
+            let located =
+              Option.map
+                (fun (loc : Utils.Location.t) ->
+                  let line = loc.line - prefix_lines in
+                  if line >= 1 then
+                    ( Printf.sprintf "line %d, char %d" line loc.column,
+                      Some line )
+                  else (Format.asprintf "%t" (Utils.Location.print loc), None))
+                loc
+            in
+            let location = Option.map fst located
+            and line = Option.bind located snd in
+            Error (Some { kind; location; line; message })
+        | Invalid_argument message ->
+            Error
+              (Some { kind = "Error"; location = None; line = None; message })
+        | exn ->
+            Error
+              (Some
+                 {
+                   kind = "Internal error";
+                   location = None;
+                   line = None;
+                   message = Printexc.to_string exn;
+                 })
       in
       { model with run_model }
-  | EditCode -> { model with run_model = Error "" }
+  | EditCode -> { model with run_model = Error None }

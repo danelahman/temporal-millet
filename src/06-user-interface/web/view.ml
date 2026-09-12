@@ -47,13 +47,55 @@ let view_contents main aside =
 
 (* Edit view *)
 
-let view_editor (model : Model.edit_model) =
+(* An error that stopped the program from being loaded, shown under the editor
+   in the colour of a Bulma "danger" message: the kind of error (and, for
+   syntax errors, where it is) as the header, the message itself as the body. *)
+let load_error_header (error : Model.load_error) =
+  match error.location with
+  | Some location -> error.kind ^ " at " ^ location
+  | None -> error.kind
+
+(* The id of the element to bring into view for an error: the highlighted line
+   when the error has one, otherwise the message block under the editor. *)
+let load_error_target (error : Model.load_error) =
+  match error.line with Some _ -> "error-line" | None -> "editor-error"
+
+let view_load_error (error : Model.load_error) =
+  let header = load_error_header error in
+  elt "article"
+    ~a:[ class_ "message is-danger editor-error"; attr "id" "editor-error" ]
+    [
+      div ~a:[ class_ "message-header" ] [ elt "p" [ text header ] ];
+      div ~a:[ class_ "message-body" ] [ text error.message ];
+    ]
+
+(* The highlighted source, with the line an error points at, if any, wrapped so
+   that the stylesheet can mark it. The three parts are highlighted separately,
+   which only goes wrong for a construct spanning the error line, such as a
+   comment, and then only in colour. *)
+let highlight_source ?error_line code =
+  let lines = String.split_on_char '\n' code in
+  match error_line with
+  | Some l when l >= 1 && l <= List.length lines ->
+      let before = List.filteri (fun i _ -> i < l - 1) lines
+      and line = List.nth lines (l - 1)
+      and after = List.filteri (fun i _ -> i >= l) lines in
+      let highlight = SyntaxHighlight.highlight_text in
+      (if before = [] then [] else highlight (String.concat "\n" before ^ "\n"))
+      @ [
+          elt "span"
+            ~a:[ class_ "error-line"; attr "id" "error-line" ]
+            (highlight line);
+        ]
+      @ highlight ("\n" ^ String.concat "\n" after)
+  | _ -> SyntaxHighlight.highlight_text code
+
+let view_editor ?error (model : Model.edit_model) =
   let rows =
     max 10 (String.split_on_char '\n' model.unparsed_code |> List.length)
   in
-  let highlighted =
-    SyntaxHighlight.highlight_text (model.unparsed_code ^ "\n")
-  in
+  let error_line = Option.bind error (fun (e : Model.load_error) -> e.line) in
+  let highlighted = highlight_source ?error_line (model.unparsed_code ^ "\n") in
   div
     ~a:[ class_ "box editor-box" ]
     [
@@ -75,6 +117,7 @@ let view_editor (model : Model.edit_model) =
               ]
             [ text model.unparsed_code ];
         ];
+      (match error with Some error -> view_load_error error | None -> nil);
     ]
 
 (* let _view (model : Model.model) =
@@ -164,20 +207,37 @@ let view_compiler (model : Model.model) =
               (* disabled (Result.is_error model.loaded_code); *)
             ]
           [ text "Typecheck & run" ];
+        (* a pointer to the error shown under the editor, which may be far
+           below when the program is long *)
         (match model.run_model with
-        | Error msg -> elt "p" ~a:[ class_ "help is-danger" ] [ text msg ]
-        | Ok _ -> nil);
+        | Error (Some error) ->
+            elt "a"
+              ~a:
+                [
+                  class_ "error-pointer";
+                  attr "href" ("#" ^ load_error_target error);
+                ]
+              [
+                text
+                  (match error.location with
+                  | Some _ -> load_error_header error
+                  | None -> error.kind ^ ", see below");
+              ]
+        | _ -> nil);
       ]
   in
   panel "Code options"
     [ use_stdlib; load_example; select_resource; run_process ]
 
 let edit_view (model : Model.model) =
+  let error =
+    match model.run_model with Error error -> error | Ok _ -> None
+  in
   view_contents
     [
       map
         (fun edit_msg -> Model.EditMsg edit_msg)
-        (view_editor model.edit_model);
+        (view_editor ?error model.edit_model);
     ]
     [ view_compiler model ]
 
@@ -357,8 +417,8 @@ let view_navbar =
                   ~a:[ class_ "brand-tagline" ]
                   [
                     text
-                      "A prototype language for temporal resources, with modal \
-                       types and graded effects";
+                      "A language for temporal resources, with modal types and \
+                       graded effects";
                   ];
               ];
           ];

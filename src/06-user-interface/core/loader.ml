@@ -125,3 +125,7 @@ module Loader (Backend : Backend.S) = struct
       the dune file for details. *)
   let stdlib_source = Stdlib_mlt.contents
 end
+
+(** The standard library's source, independently of any backend, for callers
+    that need to know what precedes a program's own source. *)
+let stdlib_source = Stdlib_mlt.contents
