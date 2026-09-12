@@ -7,6 +7,9 @@ type heated = Heated of model
 type extruded = Extruded of heated
 type cooled = Cooled of extruded
 type fresh = Fresh of cooled | Reheated of heated
+type epoxy = Epoxy
+type mounted = Mounted of fresh * epoxy
+type receipt = Receipt of string
 
 (* The heater warms a model up, so that it can be extruded. *)
 operation Heat : model ~> heated # ({Heat}, {Heat}) within (1, 2)
@@ -49,26 +52,27 @@ default Tx msg = delay 2
 (* A send is one or two transmissions, on both sides of the pair. *)
 operation Send : string ~> unit # ({Tx | Tx; Tx}, {Tx | Tx; Tx}) within (2, 6)
 
-(* Correctly accepted by the typechecker: heating and extruding banks 1 + 3
-   ticks towards the lower bound of the box, which demands three, and costs at
-   most 2 + 5 ticks of its upper bound, which allows seven. *)
+(* Correctly accepted by the typechecker: the epoxy needs three ticks to set
+   before it is workable, and heating and extruding bank 1 + 3 of them; its pot
+   life is seven ticks, and the two steps cost at most 2 + 5. *)
 let make_cog () =
-  box (3, 7) (Model "Cog") as blueprint in
+  box (3, 7) Epoxy as glue in
   let h = perform Heat (Model "Cog") in
   let p = perform Extrude h in
-  unbox blueprint as m in
+  unbox glue as g in
   let c = perform Cool p in
-  (m, Fresh c)
+  Mounted (Fresh c, g)
 
-(* Correctly accepted by the typechecker: the same bound spelled out with the
-   two events on each side of the pair instead of as a time interval. *)
+(* Correctly accepted by the typechecker: the same bound on the epoxy spelled
+   out with the two events of the job on each side of the pair instead of as a
+   time interval. *)
 let make_gear () =
-  box ({Heat; Extrude}, {Heat; Extrude}) (Model "Gear") as blueprint in
+  box ({Heat; Extrude}, {Heat; Extrude}) Epoxy as glue in
   let h = perform Heat (Model "Gear") in
   let p = perform Extrude h in
-  unbox blueprint as m in
+  unbox glue as g in
   let c = perform Cool p in
-  (m, Fresh c)
+  Mounted (Fresh c, g)
 
 (* Correctly accepted by the typechecker by sub-effecting: a clause may forward
    the operation it handles, since '({Heat}, {Heat})' is a sub-grade of itself
@@ -91,31 +95,31 @@ let printer =
       continue k with (box (2, 8) (Fresh c))
 
 (* Correctly accepted by the typechecker: a whole 'PrintModel' banks the six
-   ticks the lower bound of the box demands, because 1 + 3 + 2 = 6, and costs
-   at most the nine the upper bound allows, because 2 + 5 + 2 = 9 --- both
-   endpoints exact. The closing wait then collects the print: it banks the two
-   ticks the '[(2, 8)]' box demands, well inside the eight it allows. *)
+   ticks the epoxy needs to set, because 1 + 3 + 2 = 6, and costs at most the
+   nine ticks of its pot life, because 2 + 5 + 2 = 9 --- both endpoints exact.
+   The closing wait then collects the print: it banks the two ticks the
+   '[(2, 8)]' box demands, well inside the eight it allows. *)
 let print_sword () =
   handle
-    box (6, 9) (Model "Sword") as blueprint in
+    box (6, 9) Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox blueprint as m in
+    unbox glue as g in
     delay 2;
     unbox printed as p in
-    (m, p)
+    Mounted (p, g)
   with printer
 
-(* Correctly accepted by the typechecker: the same bound spelled out with the
-   three events on each side of the pair instead of as a time interval. *)
+(* Correctly accepted by the typechecker: the same bound on the epoxy spelled
+   out with the three events of the job on each side of the pair instead of as
+   a time interval. *)
 let print_cog () =
   handle
-    box ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
-        (Model "Cog") as blueprint in
+    box ({Heat; Extrude; Cool}, {Heat; Extrude; Cool}) Epoxy as glue in
     let printed = perform PrintModel (Model "Cog") in
-    unbox blueprint as m in
+    unbox glue as g in
     delay 2;
     unbox printed as p in
-    (m, p)
+    Mounted (p, g)
   with printer
 
 (* Correctly accepted by the typechecker: the clause realises the first of the
@@ -179,25 +183,27 @@ let send_retry =
   | x -> x
   | Send msg k -> perform Tx msg; perform Tx msg; continue k with ()
 
-(* Correctly accepted by the typechecker: a single transmission banks at least
-   the two ticks the lower bound demands, and a retried one costs at most the
-   six ticks the upper bound allows. *)
+(* Correctly accepted by the typechecker: the receipt may be read only once a
+   transmission has gone out, which banks at least the two ticks the lower
+   bound demands, and the session expires after the six ticks of the upper
+   bound, which a retried send costs at most. *)
 let send_telemetry () =
   handle
-    box (2, 6) "ack" as slot in
+    box (2, 6) (Receipt "telemetry") as slot in
     perform Send "telemetry";
-    unbox slot as a in
-    a
+    unbox slot as r in
+    r
   with send_retry
 
 (* Correctly accepted by the typechecker: a non-exact bound on both sides ---
-   the lower bound demands only the first transmission, and the upper bound
-   allows either two transmissions or six ticks of waiting. *)
+   the lower bound demands only the first transmission before the receipt may
+   be read, and the upper bound allows either two transmissions or six ticks of
+   waiting. *)
 let send_by_events () =
-  box ({Tx}, {Tx; Tx | 6}) "ack" as slot in
+  box ({Tx}, {Tx; Tx | 6}) (Receipt "telemetry") as slot in
   perform Send "telemetry";
-  unbox slot as a in
-  a
+  unbox slot as r in
+  r
 
 (* Correctly rejected by the typechecker: the order of the events is part of
    both sides of the pair, and this clause sends the model to the cooler before
@@ -258,8 +264,8 @@ let sloppy_printer =
       continue k with (box (2, 8) (Reheated h))
 *)
 
-(* Correctly rejected by the typechecker on the lower bound, whose seven ticks
-   are not banked by a print, which banks only 1 + 3 + 2:
+(* Correctly rejected by the typechecker: the epoxy needs seven ticks to set,
+   which a print does not bank, since 1 + 3 + 2 = 6:
 
      Typing error: Comparing resource inequality
        ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
@@ -268,17 +274,17 @@ let sloppy_printer =
 (*
 let print_sword_lazy () =
   handle
-    box (7, 9) (Model "Sword") as blueprint in
+    box (7, 9) Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox blueprint as m in
+    unbox glue as g in
     delay 2;
     unbox printed as p in
-    (m, p)
+    Mounted (p, g)
   with printer
 *)
 
-(* Correctly rejected by the typechecker on the upper bound, whose eight ticks
-   do not pay for a print, which may take 2 + 5 + 2:
+(* Correctly rejected by the typechecker: the epoxy has hardened after eight
+   ticks, and a print may take 2 + 5 + 2 = 9:
 
      Typing error: Comparing resource inequality
        ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
@@ -287,17 +293,17 @@ let print_sword_lazy () =
 (*
 let print_sword_impatient () =
   handle
-    box (6, 8) (Model "Sword") as blueprint in
+    box (6, 8) Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox blueprint as m in
+    unbox glue as g in
     delay 2;
     unbox printed as p in
-    (m, p)
+    Mounted (p, g)
   with printer
 *)
 
-(* Correctly rejected by the typechecker: the upper bound of the box is too
-   small, since heating and extruding may take up to seven ticks:
+(* Correctly rejected by the typechecker: the epoxy hardens after six ticks,
+   while heating and extruding may take up to seven:
 
      Typing error: Comparing resource inequality
        ({Heat; Extrude},{Heat; Extrude})
@@ -305,16 +311,16 @@ let print_sword_impatient () =
 *)
 (*
 let make_cog_impatient () =
-  box (3, 6) (Model "Cog") as blueprint in
+  box (3, 6) Epoxy as glue in
   let h = perform Heat (Model "Cog") in
   let p = perform Extrude h in
-  unbox blueprint as m in
+  unbox glue as g in
   let c = perform Cool p in
-  (m, Fresh c)
+  Mounted (Fresh c, g)
 *)
 
-(* Correctly rejected by the typechecker: the lower bound of the box is not
-   covered, since heating and extruding bank only 1 + 3 ticks, not five:
+(* Correctly rejected by the typechecker: the epoxy has not set after the
+   1 + 3 ticks heating and extruding bank, since it needs five:
 
      Typing error: Comparing resource inequality
        ({Heat; Extrude},{Heat; Extrude})
@@ -322,12 +328,12 @@ let make_cog_impatient () =
 *)
 (*
 let make_cog_lazy () =
-  box (5, 7) (Model "Cog") as blueprint in
+  box (5, 7) Epoxy as glue in
   let h = perform Heat (Model "Cog") in
   let p = perform Extrude h in
-  unbox blueprint as m in
+  unbox glue as g in
   let c = perform Cool p in
-  (m, Fresh c)
+  Mounted (Fresh c, g)
 *)
 
 (* Correctly rejected by the typechecker: the upper bound of 'Send' allows at
@@ -363,8 +369,8 @@ let send_lazy =
   | Send msg k -> perform Tx msg; delay 1; continue k with ()
 *)
 
-(* Correctly rejected by the typechecker on the upper bound, whose five ticks
-   do not pay for a retried send, which costs 3 + 3:
+(* Correctly rejected by the typechecker: the session expires after five
+   ticks, which does not pay for a retried send, which costs 3 + 3:
 
      Typing error: Comparing resource inequality
        ({Tx | Tx; Tx},{Tx | Tx; Tx})
@@ -373,15 +379,15 @@ let send_lazy =
 (*
 let send_telemetry_impatient () =
   handle
-    box (2, 5) "ack" as slot in
+    box (2, 5) (Receipt "telemetry") as slot in
     perform Send "telemetry";
-    unbox slot as a in
-    a
+    unbox slot as r in
+    r
   with send_retry
 *)
 
-(* Correctly rejected by the typechecker on the lower bound, whose four ticks
-   are not banked by a send that may consist of a single transmission:
+(* Correctly rejected by the typechecker: the receipt is not ready after four
+   ticks if the send consists of a single transmission, which banks only two:
 
      Typing error: Comparing resource inequality
        ({Tx | Tx; Tx},{Tx | Tx; Tx})
@@ -390,15 +396,15 @@ let send_telemetry_impatient () =
 (*
 let send_telemetry_lazy () =
   handle
-    box (4, 6) "ack" as slot in
+    box (4, 6) (Receipt "telemetry") as slot in
     perform Send "telemetry";
-    unbox slot as a in
-    a
+    unbox slot as r in
+    r
   with send_retry
 *)
 
 (* The single run below handles the 'PrintModel' with 'printer', which replaces
    it by the three steps of a print. Those are atomic, and the defaults given
    for them above say what they mean, so the run completes and returns the
-   printed sword together with the blueprint it was made from. *)
+   printed sword mounted on the epoxy. *)
 run print_sword ()

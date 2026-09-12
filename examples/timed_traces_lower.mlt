@@ -7,6 +7,9 @@ type heated = Heated of model
 type extruded = Extruded of heated
 type cooled = Cooled of extruded
 type fresh = Fresh of cooled | Reheated of heated
+type epoxy = Epoxy
+type mounted = Mounted of fresh * epoxy
+type receipt = Receipt of string
 
 (* The heater warms a model up, so that it can be extruded. *)
 operation Heat : model ~> heated # {Heat} within (1, 2)
@@ -39,13 +42,13 @@ default Tx msg = delay 2
 operation Deliver : string ~> unit # {Tx | Tx; Tx} within (2, 6)
 
 (* Correctly accepted by the typechecker: running 'Extrude' banks the lower end
-   of its runtime bounds, three ticks, which covers the three ticks the box
-   demands. *)
+   of its runtime bounds, three ticks, which covers the three ticks the epoxy
+   needs to set. *)
 let extrude_layer h =
-  box 3 "layer" as label in
+  box 3 Epoxy as glue in
   let p = perform Extrude h in
-  unbox label as l in
-  (l, p)
+  unbox glue as g in
+  (g, p)
 
 (* Correctly accepted by the typechecker: the clause performs exactly the three
    steps 'PrintModel' promises, in the promised order. *)
@@ -59,28 +62,29 @@ let printer =
       continue k with (box 2 (Fresh c))
 
 (* Correctly accepted by the typechecker: a whole 'PrintModel' banks the six
-   ticks the box demands, because the lower ends of the bounds of its three
-   steps are 1 + 3 + 2 = 6. The closing wait then collects the print: it banks
-   the two ticks the '[2]' box demands. *)
+   ticks the epoxy needs to set, because the lower ends of the bounds of its
+   three steps are 1 + 3 + 2 = 6. The closing wait then collects the print: it
+   banks the two ticks the '[2]' box demands. *)
 let print_sword () =
   handle
-    box 6 (Model "Sword") as blueprint in
+    box 6 Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox blueprint as m in
+    unbox glue as g in
     delay 2;
     unbox printed as p in
-    (m, p)
+    Mounted (p, g)
   with printer
 
-(* Correctly accepted by the typechecker: the same demand spelled out as a run
-   of events, and covered by performing the three steps by hand. *)
+(* Correctly accepted by the typechecker: the same demand on the epoxy spelled
+   out as the events of the job, and covered by performing the three steps by
+   hand. *)
 let print_cog () =
-  box {Heat; Extrude; Cool} (Model "Cog") as blueprint in
+  box {Heat; Extrude; Cool} Epoxy as glue in
   let h = perform Heat (Model "Cog") in
   let p = perform Extrude h in
   let c = perform Cool p in
-  unbox blueprint as m in
-  (m, Fresh c)
+  unbox glue as g in
+  Mounted (Fresh c, g)
 
 (* Correctly accepted by the typechecker: the clause covers the first of the two
    runs 'Print' promises. *)
@@ -164,22 +168,23 @@ let deliver_slow =
 
 (* Correctly accepted by the typechecker: whichever way the retrying handler
    delivers, at least two ticks --- the lower end of the bounds of 'Tx' --- have
-   been banked by the time the acknowledgement is unboxed. *)
+   been banked by the time the receipt is read. *)
 let deliver_ping () =
   handle
-    box 2 "ack" as slot in
+    box 2 (Receipt "ping") as slot in
     perform Deliver "ping";
-    unbox slot as a in
-    a
+    unbox slot as r in
+    r
   with deliver_retry
 
 (* Correctly accepted by the typechecker: the same demand spelled out as an
-   event instead of as ticks --- both traces of 'Deliver' begin with a 'Tx'. *)
+   event instead of as ticks --- both traces of 'Deliver' begin with a 'Tx',
+   so the receipt is ready as soon as one has gone out. *)
 let deliver_by_events () =
-  box {Tx} "ack" as slot in
+  box {Tx} (Receipt "ping") as slot in
   perform Deliver "ping";
-  unbox slot as a in
-  a
+  unbox slot as r in
+  r
 
 (* Correctly rejected by the typechecker: the order of the events is part of the
    demand, and this clause sends the model to the cooler before it has been
@@ -237,7 +242,8 @@ let sloppy_printer =
 *)
 
 (* Correctly rejected by the typechecker: a print banks only the six ticks of
-   the lower ends of its bounds, which do not cover the seven the box demands:
+   the lower ends of its bounds, which do not cover the seven the epoxy needs
+   to set:
 
      Typing error: Comparing resource inequality {Heat; Extrude; Cool}
        <= {7} failed
@@ -245,12 +251,12 @@ let sloppy_printer =
 (*
 let print_sword_eager () =
   handle
-    box 7 (Model "Sword") as blueprint in
+    box 7 Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox blueprint as m in
+    unbox glue as g in
     delay 2;
     unbox printed as p in
-    (m, p)
+    Mounted (p, g)
   with printer
 *)
 
@@ -280,30 +286,32 @@ let deliver_drop =
 *)
 
 (* Correctly rejected by the typechecker: an 'Extrude' banks only the three
-   ticks of its lower bound, which do not cover the four the box demands:
+   ticks of its lower bound, which do not cover the four the epoxy needs to
+   set:
 
      Typing error: Comparing resource inequality {Extrude} <= {4} failed
 *)
 (*
 let extrude_layer_slow h =
-  box 4 "layer" as label in
+  box 4 Epoxy as glue in
   let p = perform Extrude h in
-  unbox label as l in
-  (l, p)
+  unbox glue as g in
+  (g, p)
 *)
 
 (* Correctly rejected by the typechecker: a delivery may consist of a single
-   transmission, which banks only two ticks, not four:
+   transmission, which banks only two ticks, not the four the receipt
+   demands:
 
      Typing error: Comparing resource inequality {Tx | Tx; Tx} <= {4} failed
 *)
 (*
 let deliver_ping_eager () =
   handle
-    box 4 "ack" as slot in
+    box 4 (Receipt "ping") as slot in
     perform Deliver "ping";
-    unbox slot as a in
-    a
+    unbox slot as r in
+    r
   with deliver_retry
 *)
 
@@ -315,14 +323,14 @@ let deliver_ping_eager () =
 *)
 (*
 let deliver_by_two () =
-  box {Tx; Tx} "ack" as slot in
+  box {Tx; Tx} (Receipt "ping") as slot in
   perform Deliver "ping";
-  unbox slot as a in
-  a
+  unbox slot as r in
+  r
 *)
 
 (* The single run below handles the 'PrintModel' with 'printer', which replaces
    it by the three steps of a print. Those are atomic, and the defaults given
    for them above say what they mean, so the run completes and returns the
-   printed sword together with the blueprint it was made from. *)
+   printed sword mounted on the epoxy. *)
 run print_sword ()

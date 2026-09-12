@@ -7,6 +7,9 @@ type heated = Heated of model
 type extruded = Extruded of heated
 type cooled = Cooled of extruded
 type fresh = Fresh of cooled | Reheated of heated
+type epoxy = Epoxy
+type mounted = Mounted of fresh * epoxy
+type receipt = Receipt of string
 
 (* The heater warms a model up, so that it can be extruded. *)
 operation Heat : model ~> heated # {Heat} within (1, 2)
@@ -57,29 +60,30 @@ let forward =
   | x -> x
   | Heat m k -> let h = perform Heat m in continue k with h
 
-(* Correctly accepted by the typechecker: the nine ticks of allowance the box
-   asks for pay for a whole 'PrintModel', because 2 + 5 + 2 = 9. The closing
-   wait then collects the print, well inside the eight ticks the '[8]' box
-   allows. *)
+(* Correctly accepted by the typechecker: the epoxy must be used within nine
+   ticks, which pays for a whole 'PrintModel', because 2 + 5 + 2 = 9. The
+   closing wait then collects the print, well inside the eight ticks the '[8]'
+   box allows. *)
 let print_sword () =
   handle
-    box 9 (Model "Sword") as blueprint in
+    box 9 Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox blueprint as m in
+    unbox glue as g in
     delay 2;
     unbox printed as p in
-    (m, p)
+    Mounted (p, g)
   with printer
 
-(* Correctly accepted by the typechecker: the same bound spelled out as a set of
-   traces, and realised by performing the three steps by hand. *)
+(* Correctly accepted by the typechecker: the same bound on the epoxy spelled
+   out as the events of the job, and realised by performing the three steps by
+   hand. *)
 let print_cog () =
-  box {Heat; Extrude; Cool} (Model "Cog") as blueprint in
+  box {Heat; Extrude; Cool} Epoxy as glue in
   let h = perform Heat (Model "Cog") in
   let p = perform Extrude h in
   let c = perform Cool p in
-  unbox blueprint as m in
-  (m, Fresh c)
+  unbox glue as g in
+  Mounted (Fresh c, g)
 
 (* Correctly accepted by the typechecker: the clause realises the first of the
    two alternatives 'Print' allows. *)
@@ -130,32 +134,33 @@ let send_retry =
   | x -> x
   | Send msg k -> perform Tx msg; perform Tx msg; continue k with ()
 
-(* Correctly accepted by the typechecker: the six ticks of allowance the box
-   asks for pay for the costlier alternative of 'Send', because 3 + 3 = 6. *)
+(* Correctly accepted by the typechecker: the receipt must be collected within
+   six ticks, which pays for the costlier alternative of 'Send', because
+   3 + 3 = 6. *)
 let send_telemetry () =
   handle
-    box 6 "ack" as slot in
+    box 6 (Receipt "telemetry") as slot in
     perform Send "telemetry";
-    unbox slot as a in
-    a
+    unbox slot as r in
+    r
   with send_retry
 
 (* Correctly accepted by the typechecker: a strict super-grade of what the send
    costs, spelled out as events instead of ticks --- each alternative of 'Send'
-   fits inside one of the two runs the box allows. *)
+   fits inside one of the two runs the receipt allows. *)
 let send_by_events () =
-  box {Tx; Tx | 10} "ack" as slot in
+  box {Tx; Tx | 10} (Receipt "telemetry") as slot in
   perform Send "telemetry";
-  unbox slot as a in
-  a
+  unbox slot as r in
+  r
 
 (* Correctly accepted by the typechecker: a single transmission also fits inside
    a bound of two, since the second 'Tx' of the bound may go unspent. *)
 let send_by_two () =
-  box {Tx; Tx} "ack" as slot in
+  box {Tx; Tx} (Receipt "telemetry") as slot in
   perform Send "telemetry";
-  unbox slot as a in
-  a
+  unbox slot as r in
+  r
 
 (* Correctly rejected by the typechecker: the order of the events is part of the
    bound, and this clause sends the model to the cooler before it has been
@@ -193,8 +198,8 @@ let twisted_printer =
       continue k with (box 8 (Reheated h))
 *)
 
-(* Correctly rejected by the typechecker: eight ticks of allowance do not buy a
-   whole print, which may take nine:
+(* Correctly rejected by the typechecker: the epoxy hardens after eight ticks,
+   which does not buy a whole print, which may take nine:
 
      Typing error: Comparing resource inequality {Heat; Extrude; Cool}
        <= {8} failed
@@ -202,12 +207,12 @@ let twisted_printer =
 (*
 let print_sword_cheap () =
   handle
-    box 8 (Model "Sword") as blueprint in
+    box 8 Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox blueprint as m in
+    unbox glue as g in
     delay 2;
     unbox printed as p in
-    (m, p)
+    Mounted (p, g)
   with printer
 *)
 
@@ -240,18 +245,19 @@ let send_lazy =
   | Send msg k -> perform Tx msg; delay 1; continue k with ()
 *)
 
-(* Correctly rejected by the typechecker: five ticks do not pay for the
-   two-transmission alternative of 'Send', which costs 3 + 3:
+(* Correctly rejected by the typechecker: the session expires after five
+   ticks, which does not pay for the two-transmission alternative of 'Send',
+   which costs 3 + 3:
 
      Typing error: Comparing resource inequality {Tx | Tx; Tx} <= {5} failed
 *)
 (*
 let send_telemetry_cheap () =
   handle
-    box 5 "ack" as slot in
+    box 5 (Receipt "telemetry") as slot in
     perform Send "telemetry";
-    unbox slot as a in
-    a
+    unbox slot as r in
+    r
   with send_retry
 *)
 
@@ -262,13 +268,14 @@ let send_telemetry_cheap () =
 *)
 (*
 let send_by_one () =
-  box {Tx} "ack" as slot in
+  box {Tx} (Receipt "telemetry") as slot in
   perform Send "telemetry";
-  unbox slot as a in
-  a
+  unbox slot as r in
+  r
 *)
 
 (* The single run below handles the 'Send' with 'send_retry', which replaces it
    by two transmissions. Those are atomic, and the default given for 'Tx' above
-   says what they mean, so the run completes and returns the acknowledgement. *)
+   says what they mean, so the run completes and returns the delivery
+   receipt. *)
 run send_telemetry ()

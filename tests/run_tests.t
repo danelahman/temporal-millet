@@ -990,17 +990,17 @@
   timed_traces_interval.mlt
   ======================================================================
   === Run 1 ===
-  return (Model "Sword", Fresh (Cooled (Extruded (Heated (Model "Sword")))))
+  return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword")))), Epoxy))
   State: [
-    { resource_0 ↦ Model "Sword" # ({6},{9}),
+    { resource_0 ↦ Epoxy # ({6},{9}),
       resource_2 ↦
         fun op_var ↦
           handle
             let printed = return op_var in
-            unbox resource_0 as m in
+            unbox resource_0 as g in
             delay 2 (return ());
             unbox printed as p in
-            return (m, p)
+            return (Mounted (p, g))
           with printer
         # ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
     },
@@ -1030,17 +1030,17 @@
   timed_traces_lower.mlt
   ======================================================================
   === Run 1 ===
-  return (Model "Sword", Fresh (Cooled (Extruded (Heated (Model "Sword")))))
+  return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword")))), Epoxy))
   State: [
-    { resource_0 ↦ Model "Sword" # {6},
+    { resource_0 ↦ Epoxy # {6},
       resource_2 ↦
         fun op_var ↦
           handle
             let printed = return op_var in
-            unbox resource_0 as m in
+            unbox resource_0 as g in
             delay 2 (return ());
             unbox printed as p in
-            return (m, p)
+            return (Mounted (p, g))
           with printer
         # {Heat; Extrude; Cool}
     },
@@ -1105,15 +1105,15 @@
   timed_traces_upper.mlt
   ======================================================================
   === Run 1 ===
-  return "ack"
+  return (Receipt "telemetry")
   State: [
-    { resource_0 ↦ "ack" # {6},
+    { resource_0 ↦ Receipt "telemetry" # {6},
       resource_2 ↦
         fun op_var ↦
           handle
             return op_var;
-            unbox resource_0 as a in
-            return a
+            unbox resource_0 as r in
+            return r
           with send_retry
         # {Tx | Tx; Tx}
     },
