@@ -34,6 +34,14 @@ default Cool p = delay 2; unbox p as e in Cooled e
 operation Mount : fresh * epoxy ~> mounted # {Mount} within (1, 1)
 default Mount (p, g) = delay 1; Mounted p
 
+(* Mixing two-part epoxy takes a tick; the mix then needs eight ticks to set. *)
+operation MixEpoxy : unit ~> [8] epoxy # {MixEpoxy} within (1, 1)
+default MixEpoxy () = delay 1; box 8 Epoxy
+
+(* A quick-setting epoxy for small parts. *)
+operation MixQuickEpoxy : unit ~> [3] epoxy # {MixQuickEpoxy} within (1, 1)
+default MixQuickEpoxy () = delay 1; box 3 Epoxy
+
 (* A print is the three steps, in that order, and the finished print has to set
    for two ticks before it may be collected. *)
 operation PrintModel : model ~> [2] fresh # {Heat; Extrude; Cool} within (6, 9)
@@ -52,9 +60,10 @@ operation Deliver : string ~> unit # {Tx | Tx; Tx} within (2, 6)
 
 (* Correctly accepted by the typechecker: running 'Extrude' banks the lower end
    of its runtime bounds, three ticks, which covers the three ticks the epoxy
-   needs to set. *)
+   of 'MixQuickEpoxy' needs to set --- the boxing is done by the default
+   implementation of that operation, not by hand. *)
 let extrude_layer h =
-  box 3 Epoxy as glue in
+  let glue = perform MixQuickEpoxy () in
   let p = perform Extrude h in
   unbox glue as g in
   (g, p)
@@ -70,17 +79,13 @@ let printer =
       let c = perform Cool p in
       continue k with (box 2 (Fresh c))
 
-(* Correctly accepted by the typechecker: the closing wait collects the print,
-   banking the two ticks its '[2]' box demands. The epoxy needs eight ticks to
-   set, which the print and that rest bank exactly, because the lower ends of
-   the bounds are 1 + 3 + 2 + 2 = 8, so the glue cannot be reached before the
-   mounting stage. Declaring 'epoxy' non-eternal has no effect under this
-   monoid, where zero is the top of the sub-grade order, so a local variable of
-   any type may be referenced however much time has passed; it is the
-   upper-bound and interval files where the declaration bites. *)
+(* Correctly accepted by the typechecker: the rest banks the two ticks the
+   print's '[2]' box demands, and the print plus the rest bank exactly the
+   eight the epoxy needs to set (1 + 3 + 2 + 2). Zero is the top of this
+   monoid's order, so the 'noneternal' declaration has no effect here. *)
 let print_sword () =
   handle
-    box 8 Epoxy as glue in
+    let glue = perform MixEpoxy () in
     let printed = perform PrintModel (Model "Sword") in
     delay 2;
     unbox printed as p in
@@ -88,11 +93,11 @@ let print_sword () =
     perform Mount (p, g)
   with printer
 
-(* Correctly accepted by the typechecker: the same demand on the epoxy spelled
-   out as the events of the job, the closing rest included, and covered by
-   performing the three steps by hand. *)
+(* Correctly accepted by the typechecker: the same demand covered by hand,
+   without the handler --- the three steps and the closing rest bank the
+   1 + 3 + 2 + 2 = 8 ticks the epoxy of 'MixEpoxy' asks for. *)
 let print_cog () =
-  box {Heat; Extrude; Cool; 2} Epoxy as glue in
+  let glue = perform MixEpoxy () in
   let h = perform Heat (Model "Cog") in
   let p = perform Extrude h in
   let c = perform Cool p in
@@ -255,18 +260,33 @@ let sloppy_printer =
       continue k with (box 2 (Reheated h))
 *)
 
-(* Correctly rejected by the typechecker: a print and the rest that follows it
-   bank only the eight ticks of the lower ends of their bounds, which do not
-   cover the nine the epoxy needs to set:
+(* Correctly rejected by the typechecker, and the reason the mixing has to be a
+   default implementation rather than a handler: an operation case is checked
+   against the grade of the operation, and waiting never realises the demanded
+   event '{MixEpoxy}' --- only performing 'MixEpoxy' itself would, which is
+   circular. A default is checked against the 'within (1, 1)' bounds instead,
+   which the very same tick of mixing meets exactly:
 
-     Typing error: Comparing resource inequality {Heat; Extrude; Cool; 2}
-       <= {9} failed
+     Typing error: Comparing resource inequality {1} <= {MixEpoxy} failed
+*)
+(*
+let mixer =
+  handler
+  | x -> x
+  | MixEpoxy () k -> delay 1; continue k with (box 8 Epoxy)
+*)
+
+(* Correctly rejected by the typechecker: the epoxy is mixed after the print
+   instead of before it, so only the two ticks of the closing rest are banked
+   towards the eight it needs to set:
+
+     Typing error: Comparing resource inequality {2} <= {8} failed
 *)
 (*
 let print_sword_eager () =
   handle
-    box 9 Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
+    let glue = perform MixEpoxy () in
     delay 2;
     unbox printed as p in
     unbox glue as g in
@@ -299,16 +319,16 @@ let deliver_drop =
   | Deliver msg k -> continue k with ()
 *)
 
-(* Correctly rejected by the typechecker: an 'Extrude' banks only the three
-   ticks of its lower bound, which do not cover the four the epoxy needs to
-   set:
+(* Correctly rejected by the typechecker: the quick epoxy is mixed only after
+   the extrusion, so the three ticks the extruder banks are spent before the
+   glue exists, and nothing at all is banked towards the three it needs to set:
 
-     Typing error: Comparing resource inequality {Extrude} <= {4} failed
+     Typing error: Comparing resource inequality {0} <= {3} failed
 *)
 (*
 let extrude_layer_slow h =
-  box 4 Epoxy as glue in
   let p = perform Extrude h in
+  let glue = perform MixQuickEpoxy () in
   unbox glue as g in
   (g, p)
 *)
@@ -343,9 +363,7 @@ let deliver_by_two () =
   r
 *)
 
-(* The single run below handles the 'PrintModel' with 'printer', which replaces
-   it by the three steps of a print. Those are atomic, and so is the closing
-   'Mount', which no handler catches; the defaults given for them above say what
-   they mean, so the run completes and returns the printed sword mounted on its
-   base, the glue used up. *)
+(* 'printer' handles 'PrintModel'; the atomic 'MixEpoxy', 'Heat', 'Extrude',
+   'Cool' and 'Mount' reach the top level and run their defaults, so the run
+   completes with the sword mounted on its base. *)
 run print_sword ()

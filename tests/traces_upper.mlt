@@ -34,6 +34,10 @@ default Cool p = delay 2; unbox p as e in Cooled e
 operation Mount : fresh * epoxy ~> mounted # {Mount} within (1, 1)
 default Mount (p, g) = delay 1; Mounted p
 
+(* Mixing two-part epoxy takes a tick; the mix has hardened after eleven. *)
+operation MixEpoxy : unit ~> [11] epoxy # {MixEpoxy} within (1, 1)
+default MixEpoxy () = delay 1; box 11 Epoxy
+
 (* A print is the three steps, in that order, and the finished print must be
    collected within eight ticks. *)
 operation PrintModel : model ~> [8] fresh # {Heat; Extrude; Cool} within (6, 9)
@@ -69,13 +73,12 @@ let forward =
   | x -> x
   | Heat m k -> let h = perform Heat m in continue k with h
 
-(* Correctly accepted by the typechecker: the closing wait collects the print,
-   well inside the eight ticks its '[8]' box allows. The epoxy must be used
-   within eleven ticks, which pays for the slowest run of a whole 'PrintModel'
-   and the rest that follows it, because 2 + 5 + 2 + 2 = 11. *)
+(* Correctly accepted by the typechecker: the rest stays within the eight
+   ticks the print's '[8]' box allows, and the print plus the rest stay within
+   the epoxy's pot life of eleven (2 + 5 + 2 + 2). *)
 let print_sword () =
   handle
-    box 11 Epoxy as glue in
+    let glue = perform MixEpoxy () in
     let printed = perform PrintModel (Model "Sword") in
     delay 2;
     unbox printed as p in
@@ -83,11 +86,11 @@ let print_sword () =
     perform Mount (p, g)
   with printer
 
-(* Correctly accepted by the typechecker: the same bound on the epoxy spelled
-   out as the events of the job, the closing rest included, and realised by
-   performing the three steps by hand. *)
+(* Correctly accepted by the typechecker: the same bound realised by hand,
+   without the handler --- the three steps and the closing rest cost at most
+   2 + 5 + 2 + 2 = 11, which is exactly what the epoxy of 'MixEpoxy' allows. *)
 let print_cog () =
-  box {Heat; Extrude; Cool; 2} Epoxy as glue in
+  let glue = perform MixEpoxy () in
   let h = perform Heat (Model "Cog") in
   let p = perform Extrude h in
   let c = perform Cool p in
@@ -208,40 +211,59 @@ let twisted_printer =
       continue k with (box 8 (Reheated h))
 *)
 
-(* Correctly rejected by the typechecker: the epoxy hardens after ten ticks,
-   which does not buy the slowest print plus the rest, which may take eleven:
+(* Correctly rejected by the typechecker, and the reason the mixing has to be a
+   default implementation rather than a handler: an operation case is checked
+   against the grade of the operation, and a delay never realises the event
+   '{MixEpoxy}' --- only performing 'MixEpoxy' itself would, which is circular.
+   A default is checked against the 'within (1, 1)' bounds instead, which the
+   very same tick of mixing meets exactly:
 
-     Typing error: Comparing resource inequality {Heat; Extrude; Cool; 2}
-       <= {10} failed
+     Typing error: Comparing resource inequality {1} <= {MixEpoxy} failed
+*)
+(*
+let mixer =
+  handler
+  | x -> x
+  | MixEpoxy () k -> delay 1; continue k with (box 11 Epoxy)
+*)
+
+(* Correctly rejected by the typechecker: the print is left to rest for five
+   ticks instead of two, which its own '[8]' box still allows, but by then the
+   epoxy may have hardened, since 2 + 5 + 2 + 5 = 14 is past the eleven ticks
+   it allows:
+
+     Typing error: Comparing resource inequality {Heat; Extrude; Cool; 5}
+       <= {11} failed
 *)
 (*
 let print_sword_cheap () =
   handle
-    box 10 Epoxy as glue in
+    let glue = perform MixEpoxy () in
     let printed = perform PrintModel (Model "Sword") in
-    delay 2;
+    delay 5;
     unbox printed as p in
     unbox glue as g in
     perform Mount (p, g)
   with printer
 *)
 
-(* Correctly rejected by the typechecker: the glue is unboxed the moment the
-   print is done, but mixed epoxy does not keep --- 'epoxy' is declared
-   'noneternal', so the glue does not survive the two ticks of rest before the
-   mounting:
+(* Correctly rejected by the typechecker: the glue is unboxed after the rest,
+   exactly as in 'print_sword', but then a tick passes before the mounting ---
+   and mixed epoxy does not keep, since 'epoxy' is declared 'noneternal', so
+   the unboxed glue does not survive that tick:
 
-     Typing error: Type epoxy is not eternal and resource inequality {2}
+     Typing error: Type epoxy is not eternal and resource inequality {1}
        <= {0} failed
 *)
 (*
 let print_sword_hasty () =
   handle
-    box 11 Epoxy as glue in
+    let glue = perform MixEpoxy () in
     let printed = perform PrintModel (Model "Sword") in
-    unbox glue as g in
     delay 2;
     unbox printed as p in
+    unbox glue as g in
+    delay 1;
     perform Mount (p, g)
   with printer
 *)
@@ -304,8 +326,6 @@ let send_by_one () =
   r
 *)
 
-(* The single run below handles the 'Send' with 'send_retry', which replaces it
-   by two transmissions. Those are atomic, and the default given for 'Tx' above
-   says what they mean, so the run completes and returns the delivery
-   receipt. *)
+(* 'send_retry' handles 'Send' as two transmissions; the atomic 'Tx' reaches
+   the top level and runs its default, so the run completes with the receipt. *)
 run send_telemetry ()

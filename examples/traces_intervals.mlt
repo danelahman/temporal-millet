@@ -36,6 +36,19 @@ default Cool p = delay 2; unbox p as e in Cooled e
 operation Mount : fresh * epoxy ~> mounted # ({Mount}, {Mount}) within (1, 1)
 default Mount (p, g) = delay 1; Mounted p
 
+(* Mixing two-part epoxy takes a tick; the mix then needs eight ticks to set,
+   and it has hardened after eleven. *)
+operation MixEpoxy : unit ~> [(8, 11)] epoxy
+  # ({MixEpoxy}, {MixEpoxy})
+  within (1, 1)
+default MixEpoxy () = delay 1; box (8, 11) Epoxy
+
+(* A quick-setting epoxy for small parts. *)
+operation MixQuickEpoxy : unit ~> [(3, 7)] epoxy
+  # ({MixQuickEpoxy}, {MixQuickEpoxy})
+  within (1, 1)
+default MixQuickEpoxy () = delay 1; box (3, 7) Epoxy
+
 (* A print is the three steps, in that order, on both sides of the pair. The
    finished print has to set for two ticks and be collected within eight. *)
 operation PrintModel : model ~> [(2, 8)] fresh
@@ -73,15 +86,13 @@ let printer =
       let c = perform Cool p in
       continue k with (box (2, 8) (Fresh c))
 
-(* Correctly accepted by the typechecker: the closing wait collects the print,
-   banking the two ticks its '[(2, 8)]' box demands, well inside the eight it
-   allows. The epoxy needs eight ticks to set, which the print and that rest
-   bank exactly, because 1 + 3 + 2 + 2 = 8, so the glue cannot be reached
-   before the mounting stage; and its pot life of eleven ticks covers the
-   slowest run, because 2 + 5 + 2 + 2 = 11. *)
+(* Correctly accepted by the typechecker: the rest banks the two ticks the
+   print's '[(2, 8)]' box demands, and the print plus the rest bank exactly
+   the eight the epoxy needs to set (1 + 3 + 2 + 2) while staying within its
+   pot life of eleven (2 + 5 + 2 + 2). *)
 let print_sword () =
   handle
-    box (8, 11) Epoxy as glue in
+    let glue = perform MixEpoxy () in
     let printed = perform PrintModel (Model "Sword") in
     delay 2;
     unbox printed as p in
@@ -89,18 +100,18 @@ let print_sword () =
     perform Mount (p, g)
   with printer
 
-(* Correctly accepted by the typechecker: the same bound on the epoxy spelled
-   out with the events of the job, the closing rest included, on each side of
-   the pair instead of as a time interval. *)
+(* Correctly accepted by the typechecker: the same window realised by hand,
+   without the handler --- the three steps and the closing rest bank
+   1 + 3 + 2 + 2 = 8 on the lower bound and 2 + 5 + 2 + 2 = 11 on the upper,
+   which is exactly what the epoxy of 'MixEpoxy' asks for. *)
 let print_cog () =
-  handle
-    box ({Heat; Extrude; Cool; 2}, {Heat; Extrude; Cool; 2}) Epoxy as glue in
-    let printed = perform PrintModel (Model "Cog") in
-    delay 2;
-    unbox printed as p in
-    unbox glue as g in
-    perform Mount (p, g)
-  with printer
+  let glue = perform MixEpoxy () in
+  let h = perform Heat (Model "Cog") in
+  let p = perform Extrude h in
+  let c = perform Cool p in
+  delay 2;
+  unbox glue as g in
+  perform Mount (Fresh c, g)
 
 (* Correctly accepted by the typechecker: the clause realises the first of the
    two runs 'Print' allows, covering it on the lower bound and fitting inside
@@ -244,19 +255,34 @@ let sloppy_printer =
       continue k with (box (2, 8) (Reheated h))
 *)
 
-(* Correctly rejected by the typechecker: the epoxy needs nine ticks to set,
-   which the print and the rest that follows it do not bank, since
-   1 + 3 + 2 + 2 = 8:
+(* Correctly rejected by the typechecker, and the reason the mixing has to be a
+   default implementation rather than a handler: an operation case is checked
+   against the grade of the operation, and a delay never realises the event
+   '{MixEpoxy}' --- only performing 'MixEpoxy' itself would, which is circular.
+   A default is checked against the 'within (1, 1)' bounds instead, which the
+   very same tick of mixing meets exactly:
 
      Typing error: Comparing resource inequality
-       ({Heat; Extrude; Cool; 2},{Heat; Extrude; Cool; 2})
-       <= ({9},{11}) failed
+       ({1},{1}) <= ({MixEpoxy},{MixEpoxy}) failed
+*)
+(*
+let mixer =
+  handler
+  | x -> x
+  | MixEpoxy () k -> delay 1; continue k with (box (8, 11) Epoxy)
+*)
+
+(* Correctly rejected by the typechecker: the epoxy is mixed after the print
+   instead of before it, so only the two ticks of the closing rest are banked
+   towards the eight it needs to set:
+
+     Typing error: Comparing resource inequality ({2},{2}) <= ({8},{11}) failed
 *)
 (*
 let print_sword_lazy () =
   handle
-    box (9, 11) Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
+    let glue = perform MixEpoxy () in
     delay 2;
     unbox printed as p in
     unbox glue as g in
@@ -264,74 +290,78 @@ let print_sword_lazy () =
   with printer
 *)
 
-(* Correctly rejected by the typechecker: the epoxy has hardened after ten
-   ticks, and the slowest print plus the rest takes 2 + 5 + 2 + 2 = 11:
+(* Correctly rejected by the typechecker: the print is left to rest for five
+   ticks instead of two, which its own '[(2, 8)]' box still allows, but by then
+   the epoxy may have hardened, since 2 + 5 + 2 + 5 = 14 is past its pot life
+   of eleven:
 
      Typing error: Comparing resource inequality
-       ({Heat; Extrude; Cool; 2},{Heat; Extrude; Cool; 2})
-       <= ({8},{10}) failed
+       ({Heat; Extrude; Cool; 5},{Heat; Extrude; Cool; 5})
+       <= ({8},{11}) failed
 *)
 (*
 let print_sword_impatient () =
   handle
-    box (8, 10) Epoxy as glue in
+    let glue = perform MixEpoxy () in
     let printed = perform PrintModel (Model "Sword") in
-    delay 2;
+    delay 5;
     unbox printed as p in
     unbox glue as g in
     perform Mount (p, g)
   with printer
 *)
 
-(* Correctly rejected by the typechecker: a quicker-setting epoxy, ready after
-   the six ticks the print banks, is unboxed the moment the print is done ---
-   but mixed epoxy does not keep, since 'epoxy' is declared 'noneternal', so it
-   does not survive the two ticks of rest before the mounting:
+(* Correctly rejected by the typechecker: the glue is unboxed after the rest,
+   exactly as in 'print_sword', but then a tick passes before the mounting ---
+   and mixed epoxy does not keep, since 'epoxy' is declared 'noneternal', so
+   the unboxed glue does not survive that tick:
 
      Typing error: Type epoxy is not eternal and resource inequality
-       ({2},{2}) <= ({0},{0}) failed
+       ({1},{1}) <= ({0},{0}) failed
 *)
 (*
 let print_sword_hasty () =
   handle
-    box (6, 11) Epoxy as glue in
+    let glue = perform MixEpoxy () in
     let printed = perform PrintModel (Model "Sword") in
-    unbox glue as g in
     delay 2;
     unbox printed as p in
+    unbox glue as g in
+    delay 1;
     perform Mount (p, g)
   with printer
 *)
 
-(* Correctly rejected by the typechecker: the epoxy hardens after six ticks,
-   while heating and extruding may take up to seven:
+(* Correctly rejected by the typechecker: a tick of dawdling between the heater
+   and the extruder, and the quick epoxy may have hardened by the time it is
+   reached, since 2 + 1 + 5 = 8 is past the seven ticks of its pot life:
 
      Typing error: Comparing resource inequality
-       ({Heat; Extrude},{Heat; Extrude})
-       <= ({3},{6}) failed
+       ({Heat; 1; Extrude},{Heat; 1; Extrude})
+       <= ({3},{7}) failed
 *)
 (*
 let make_cog_impatient () =
-  box (3, 6) Epoxy as glue in
+  let glue = perform MixQuickEpoxy () in
   let h = perform Heat (Model "Cog") in
+  delay 1;
   let p = perform Extrude h in
   unbox glue as g in
   let c = perform Cool p in
   perform Mount (Fresh c, g)
 *)
 
-(* Correctly rejected by the typechecker: the epoxy has not set after the
-   1 + 3 ticks heating and extruding bank, since it needs five:
+(* Correctly rejected by the typechecker: the quick epoxy is mixed only after
+   the extrusion, so nothing at all is banked towards the three ticks it needs
+   to set by the time it is unboxed:
 
-     Typing error: Comparing resource inequality
-       ({Heat; Extrude},{Heat; Extrude})
-       <= ({5},{7}) failed
+     Typing error: Comparing resource inequality ({0},{0}) <= ({3},{7}) failed
 *)
 (*
 let make_cog_lazy () =
-  box (5, 7) Epoxy as glue in
   let h = perform Heat (Model "Cog") in
   let p = perform Extrude h in
+  let glue = perform MixQuickEpoxy () in
   unbox glue as g in
   let c = perform Cool p in
   perform Mount (Fresh c, g)
@@ -404,9 +434,7 @@ let send_telemetry_lazy () =
   with send_retry
 *)
 
-(* The single run below handles the 'PrintModel' with 'printer', which replaces
-   it by the three steps of a print. Those are atomic, and so is the closing
-   'Mount', which no handler catches; the defaults given for them above say what
-   they mean, so the run completes and returns the printed sword mounted on its
-   base, the glue used up. *)
+(* 'printer' handles 'PrintModel'; the atomic 'MixEpoxy', 'Heat', 'Extrude',
+   'Cool' and 'Mount' reach the top level and run their defaults, so the run
+   completes with the sword mounted on its base. *)
 run print_sword ()

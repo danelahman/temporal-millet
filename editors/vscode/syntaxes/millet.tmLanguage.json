@@ -105,7 +105,7 @@
       "beginCaptures": {
         "1": { "name": "keyword.other.millet" }
       },
-      "end": "(?=^(let|run|operation|default|type|and)\\b)",
+      "end": "(?=^(let|run|operation|default|type|noneternal|and)\\b)",
       "patterns": [
         {
           "match": "(\\|)\\s+([A-Z][A-Za-z0-9_']*)",

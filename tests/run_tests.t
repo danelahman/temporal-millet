@@ -24,6 +24,7 @@
   === Run 1 ===
   return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
   State: [
+    ({1},{1}),
     { resource_0 ↦ Epoxy # ({8},{11}),
       resource_2 ↦
         fun op_var ↦
@@ -1073,6 +1074,7 @@
   === Run 1 ===
   return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
   State: [
+    ({1},{1}),
     { resource_0 ↦ Epoxy # ({8},{11}),
       resource_2 ↦
         fun op_var ↦
@@ -1114,6 +1116,7 @@
   === Run 1 ===
   return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
   State: [
+    {1},
     { resource_0 ↦ Epoxy # {8},
       resource_2 ↦
         fun op_var ↦

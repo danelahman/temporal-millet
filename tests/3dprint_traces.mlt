@@ -7,13 +7,7 @@ type heated = Heated of model
 type extruded = Extruded of heated
 type cooled = Cooled of extruded
 type fresh = Fresh of cooled
-
-(* Mixed epoxy does not keep: the 'noneternal' annotation means the glue has to
-   be used in the very step in which it is unboxed. *)
 noneternal type epoxy = Epoxy
-
-(* Mounting uses the glue up, so a mounted print holds no epoxy and is
-   structurally eternal again. *)
 type mounted = Mounted of fresh
 
 (* The heater warms a model up, so that it can be extruded. *)
@@ -36,6 +30,13 @@ default Cool p = delay 2; unbox p as e in Cooled e
 operation Mount : fresh * epoxy ~> mounted # ({Mount}, {Mount}) within (1, 1)
 default Mount (p, g) = delay 1; Mounted p
 
+(* Mixing two-part epoxy takes a tick; the mix then needs eight ticks to set,
+   and it has hardened after eleven. *)
+operation MixEpoxy : unit ~> [(8, 11)] epoxy
+  # ({MixEpoxy}, {MixEpoxy})
+  within (1, 1)
+default MixEpoxy () = delay 1; box (8, 11) Epoxy
+
 (* A print is the three steps, in that order, on both sides of the pair. The
    finished print has to set for two ticks and be collected within eight. *)
 operation PrintModel : model ~> [(2, 8)] fresh
@@ -54,15 +55,13 @@ let printer =
       let c = perform Cool p in
       continue k with (box (2, 8) (Fresh c))
 
-(* Correctly accepted by the typechecker: the closing wait collects the print,
-   banking the two ticks its '[(2, 8)]' box demands, well inside the eight it
-   allows. The epoxy needs eight ticks to set, which the print and that rest
-   bank exactly, because 1 + 3 + 2 + 2 = 8, so the glue cannot be reached
-   before the mounting stage; and its pot life of eleven ticks covers the
-   slowest run, because 2 + 5 + 2 + 2 = 11. *)
+(* Correctly accepted by the typechecker: the rest banks the two ticks the
+   print's '[(2, 8)]' box demands, and the print plus the rest bank exactly
+   the eight the epoxy needs to set (1 + 3 + 2 + 2) while staying within its
+   pot life of eleven (2 + 5 + 2 + 2). *)
 let print_sword () =
   handle
-    box (8, 11) Epoxy as glue in
+    let glue = perform MixEpoxy () in
     let printed = perform PrintModel (Model "Sword") in
     delay 2;
     unbox printed as p in
@@ -70,8 +69,7 @@ let print_sword () =
     perform Mount (p, g)
   with printer
 
-(* The run handles 'PrintModel' with 'printer', which replaces it by the three
-   steps of a print. Those are atomic, and so is the closing 'Mount', which no
-   handler catches; the defaults given for them above say what they mean, so the
-   run completes and returns the printed sword mounted on its base. *)
+(* 'printer' handles 'PrintModel'; the atomic 'MixEpoxy', 'Heat', 'Extrude',
+   'Cool' and 'Mount' reach the top level and run their defaults, so the run
+   completes with the sword mounted on its base. *)
 run print_sword ()
