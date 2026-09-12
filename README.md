@@ -1,4 +1,4 @@
-# Temporal Millet
+# <picture><source media="(prefers-color-scheme: dark)" srcset="web/logo/temporal-millet-logo-dark.svg"><img src="web/logo/temporal-millet-logo.svg" alt="" width="40" height="40" align="top"></picture> Temporal Millet
 
 Temporal Millet is a prototype programming language that combines modal types
 with graded effect systems to specify and verify temporal properties of the
