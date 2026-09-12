@@ -7,8 +7,14 @@ type heated = Heated of model
 type extruded = Extruded of heated
 type cooled = Cooled of extruded
 type fresh = Fresh of cooled | Reheated of heated
-type epoxy = Epoxy
-type mounted = Mounted of fresh * epoxy
+(* Mixed epoxy does not keep: 'noneternal' makes the type non-eternal whatever
+   its structure says, so the glue has to be used in the very step in which it
+   is unboxed. *)
+noneternal type epoxy = Epoxy
+
+(* Mounting uses the glue up, so a mounted print holds no epoxy and is
+   structurally eternal again. *)
+type mounted = Mounted of fresh
 type receipt = Receipt of string
 
 (* The heater warms a model up, so that it can be extruded. *)
@@ -24,6 +30,10 @@ default Extrude h = delay 3; box 2 (Extruded h)
    down to something that can be handled. *)
 operation Cool : [2] extruded ~> cooled # {Cool} within (2, 2)
 default Cool p = delay 2; unbox p as e in Cooled e
+
+(* Mounting glues a finished print onto its base; the glue is used up. *)
+operation Mount : fresh * epoxy ~> mounted # {Mount} within (1, 1)
+default Mount (p, g) = delay 1; Mounted p
 
 (* A print is the three steps, in that order, and the finished print has to set
    for two ticks before it may be collected. *)
@@ -65,7 +75,10 @@ let printer =
    banking the two ticks its '[2]' box demands. The epoxy needs eight ticks to
    set, which the print and that rest bank exactly, because the lower ends of
    the bounds are 1 + 3 + 2 + 2 = 8, so the glue cannot be reached before the
-   mounting stage. *)
+   mounting stage. Declaring 'epoxy' non-eternal has no effect under this
+   monoid, where zero is the top of the sub-grade order, so a local variable of
+   any type may be referenced however much time has passed; it is the
+   upper-bound and interval files where the declaration bites. *)
 let print_sword () =
   handle
     box 8 Epoxy as glue in
@@ -73,7 +86,7 @@ let print_sword () =
     delay 2;
     unbox printed as p in
     unbox glue as g in
-    Mounted (p, g)
+    perform Mount (p, g)
   with printer
 
 (* Correctly accepted by the typechecker: the same demand on the epoxy spelled
@@ -86,7 +99,7 @@ let print_cog () =
   let c = perform Cool p in
   delay 2;
   unbox glue as g in
-  Mounted (Fresh c, g)
+  perform Mount (Fresh c, g)
 
 (* Correctly accepted by the typechecker: the clause covers the first of the two
    runs 'Print' promises. *)
@@ -258,7 +271,7 @@ let print_sword_eager () =
     delay 2;
     unbox printed as p in
     unbox glue as g in
-    Mounted (p, g)
+    perform Mount (p, g)
   with printer
 *)
 
@@ -332,7 +345,8 @@ let deliver_by_two () =
 *)
 
 (* The single run below handles the 'PrintModel' with 'printer', which replaces
-   it by the three steps of a print. Those are atomic, and the defaults given
-   for them above say what they mean, so the run completes and returns the
-   printed sword mounted on the epoxy. *)
+   it by the three steps of a print. Those are atomic, and so is the closing
+   'Mount', which no handler catches; the defaults given for them above say what
+   they mean, so the run completes and returns the printed sword mounted on its
+   base, the glue used up. *)
 run print_sword ()

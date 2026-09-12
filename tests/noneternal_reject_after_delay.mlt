@@ -1,0 +1,15 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./cli.exe --resources time-upper-bound tests/noneternal_reject_after_delay.mlt *)
+
+noneternal type token = Token
+
+(* Correctly rejected by the typechecker: the token is bound, a tick of waiting
+   passes, and only then is it used --- but 'noneternal' says a token does not
+   survive any accumulated grade at all. *)
+let use_late () =
+  let t = Token in
+  delay 1;
+  t
+
+run use_late ()

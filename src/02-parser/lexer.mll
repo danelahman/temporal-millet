@@ -31,6 +31,7 @@
     ("then", THEN);
     ("true", BOOL true);
     ("type", TYPE);
+    ("noneternal", NONETERNAL);
     ("with", WITH);
     ("within", WITHIN);
     ("delay", DELAY);

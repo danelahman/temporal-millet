@@ -18,6 +18,7 @@ let keywords =
     "false";
     "of";
     "type";
+    "noneternal";
     "operation";
     "default";
     "run";

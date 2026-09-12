@@ -7,6 +7,7 @@ module TyName = Symbol.Make ()
 type ty_name = TyName.t
 
 module TyNameMap = Map.Make (TyName)
+module TyNameSet = Set.Make (TyName)
 module TyParamModule = Symbol.Make ()
 module TyParamMap = Map.Make (TyParamModule)
 module TyParamSet = Set.Make (TyParamModule)
@@ -92,8 +93,13 @@ and 'a abstraction = 'a pattern * 'a computation
 
 type 'a ty_def = TySum of (label * 'a ty option) list | TyInline of 'a ty
 
+(* Whether the eternality of a type definition is computed from its structure,
+   as usual ([Derived]), or fixed to non-eternal by a [noneternal type ...]
+   declaration ([Noneternal]). *)
+type eternality = Derived | Noneternal
+
 type 'a command =
-  | TyDef of (ty_param list * ty_name * 'a ty_def) list
+  | TyDef of eternality * (ty_param list * ty_name * 'a ty_def) list
   | OpSig of (operation * 'a ty * 'a ty * 'a rho * (int * int) option)
   | OpDefault of operation * 'a abstraction
   | TopLet of variable * 'a expression

@@ -85,8 +85,10 @@ type 'rho ty_def =
 type 'rho command = 'rho plain_command annotated
 
 and 'rho plain_command =
-  | TyDef of (ty_param list * ty_name * 'rho ty_def) list
-      (** [type ('a...1) t1 = def1 and ... and ('a...n) tn = defn] *)
+  | TyDef of
+      Language.Ast.eternality * (ty_param list * ty_name * 'rho ty_def) list
+      (** [type ('a...1) t1 = def1 and ... and ('a...n) tn = defn], optionally
+          prefixed by [noneternal] *)
   | OpSig of (operation * 'rho ty * 'rho ty * 'rho * (int * int) option)
       (** [operation op : t1 -> t2 # rho within (lo, hi)]; the runtime bounds
           are optional and only the timed-trace grading monoids use them *)

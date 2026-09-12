@@ -352,7 +352,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
 
   let desugar_command state { Sugared.it = cmd; at = loc } =
     match cmd with
-    | Sugared.TyDef defs ->
+    | Sugared.TyDef (eternality, defs) ->
         let def_name (_, ty_name, _) =
           let ty_name' = Untyped.TyName.fresh ty_name in
           (ty_name, ty_name')
@@ -368,7 +368,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           (state''', (List.map snd params', ty_name', ty_def') :: defs)
         in
         let state'', defs' = List.fold_right2 aux defs new_names (state', []) in
-        (state'', Untyped.TyDef defs')
+        (state'', Untyped.TyDef (eternality, defs'))
     | Sugared.OpSig (op_name, ty1_name, ty2_name, rho_val, bounds) ->
         let operation = Untyped.OpName.fresh op_name in
         let ty1 = desugar_ty state ty1_name in

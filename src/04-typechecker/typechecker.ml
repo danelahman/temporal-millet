@@ -23,6 +23,10 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
       ContextHolderModule.t;
     type_definitions :
       (Ast.ty_param list * ResourceGrade.t Ast.ty_def) Ast.TyNameMap.t;
+    noneternal_types : Ast.TyNameSet.t;
+        (** The type names declared with [noneternal type ...]. Their values are
+            never eternal, whatever their structure says, and so is anything
+            built out of them. *)
     op_signatures :
       (ResourceGrade.t Ast.ty
       * ResourceGrade.t Ast.ty
@@ -41,6 +45,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let initial_state =
     {
       variables = ContextHolderModule.empty;
+      noneternal_types = Ast.TyNameSet.empty;
       type_definitions =
         (Ast.TyNameMap.empty
         |> Ast.TyNameMap.add Ast.bool_ty_name
@@ -1036,7 +1041,11 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     let rec check visited = function
       | Ast.TyConst c -> Const.is_eternal_ty c
       | Ast.TyApply (ty_name, args) -> (
-          List.for_all (check visited) args
+          (* A [noneternal] declaration overrides the structural check, and
+             does so before [visited] is consulted, so that a noneternal type
+             occurring inside a recursive type poisons it too. *)
+          (not (Ast.TyNameSet.mem ty_name state.noneternal_types))
+          && List.for_all (check visited) args
           &&
           if List.mem ty_name visited then true
           else
@@ -1236,7 +1245,24 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     in
     add_external_function x ty_sch state
 
-  let add_type_definitions state ty_defs =
+  (* An alias is unfolded by the unifier before the eternality check ever sees
+     it, so a [noneternal] flag on one could not be honoured; reject it rather
+     than silently ignore it. *)
+  let check_noneternal_definable (_, ty_name, ty_def) =
+    match ty_def with
+    | Ast.TySum _ -> ()
+    | Ast.TyInline _ ->
+        let name = Ast.TyName.string_of ty_name in
+        Error.typing
+          "type %s is an alias and cannot be declared noneternal; wrap it in a \
+           constructor, as in 'noneternal type %s = %s of ...'"
+          name name
+          (String.capitalize_ascii name)
+
+  let add_type_definitions state (eternality, ty_defs) =
+    (match eternality with
+    | Ast.Derived -> ()
+    | Ast.Noneternal -> List.iter check_noneternal_definable ty_defs);
     let state' =
       List.fold_left
         (fun state (params, ty_name, ty_def) ->
@@ -1244,6 +1270,11 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             state with
             type_definitions =
               Ast.TyNameMap.add ty_name (params, ty_def) state.type_definitions;
+            noneternal_types =
+              (match eternality with
+              | Ast.Derived -> state.noneternal_types
+              | Ast.Noneternal ->
+                  Ast.TyNameSet.add ty_name state.noneternal_types);
           })
         state ty_defs
     in

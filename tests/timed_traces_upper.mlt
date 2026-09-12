@@ -7,8 +7,14 @@ type heated = Heated of model
 type extruded = Extruded of heated
 type cooled = Cooled of extruded
 type fresh = Fresh of cooled | Reheated of heated
-type epoxy = Epoxy
-type mounted = Mounted of fresh * epoxy
+(* Mixed epoxy does not keep: 'noneternal' makes the type non-eternal whatever
+   its structure says, so the glue has to be used in the very step in which it
+   is unboxed. *)
+noneternal type epoxy = Epoxy
+
+(* Mounting uses the glue up, so a mounted print holds no epoxy and is
+   structurally eternal again. *)
+type mounted = Mounted of fresh
 type receipt = Receipt of string
 
 (* The heater warms a model up, so that it can be extruded. *)
@@ -24,6 +30,10 @@ default Extrude h = delay 3; box 2 (Extruded h)
    can be handled. *)
 operation Cool : [2] extruded ~> cooled # {Cool} within (2, 2)
 default Cool p = delay 2; unbox p as e in Cooled e
+
+(* Mounting glues a finished print onto its base; the glue is used up. *)
+operation Mount : fresh * epoxy ~> mounted # {Mount} within (1, 1)
+default Mount (p, g) = delay 1; Mounted p
 
 (* A print is the three steps, in that order, and the finished print must be
    collected within eight ticks. *)
@@ -71,7 +81,7 @@ let print_sword () =
     delay 2;
     unbox printed as p in
     unbox glue as g in
-    Mounted (p, g)
+    perform Mount (p, g)
   with printer
 
 (* Correctly accepted by the typechecker: the same bound on the epoxy spelled
@@ -84,7 +94,7 @@ let print_cog () =
   let c = perform Cool p in
   delay 2;
   unbox glue as g in
-  Mounted (Fresh c, g)
+  perform Mount (Fresh c, g)
 
 (* Correctly accepted by the typechecker: the clause realises the first of the
    two alternatives 'Print' allows. *)
@@ -213,7 +223,27 @@ let print_sword_cheap () =
     delay 2;
     unbox printed as p in
     unbox glue as g in
-    Mounted (p, g)
+    perform Mount (p, g)
+  with printer
+*)
+
+(* Correctly rejected by the typechecker: the glue is unboxed the moment the
+   print is done, but mixed epoxy does not keep --- 'epoxy' is declared
+   'noneternal', so the glue does not survive the two ticks of rest before the
+   mounting:
+
+     Typing error: Type epoxy is not eternal and resource inequality {2}
+       <= {0} failed
+*)
+(*
+let print_sword_hasty () =
+  handle
+    box 11 Epoxy as glue in
+    let printed = perform PrintModel (Model "Sword") in
+    unbox glue as g in
+    delay 2;
+    unbox printed as p in
+    perform Mount (p, g)
   with printer
 *)
 

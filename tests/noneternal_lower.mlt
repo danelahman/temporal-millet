@@ -1,0 +1,14 @@
+(* The same program as 'noneternal_reject_after_delay.mlt', run under the
+   default 'time-lower-bound' grading monoid, where zero is the top of the
+   sub-grade order. There the inequality accompanying the eternality constraint
+   holds for every accumulated grade, so the declaration has no observable
+   effect and the token may be used at any later point. *)
+noneternal type token = Token
+
+(* Correctly accepted by the typechecker under this monoid. *)
+let use_late () =
+  let t = Token in
+  delay 1;
+  t
+
+run use_late ()

@@ -1,0 +1,5 @@
+(* Correctly rejected by the typechecker: 'noneternal' may only be put on an
+   algebraic type. An alias is transparent and is unfolded by the unifier long
+   before the eternality check ever sees it, so a flag on one could not be
+   honoured. *)
+noneternal type seconds = int

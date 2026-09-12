@@ -22,6 +22,7 @@ type token =
   | UNAME of SugaredAst.label
   | PARAM of SugaredAst.ty_param
   | TYPE
+  | NONETERNAL
   | OPERATION
   | DEFAULT
   | WITHIN

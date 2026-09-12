@@ -58,11 +58,13 @@ module Loader (Backend : Backend.S) = struct
           "in the '%s' grading monoid, %s" Backend.ResourceGrade.name msg
 
   let execute_command state = function
-    | Ast.TyDef ty_defs ->
+    | Ast.TyDef (eternality, ty_defs) ->
         let typechecker_state' =
-          TC.add_type_definitions state.typechecker ty_defs
+          TC.add_type_definitions state.typechecker (eternality, ty_defs)
         in
-        let backend_state' = Backend.load_ty_def state.backend ty_defs in
+        let backend_state' =
+          Backend.load_ty_def state.backend (eternality, ty_defs)
+        in
         {
           state with
           typechecker = typechecker_state';

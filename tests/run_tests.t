@@ -6,6 +6,8 @@
   >   case $f in
   >     interval.mlt) ../cli.exe --resources time-interval $f;;
   >     upper-bound.mlt) ../cli.exe --resources time-upper-bound $f;;
+  >     noneternal_lower.mlt) ../cli.exe $f;;
+  >     noneternal*.mlt) ../cli.exe --resources time-upper-bound $f;;
   >     timed_traces_lower.mlt) ../cli.exe --resources timed-traces-lower-bound $f;;
   >     timed_traces_interval.mlt) ../cli.exe --resources timed-traces-interval $f;;
   >     timed_traces_interval_bounds.mlt) ../cli.exe --resources timed-traces-interval $f;;
@@ -212,6 +214,36 @@
   ======================================================================
   Syntax error (file "non_linear_pattern.mlt", line 3, char 9):
   Variable a defined multiple times.
+  ======================================================================
+  noneternal_lower.mlt
+  ======================================================================
+  === Run 1 ===
+  return Token
+  State: [
+    1
+  ]
+  
+  ======================================================================
+  noneternal_reject_after_delay.mlt
+  ======================================================================
+  Typing error: Type token is not eternal and resource inequality 1 <= 0 failed
+  ======================================================================
+  noneternal_reject_alias.mlt
+  ======================================================================
+  Typing error: type seconds is an alias and cannot be declared noneternal; wrap it in a constructor, as in 'noneternal type seconds = Seconds of ...'
+  ======================================================================
+  noneternal_type.mlt
+  ======================================================================
+  === Run 1 ===
+  return (Ticket Token)
+  State: []
+  
+  === Run 2 ===
+  return (Stamp 42)
+  State: [
+    3
+  ]
+  
   ======================================================================
   occurs_check.mlt
   ======================================================================
@@ -990,7 +1022,7 @@
   timed_traces_interval.mlt
   ======================================================================
   === Run 1 ===
-  return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword")))), Epoxy))
+  return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
   State: [
     { resource_0 ↦ Epoxy # ({8},{11}),
       resource_2 ↦
@@ -1000,7 +1032,7 @@
             delay 2 (return ());
             unbox printed as p in
             unbox resource_0 as g in
-            return (Mounted (p, g))
+            perform Mount (p, g) (op_var. return op_var)
           with printer
         # ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
     },
@@ -1012,7 +1044,8 @@
         Fresh (Cooled (Extruded (Heated (Model "Sword"))))
         # ({2},{8})
     },
-    ({2},{2})
+    ({2},{2}),
+    ({1},{1})
   ]
   
   ======================================================================
@@ -1030,7 +1063,7 @@
   timed_traces_lower.mlt
   ======================================================================
   === Run 1 ===
-  return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword")))), Epoxy))
+  return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
   State: [
     { resource_0 ↦ Epoxy # {8},
       resource_2 ↦
@@ -1040,7 +1073,7 @@
             delay 2 (return ());
             unbox printed as p in
             unbox resource_0 as g in
-            return (Mounted (p, g))
+            perform Mount (p, g) (op_var. return op_var)
           with printer
         # {Heat; Extrude; Cool}
     },
@@ -1049,7 +1082,8 @@
     { resource_3 ↦ Extruded (Heated (Model "Sword")) # {2} },
     {2},
     { resource_4 ↦ Fresh (Cooled (Extruded (Heated (Model "Sword")))) # {2} },
-    {2}
+    {2},
+    {1}
   ]
   
   ======================================================================

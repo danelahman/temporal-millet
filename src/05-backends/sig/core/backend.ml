@@ -39,7 +39,8 @@ module type S = sig
 
   val load_ty_def :
     load_state ->
-    (Ast.ty_param list * Ast.ty_name * ResourceGrade.t Ast.ty_def) list ->
+    Ast.eternality
+    * (Ast.ty_param list * Ast.ty_name * ResourceGrade.t Ast.ty_def) list ->
     load_state
 
   val load_top_let :

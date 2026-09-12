@@ -16,7 +16,7 @@
 %token <float> FLOAT
 %token <SugaredAst.label> UNAME
 %token <SugaredAst.ty_param> PARAM
-%token TYPE OPERATION DEFAULT WITHIN ARROW SIGARROW OF HASH
+%token TYPE NONETERNAL OPERATION DEFAULT WITHIN ARROW SIGARROW OF HASH
 %token MATCH WITH FUNCTION HANDLER HANDLE CONTINUE
 %token RUN LET REC AND IN
 %token DELAY BOX UNBOX PERFORM
@@ -61,7 +61,9 @@ commands:
 command: mark_position(plain_command) { $1 }
 plain_command:
   | TYPE defs = separated_nonempty_list(AND, ty_def)
-    { TyDef defs }
+    { TyDef (Language.Ast.Derived, defs) }
+  | NONETERNAL TYPE defs = separated_nonempty_list(AND, ty_def)
+    { TyDef (Language.Ast.Noneternal, defs) }
   | OPERATION op = UNAME COLON ty1 = ty SIGARROW ty2 = ty HASH grade = rho_grade
     bounds = option(op_bounds)
     { OpSig (op, ty1, ty2, grade, bounds) }

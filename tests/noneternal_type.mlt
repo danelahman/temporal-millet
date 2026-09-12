@@ -1,0 +1,50 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./cli.exe --resources time-upper-bound tests/noneternal_type.mlt
+
+   Zero is the minimal element of that sub-grade order, so the eternality
+   constraint on a local variable reference has teeth. *)
+
+(* A single-use token: structurally it is as harmless as unit, but
+   'noneternal' fixes it to be non-eternal all the same. *)
+noneternal type token = Token
+
+(* A wrapper inherits the non-eternality of what it holds. *)
+type ticket = Ticket of token
+
+(* A stamp holds no token, so it stays eternal. *)
+type stamp = Stamp of int
+
+(* Correctly accepted by the typechecker: the token is used in the very step in
+   which it is bound, so no grade has accumulated since. *)
+let use_now () =
+  let t = Token in
+  Ticket t
+
+(* Correctly accepted by the typechecker: so is the ticket that wraps it. *)
+let pass_on () =
+  let c = Ticket Token in
+  c
+
+(* Correctly accepted by the typechecker: a stamp is eternal, so it survives
+   any amount of waiting. *)
+let stamp_later () =
+  let s = Stamp 42 in
+  delay 3;
+  s
+
+(* Correctly rejected by the typechecker: a ticket holds a token, so it is
+   non-eternal too and does not survive the wait:
+
+     Typing error: Type ticket is not eternal and resource inequality 1 <= 0
+       failed
+*)
+(*
+let pass_on_late () =
+  let c = Ticket Token in
+  delay 1;
+  c
+*)
+
+run use_now ()
+run stamp_later ()

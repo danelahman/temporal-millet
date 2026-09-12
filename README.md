@@ -227,6 +227,29 @@ practical effect of this constraint depends on the chosen grading monoid:
   bound — before any `delay` or operation calls have occurred — while
   variables with eternal types may be referenced freely at any later point.
 
+A type definition can also be declared *non-eternal* explicitly, by prefixing
+it with the `noneternal` keyword:
+```
+noneternal type epoxy = Epoxy
+```
+This makes `epoxy` non-eternal no matter what its structure says, and, through
+the structural rules above, also every type that contains it (a tuple with an
+`epoxy` component, or an algebraic type one of whose constructors takes an
+`epoxy`). The keyword prefixes a whole `type ... and ...` group and marks every
+definition in it. It is only allowed on algebraic (sum) types: a type alias such
+as `noneternal type seconds = int` is rejected, because aliases are transparent
+and are unfolded by the unifier before the eternality check ever sees them.
+
+The declaration is what lets one model a resource that is structurally
+"harmless" but nevertheless time-sensitive: mixed epoxy does not keep, so once
+unboxed it has to be used right away. Like every eternality constraint, it only
+bites under the monoids in which zero is not the top of the sub-grade order
+(`time-upper-bound`, `time-interval`, and the timed-trace upper-bound and
+interval monoids): there a local variable of type `epoxy` must be used in the
+same time-step in which it was bound. Under `time-lower-bound` the declaration
+has no observable effect. See the
+[timed trace examples](examples/timed_traces_upper.mlt) for a use.
+
 Currently type variables are not considered eternal, and no eternality
 constraints are propagated out of top-level functions as constraints on type
 variables appearing in the computed generalised polymorphic types. A top-level
