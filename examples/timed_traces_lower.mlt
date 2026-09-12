@@ -61,28 +61,30 @@ let printer =
       let c = perform Cool p in
       continue k with (box 2 (Fresh c))
 
-(* Correctly accepted by the typechecker: a whole 'PrintModel' banks the six
-   ticks the epoxy needs to set, because the lower ends of the bounds of its
-   three steps are 1 + 3 + 2 = 6. The closing wait then collects the print: it
-   banks the two ticks the '[2]' box demands. *)
+(* Correctly accepted by the typechecker: the closing wait collects the print,
+   banking the two ticks its '[2]' box demands. The epoxy needs eight ticks to
+   set, which the print and that rest bank exactly, because the lower ends of
+   the bounds are 1 + 3 + 2 + 2 = 8, so the glue cannot be reached before the
+   mounting stage. *)
 let print_sword () =
   handle
-    box 6 Epoxy as glue in
+    box 8 Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox glue as g in
     delay 2;
     unbox printed as p in
+    unbox glue as g in
     Mounted (p, g)
   with printer
 
 (* Correctly accepted by the typechecker: the same demand on the epoxy spelled
-   out as the events of the job, and covered by performing the three steps by
-   hand. *)
+   out as the events of the job, the closing rest included, and covered by
+   performing the three steps by hand. *)
 let print_cog () =
-  box {Heat; Extrude; Cool} Epoxy as glue in
+  box {Heat; Extrude; Cool; 2} Epoxy as glue in
   let h = perform Heat (Model "Cog") in
   let p = perform Extrude h in
   let c = perform Cool p in
+  delay 2;
   unbox glue as g in
   Mounted (Fresh c, g)
 
@@ -241,21 +243,21 @@ let sloppy_printer =
       continue k with (box 2 (Reheated h))
 *)
 
-(* Correctly rejected by the typechecker: a print banks only the six ticks of
-   the lower ends of its bounds, which do not cover the seven the epoxy needs
-   to set:
+(* Correctly rejected by the typechecker: a print and the rest that follows it
+   bank only the eight ticks of the lower ends of their bounds, which do not
+   cover the nine the epoxy needs to set:
 
-     Typing error: Comparing resource inequality {Heat; Extrude; Cool}
-       <= {7} failed
+     Typing error: Comparing resource inequality {Heat; Extrude; Cool; 2}
+       <= {9} failed
 *)
 (*
 let print_sword_eager () =
   handle
-    box 7 Epoxy as glue in
+    box 9 Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox glue as g in
     delay 2;
     unbox printed as p in
+    unbox glue as g in
     Mounted (p, g)
   with printer
 *)

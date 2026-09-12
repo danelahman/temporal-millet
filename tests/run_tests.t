@@ -992,14 +992,14 @@
   === Run 1 ===
   return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword")))), Epoxy))
   State: [
-    { resource_0 ↦ Epoxy # ({6},{9}),
+    { resource_0 ↦ Epoxy # ({8},{11}),
       resource_2 ↦
         fun op_var ↦
           handle
             let printed = return op_var in
-            unbox resource_0 as g in
             delay 2 (return ());
             unbox printed as p in
+            unbox resource_0 as g in
             return (Mounted (p, g))
           with printer
         # ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
@@ -1032,14 +1032,14 @@
   === Run 1 ===
   return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword")))), Epoxy))
   State: [
-    { resource_0 ↦ Epoxy # {6},
+    { resource_0 ↦ Epoxy # {8},
       resource_2 ↦
         fun op_var ↦
           handle
             let printed = return op_var in
-            unbox resource_0 as g in
             delay 2 (return ());
             unbox printed as p in
+            unbox resource_0 as g in
             return (Mounted (p, g))
           with printer
         # {Heat; Extrude; Cool}

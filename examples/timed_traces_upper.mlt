@@ -60,28 +60,29 @@ let forward =
   | x -> x
   | Heat m k -> let h = perform Heat m in continue k with h
 
-(* Correctly accepted by the typechecker: the epoxy must be used within nine
-   ticks, which pays for a whole 'PrintModel', because 2 + 5 + 2 = 9. The
-   closing wait then collects the print, well inside the eight ticks the '[8]'
-   box allows. *)
+(* Correctly accepted by the typechecker: the closing wait collects the print,
+   well inside the eight ticks its '[8]' box allows. The epoxy must be used
+   within eleven ticks, which pays for the slowest run of a whole 'PrintModel'
+   and the rest that follows it, because 2 + 5 + 2 + 2 = 11. *)
 let print_sword () =
   handle
-    box 9 Epoxy as glue in
+    box 11 Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox glue as g in
     delay 2;
     unbox printed as p in
+    unbox glue as g in
     Mounted (p, g)
   with printer
 
 (* Correctly accepted by the typechecker: the same bound on the epoxy spelled
-   out as the events of the job, and realised by performing the three steps by
-   hand. *)
+   out as the events of the job, the closing rest included, and realised by
+   performing the three steps by hand. *)
 let print_cog () =
-  box {Heat; Extrude; Cool} Epoxy as glue in
+  box {Heat; Extrude; Cool; 2} Epoxy as glue in
   let h = perform Heat (Model "Cog") in
   let p = perform Extrude h in
   let c = perform Cool p in
+  delay 2;
   unbox glue as g in
   Mounted (Fresh c, g)
 
@@ -198,20 +199,20 @@ let twisted_printer =
       continue k with (box 8 (Reheated h))
 *)
 
-(* Correctly rejected by the typechecker: the epoxy hardens after eight ticks,
-   which does not buy a whole print, which may take nine:
+(* Correctly rejected by the typechecker: the epoxy hardens after ten ticks,
+   which does not buy the slowest print plus the rest, which may take eleven:
 
-     Typing error: Comparing resource inequality {Heat; Extrude; Cool}
-       <= {8} failed
+     Typing error: Comparing resource inequality {Heat; Extrude; Cool; 2}
+       <= {10} failed
 *)
 (*
 let print_sword_cheap () =
   handle
-    box 8 Epoxy as glue in
+    box 10 Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox glue as g in
     delay 2;
     unbox printed as p in
+    unbox glue as g in
     Mounted (p, g)
   with printer
 *)

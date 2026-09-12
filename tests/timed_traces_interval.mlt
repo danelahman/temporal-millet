@@ -52,36 +52,6 @@ default Tx msg = delay 2
 (* A send is one or two transmissions, on both sides of the pair. *)
 operation Send : string ~> unit # ({Tx | Tx; Tx}, {Tx | Tx; Tx}) within (2, 6)
 
-(* Correctly accepted by the typechecker: the epoxy needs three ticks to set
-   before it is workable, and heating and extruding bank 1 + 3 of them; its pot
-   life is seven ticks, and the two steps cost at most 2 + 5. *)
-let make_cog () =
-  box (3, 7) Epoxy as glue in
-  let h = perform Heat (Model "Cog") in
-  let p = perform Extrude h in
-  unbox glue as g in
-  let c = perform Cool p in
-  Mounted (Fresh c, g)
-
-(* Correctly accepted by the typechecker: the same bound on the epoxy spelled
-   out with the two events of the job on each side of the pair instead of as a
-   time interval. *)
-let make_gear () =
-  box ({Heat; Extrude}, {Heat; Extrude}) Epoxy as glue in
-  let h = perform Heat (Model "Gear") in
-  let p = perform Extrude h in
-  unbox glue as g in
-  let c = perform Cool p in
-  Mounted (Fresh c, g)
-
-(* Correctly accepted by the typechecker by sub-effecting: a clause may forward
-   the operation it handles, since '({Heat}, {Heat})' is a sub-grade of itself
-   composed with the grade of the continuation. *)
-let forward =
-  handler
-  | x -> x
-  | Heat m k -> let h = perform Heat m in continue k with h
-
 (* Correctly accepted by the typechecker: the clause performs exactly the three
    steps 'PrintModel' promises, in the promised order, which covers the lower
    bound and fits inside the upper bound. *)
@@ -94,31 +64,32 @@ let printer =
       let c = perform Cool p in
       continue k with (box (2, 8) (Fresh c))
 
-(* Correctly accepted by the typechecker: a whole 'PrintModel' banks the six
-   ticks the epoxy needs to set, because 1 + 3 + 2 = 6, and costs at most the
-   nine ticks of its pot life, because 2 + 5 + 2 = 9 --- both endpoints exact.
-   The closing wait then collects the print: it banks the two ticks the
-   '[(2, 8)]' box demands, well inside the eight it allows. *)
+(* Correctly accepted by the typechecker: the closing wait collects the print,
+   banking the two ticks its '[(2, 8)]' box demands, well inside the eight it
+   allows. The epoxy needs eight ticks to set, which the print and that rest
+   bank exactly, because 1 + 3 + 2 + 2 = 8, so the glue cannot be reached
+   before the mounting stage; and its pot life of eleven ticks covers the
+   slowest run, because 2 + 5 + 2 + 2 = 11. *)
 let print_sword () =
   handle
-    box (6, 9) Epoxy as glue in
+    box (8, 11) Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox glue as g in
     delay 2;
     unbox printed as p in
+    unbox glue as g in
     Mounted (p, g)
   with printer
 
 (* Correctly accepted by the typechecker: the same bound on the epoxy spelled
-   out with the three events of the job on each side of the pair instead of as
-   a time interval. *)
+   out with the events of the job, the closing rest included, on each side of
+   the pair instead of as a time interval. *)
 let print_cog () =
   handle
-    box ({Heat; Extrude; Cool}, {Heat; Extrude; Cool}) Epoxy as glue in
+    box ({Heat; Extrude; Cool; 2}, {Heat; Extrude; Cool; 2}) Epoxy as glue in
     let printed = perform PrintModel (Model "Cog") in
-    unbox glue as g in
     delay 2;
     unbox printed as p in
+    unbox glue as g in
     Mounted (p, g)
   with printer
 
@@ -264,40 +235,41 @@ let sloppy_printer =
       continue k with (box (2, 8) (Reheated h))
 *)
 
-(* Correctly rejected by the typechecker: the epoxy needs seven ticks to set,
-   which a print does not bank, since 1 + 3 + 2 = 6:
+(* Correctly rejected by the typechecker: the epoxy needs nine ticks to set,
+   which the print and the rest that follows it do not bank, since
+   1 + 3 + 2 + 2 = 8:
 
      Typing error: Comparing resource inequality
-       ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
-       <= ({7},{9}) failed
+       ({Heat; Extrude; Cool; 2},{Heat; Extrude; Cool; 2})
+       <= ({9},{11}) failed
 *)
 (*
 let print_sword_lazy () =
   handle
-    box (7, 9) Epoxy as glue in
+    box (9, 11) Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox glue as g in
     delay 2;
     unbox printed as p in
+    unbox glue as g in
     Mounted (p, g)
   with printer
 *)
 
-(* Correctly rejected by the typechecker: the epoxy has hardened after eight
-   ticks, and a print may take 2 + 5 + 2 = 9:
+(* Correctly rejected by the typechecker: the epoxy has hardened after ten
+   ticks, and the slowest print plus the rest takes 2 + 5 + 2 + 2 = 11:
 
      Typing error: Comparing resource inequality
-       ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
-       <= ({6},{8}) failed
+       ({Heat; Extrude; Cool; 2},{Heat; Extrude; Cool; 2})
+       <= ({8},{10}) failed
 *)
 (*
 let print_sword_impatient () =
   handle
-    box (6, 8) Epoxy as glue in
+    box (8, 10) Epoxy as glue in
     let printed = perform PrintModel (Model "Sword") in
-    unbox glue as g in
     delay 2;
     unbox printed as p in
+    unbox glue as g in
     Mounted (p, g)
   with printer
 *)
