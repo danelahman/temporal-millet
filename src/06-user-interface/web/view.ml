@@ -55,7 +55,7 @@ let view_editor (model : Model.edit_model) =
     SyntaxHighlight.highlight_text (model.unparsed_code ^ "\n")
   in
   div
-    ~a:[ class_ "box" ]
+    ~a:[ class_ "box editor-box" ]
     [
       div
         ~a:[ class_ "code-editor" ]
@@ -345,29 +345,46 @@ let view_navbar =
                   class_ "brand-logo";
                   attr "src" "logo/temporal-millet-logo.svg";
                   attr "alt" "";
-                  attr "width" "44";
-                  attr "height" "44";
+                  attr "width" "56";
+                  attr "height" "56";
                 ]
               [];
-            elt "p" ~a:[ class_ "title" ] [ text "Temporal Millet" ];
-          ];
-        elt "a"
-          ~a:
-            [
-              class_ "navbar-item github-link";
-              attr "href" github_url;
-              attr "target" "_blank";
-              attr "rel" "noopener";
-              attr "title" "Source code on GitHub";
-            ]
-          [
-            elt "span" ~a:[ class_ "icon" ] [ github_mark ];
-            elt "span" [ text "GitHub" ];
+            div
+              ~a:[ class_ "brand-text" ]
+              [
+                elt "p" ~a:[ class_ "title" ] [ text "Temporal Millet" ];
+                elt "p"
+                  ~a:[ class_ "brand-tagline" ]
+                  [
+                    text
+                      "A prototype language for temporal resources, with modal \
+                       types and graded effects";
+                  ];
+              ];
           ];
       ]
   in
 
   elt "navbar" ~a:[ class_ "navbar" ] [ view_title ]
+
+let view_footer =
+  elt "footer"
+    ~a:[ class_ "site-footer" ]
+    [
+      elt "a"
+        ~a:
+          [
+            class_ "github-link";
+            attr "href" github_url;
+            attr "target" "_blank";
+            attr "rel" "noopener";
+            attr "title" "Source code on GitHub";
+          ]
+        [
+          elt "span" ~a:[ class_ "icon" ] [ github_mark ];
+          elt "span" [ text "Source on GitHub" ];
+        ];
+    ]
 
 let view (model : Model.model) =
   div
@@ -376,4 +393,5 @@ let view (model : Model.model) =
       (match model.run_model with
       | Error _ -> edit_view model
       | Ok run_model -> run_view run_model);
+      view_footer;
     ]

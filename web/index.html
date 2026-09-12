@@ -80,6 +80,29 @@
       box-decoration-break: clone;
     }
 
+    /* Let the editor box stretch to the height of the side panel, so that the
+       two start out level; a longer program still grows the box as before. */
+    .contents.columns > .main.column {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .editor-box {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .editor-box .code-editor {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .editor-box .code-editor-input {
+      flex-grow: 1;
+    }
+
     .code-editor {
       position: relative;
       font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
@@ -160,6 +183,11 @@
 
     /* Bulma paints the navbar white and above its neighbours, which would
        hide the top of the shadow of the box right below it. */
+    /* Bulma's section starts 3rem down; the header does not need that much. */
+    .section {
+      padding-top: 1.5rem;
+    }
+
     .navbar {
       background-color: transparent;
       margin-bottom: 1.5rem;
@@ -177,32 +205,55 @@
       padding-left: 0;
     }
 
+    .navbar-brand .brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
     .navbar-brand .brand-title .title {
       margin: 0;
       line-height: 1;
     }
 
+    .navbar-brand .brand-tagline {
+      margin: 0;
+      color: #7a7a7a;
+      font-size: 0.95rem;
+      line-height: 1.2;
+    }
+
     .navbar-brand .brand-logo {
-      /* Bulma caps navbar images at 1.75rem; the mark wants a little more. */
-      max-height: 2.75rem;
-      height: 2.75rem;
-      width: 2.75rem;
+      /* Bulma caps navbar images at 1.75rem; the mark spans both lines of
+         the brand text. */
+      max-height: 3.5rem;
+      height: 3.5rem;
+      width: 3.5rem;
       display: block;
     }
 
-    .navbar-brand .github-link {
-      margin-left: auto;
-      gap: 0.4rem;
-      color: #7a7a7a;
-      font-weight: 500;
-      /* Line the link up with the right edge of the panel below. */
-      padding-right: 0;
+    .site-footer {
+      display: flex;
+      justify-content: center;
+      padding: 1rem 0 0.5rem;
+      font-size: 0.9rem;
     }
 
-    .navbar-brand .github-link:hover {
+    .site-footer .github-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: #7a7a7a;
+    }
+
+    .site-footer .github-link:hover {
       /* Bulma's is-info blue, as on the run button and in the logo. */
       color: #3298dc;
-      background-color: transparent;
+    }
+
+    .site-footer .github-link svg {
+      width: 18px;
+      height: 18px;
     }
   </style>
 </head>
