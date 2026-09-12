@@ -99,10 +99,10 @@
       flex-direction: column;
     }
 
-    .editor-box .code-editor-input {
-      flex-grow: 1;
-    }
-
+    /* The highlighted overlay sits in normal flow and sets the editor's height
+       from the text itself, wrapping included; the textarea is stretched over
+       it. Sizing by a row count instead lets browsers that round row heights
+       differently leave a gap after long programs. */
     .code-editor {
       position: relative;
       font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
@@ -110,8 +110,8 @@
       line-height: 1.5;
     }
 
-    .code-editor-display,
-    .code-editor-input {
+    .code-editor pre.code-editor-display,
+    .code-editor .code-editor-input {
       font-family: inherit;
       font-size: inherit;
       line-height: inherit;
@@ -128,9 +128,10 @@
       width: 100%;
     }
 
-    .code-editor-display {
-      position: absolute;
-      inset: 0;
+    .code-editor pre.code-editor-display {
+      position: relative;
+      flex-grow: 1;
+      min-height: calc(10 * 1.5em + 1.5em + 2px);
       pointer-events: none;
       overflow: hidden;
       background: #f6f8fa;
@@ -138,13 +139,16 @@
       z-index: 1;
     }
 
-    .code-editor-input {
-      position: relative;
+    .code-editor .code-editor-input {
+      position: absolute;
+      inset: 0;
+      height: 100%;
       z-index: 2;
       background: transparent;
       color: transparent;
       caret-color: #24292e;
-      resize: vertical;
+      resize: none;
+      overflow: hidden;
       outline: none;
       display: block;
     }
