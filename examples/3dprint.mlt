@@ -1,3 +1,7 @@
+(* Run this example with the 'time-lower-bound' grading monoid, e.g.
+
+     ./cli.exe --resources time-lower-bound examples/3dprint.mlt *)
+
 type model = Model of string
 type fresh = Fresh of model
 type cooled = Cooled of fresh
@@ -24,7 +28,8 @@ run
     let curedHammer = uvCure (Cooled cooledHammer) in
     (Complete curedSword, Complete curedHammer)
 
-(* Same code as above, but instead using the generic effect versions of box and unbox *)
+(* Same code as above, but instead using the generic effect versions
+   of box and unbox *)
 
 let printResinModel' model = 
   delay 7;
@@ -43,7 +48,8 @@ run
     let curedHammer = uvCure' (Cooled cooledHammer) in
     (Complete curedSword, Complete curedHammer)
 
-(* Here it is safe to inline the unboxes into the respective uvCure' function arguments *)
+(* Here it is safe to inline the unboxes into the respective uvCure'
+   function arguments *)
 
 run
     let freshSword = printResinModel' (Model "Sword") in

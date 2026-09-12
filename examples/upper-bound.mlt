@@ -1,3 +1,7 @@
+(* Run this example with the 'time-upper-bound' grading monoid, e.g.
+
+     ./cli.exe --resources time-upper-bound examples/upper-bound.mlt *)
+
 (* Correctly accepted by the typechecker. *)
 let foo1 () = 
   box 3 1 as r in

@@ -1,4 +1,5 @@
 module Error = Utils.Error
+module StringMap = Utils.StringMap
 module Ast = Language.Ast
 module Const = Language.Const
 module Context = Language.Context
@@ -27,6 +28,11 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
       * ResourceGrade.t Ast.ty
       * ResourceGrade.t Ast.rho)
       Ast.OpNameMap.t;
+    op_bounds : (int * int) StringMap.t;
+        (** The declared runtime bounds [within (lo, hi)] of the operations, the
+            cost model the timed-trace orders read. Keyed by the operation's
+            surface name, which is the name that appears inside trace literals;
+            the desugarer has already rejected duplicate operation names. *)
   }
 
   let initial_state =
@@ -60,6 +66,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                        ]) );
               ] ));
       op_signatures = Ast.OpNameMap.empty;
+      op_bounds = StringMap.empty;
     }
 
   let print_type_constraint t1 t2 ty_pp rho_pp =
@@ -424,10 +431,14 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                            ] )
                     :: op_ty_eqs
                   in
-                  let op_rho_eqs' =
-                    (op_case_rho, Ast.RhoAdd (op_rho, rho)) :: op_rho_eqs
+                  let op_rho_eqs' = op_rho_eqs in
+                  (* The clause need only be a sub-effect of the operation's
+                     declared grade extended by the continuation's grade
+                     [rho] (Agda's [coerce]), so that e.g. a clause performing
+                     [Send] once realises the grade [{Send | Send; Send}]. *)
+                  let op_rho_ineqs' =
+                    Ineq (op_case_rho, Ast.RhoAdd (op_rho, rho)) :: op_rho_ineqs
                   in
-                  let op_rho_ineqs' = op_rho_ineqs in
                   let op_rho_abs' = rho :: op_rho_abs in
                   ( op_ty_eqs' @ ty_eqs'',
                     op_rho_eqs' @ rho_eqs'',
@@ -717,6 +728,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | Either.Left _, _ -> -1
     | _, Either.Left _ -> 1
 
+  (** [build_rho_param_list rho] lists the summands of [rho] from left to right,
+      parameters as [Either.Left] and constants as [Either.Right]. *)
   let build_rho_param_list rho =
     let rec aux acc rho =
       match rho with
@@ -728,8 +741,33 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     in
     aux [] rho
 
-  let build_sorted_rho_param_list rho =
-    build_rho_param_list rho |> List.sort compare_rho
+  (** Drops the units and adds up the *adjacent* constants of a summand list.
+      This is all a non-commutative grading monoid allows, and it is what makes
+      a clause performing [delay 3; delay 4] realise the grade [7]. *)
+  let rec fold_adjacent_constants = function
+    | [] -> []
+    | Either.Right c :: rest when c = ResourceGrade.zero ->
+        fold_adjacent_constants rest
+    | Either.Right c :: rest -> (
+        match fold_adjacent_constants rest with
+        | Either.Right c' :: rest' ->
+            Either.Right (ResourceGrade.add c c') :: rest'
+        | rest' -> Either.Right c :: rest')
+    | (Either.Left _ as p) :: rest -> p :: fold_adjacent_constants rest
+
+  (** Adds up *all* the constants of a summand list, keeping the parameters in
+      their original order. Only sound when the grading monoid is commutative,
+      since the constants need not be adjacent. *)
+  let fold_all_constants params =
+    let rest, total =
+      List.fold_left
+        (fun (rest, total) -> function
+          | Either.Left _ as p -> (p :: rest, total)
+          | Either.Right c -> (rest, ResourceGrade.add total c))
+        ([], ResourceGrade.zero) params
+    in
+    let rest = List.rev rest in
+    if total = ResourceGrade.zero then rest else rest @ [ Either.Right total ]
 
   let cancel_common_elements left right =
     let rec aux l r acc_left acc_right =
@@ -744,6 +782,15 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     in
     aux left right [] []
 
+  let rec cancel_common_prefix left right =
+    match (left, right) with
+    | lhd :: ltl, rhd :: rtl when lhd = rhd -> cancel_common_prefix ltl rtl
+    | _ -> (left, right)
+
+  let cancel_common_suffix left right =
+    let left', right' = cancel_common_prefix (List.rev left) (List.rev right) in
+    (List.rev left', List.rev right')
+
   let build_rho_from_param_list params =
     let to_rho = function
       | Either.Left x -> Ast.RhoParam x
@@ -753,6 +800,37 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | [] -> Ast.RhoConst ResourceGrade.zero
     | hd :: tl ->
         List.fold_left (fun acc e -> Ast.RhoAdd (acc, to_rho e)) (to_rho hd) tl
+
+  (** [normalise_rho_pair rho1 rho2] rewrites a constraint between the two sums
+      [rho1] and [rho2] into a simpler one that implies it: the summands are
+      flattened left to right, the units are dropped, the adjacent constants are
+      added up, and the summands the two sides have in common are cancelled.
+
+      Cancelling is a sound but incomplete rule for a non-commutative grading
+      monoid: from [a = b] we get [c · a = c · b] and [a · c = b · c] by
+      congruence, and the same for [≾] by [·-monoˡ-≾] and [·-monoʳ-≾], so every
+      solution of the cancelled constraint is a solution of the original one.
+      The converse needs the monoid to be cancellative, which sets of timed
+      traces are not: [{ε, a} · {ε, a, aa} = {ε, a} · {ε, aa}] even though
+      [{ε, a, aa} ≠ {ε, aa}]. Consequently only the longest common prefix and
+      the longest common suffix may be cancelled — those are the positions where
+      what remains is still a single contiguous factor on both sides. When the
+      monoid is commutative every summand may be moved to either end, so all the
+      constants are added up, the summands are sorted, and any common summand is
+      cancelled, which is what the typechecker has always done. *)
+  let normalise_rho_pair rho1 rho2 =
+    let left = fold_adjacent_constants (build_rho_param_list rho1) in
+    let right = fold_adjacent_constants (build_rho_param_list rho2) in
+    let left', right' =
+      if ResourceGrade.is_commutative then
+        cancel_common_elements
+          (List.sort compare_rho (fold_all_constants left))
+          (List.sort compare_rho (fold_all_constants right))
+      else
+        let left, right = cancel_common_prefix left right in
+        cancel_common_suffix left right
+    in
+    (build_rho_from_param_list left', build_rho_from_param_list right')
 
   let rec unify_ty_constraints state rho_eqs = function
     | [] -> (Ast.TyParamMap.empty, rho_eqs)
@@ -862,26 +940,18 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               ((t1, Ast.RhoConst ResourceGrade.zero)
               :: (t2, Ast.RhoConst ResourceGrade.zero)
               :: eqs)
-        | t, Ast.RhoAdd (t1, t2) ->
-            let left = build_sorted_rho_param_list t in
-            let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
-            let left', right' = cancel_common_elements left right in
-            let left_rho = build_rho_from_param_list left' in
-            let right_rho = build_rho_from_param_list right' in
-            if left_rho = t && right_rho = Ast.RhoAdd (t1, t2) then
+        | t, (Ast.RhoAdd _ as u) ->
+            let left_rho, right_rho = normalise_rho_pair t u in
+            if left_rho = t && right_rho = u then
               unify_rho_constraints state prev_unsolved_size
                 ((left_rho, right_rho) :: unsolved)
                 eqs
             else
               unify_rho_constraints state prev_unsolved_size unsolved
                 ((left_rho, right_rho) :: eqs)
-        | Ast.RhoAdd (t1, t2), t ->
-            let left = build_sorted_rho_param_list t in
-            let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
-            let left', right' = cancel_common_elements left right in
-            let left_rho = build_rho_from_param_list left' in
-            let right_rho = build_rho_from_param_list right' in
-            if left_rho = Ast.RhoAdd (t1, t2) && right_rho = t then
+        | (Ast.RhoAdd _ as u), t ->
+            let left_rho, right_rho = normalise_rho_pair u t in
+            if left_rho = u && right_rho = t then
               unify_rho_constraints state prev_unsolved_size
                 ((left_rho, right_rho) :: unsolved)
                 eqs
@@ -899,10 +969,17 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
       match (rho1', rho2') with
       | _ when rho1' = rho2' ->
           unify_rho_ineq_constraints state prev_unsolved_size unsolved ineqs
+      (* [ρ ≾ 0] with [ρ] still unknown: when the unit is the top of the
+         sub-grade order the constraint holds outright and is discharged by
+         [check_ineq], so leave it alone; otherwise take [ρ := 0], which
+         satisfies the constraint by reflexivity. That is the unique solution
+         when the unit is minimal, and a sound — if possibly incomplete —
+         default when it is neither minimal nor top, as for the two-sided
+         timed-trace grade. *)
       | Ast.RhoParam tp, rho
         when (not (occurs_rho tp rho))
              && rho = Ast.RhoConst ResourceGrade.zero
-             && ResourceGrade.is_zero_minimal_sub_rho ->
+             && not ResourceGrade.is_zero_top_sub_rho ->
           let singleton = Ast.RhoParamMap.singleton tp rho in
           let rho_subst, unsolved' =
             unify_rho_ineq_constraints state prev_unsolved_size
@@ -910,26 +987,18 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               (subst_rho_inequations Ast.TyParamMap.empty singleton ineqs)
           in
           (add_rho_subst tp rho rho_subst, unsolved')
-      | t, Ast.RhoAdd (t1, t2) ->
-          let left = build_sorted_rho_param_list t in
-          let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
-          let left', right' = cancel_common_elements left right in
-          let left_rho = build_rho_from_param_list left' in
-          let right_rho = build_rho_from_param_list right' in
-          if left_rho = t && right_rho = Ast.RhoAdd (t1, t2) then
+      | t, (Ast.RhoAdd _ as u) ->
+          let left_rho, right_rho = normalise_rho_pair t u in
+          if left_rho = t && right_rho = u then
             unify_rho_ineq_constraints state prev_unsolved_size
               (wrap left_rho right_rho :: unsolved)
               ineqs
           else
             unify_rho_ineq_constraints state prev_unsolved_size unsolved
               (wrap left_rho right_rho :: ineqs)
-      | Ast.RhoAdd (t1, t2), t ->
-          let left = build_sorted_rho_param_list t in
-          let right = build_sorted_rho_param_list (Ast.RhoAdd (t1, t2)) in
-          let left', right' = cancel_common_elements left right in
-          let left_rho = build_rho_from_param_list left' in
-          let right_rho = build_rho_from_param_list right' in
-          if left_rho = Ast.RhoAdd (t1, t2) && right_rho = t then
+      | (Ast.RhoAdd _ as u), t ->
+          let left_rho, right_rho = normalise_rho_pair u t in
+          if left_rho = u && right_rho = t then
             unify_rho_ineq_constraints state prev_unsolved_size
               (wrap left_rho right_rho :: unsolved)
               ineqs
@@ -1000,6 +1069,21 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     in
     check [] ty
 
+  (** The cost model the sub-grade order of the timed-trace grades reads: the
+      runtime bounds declared by the operation named by a trace event. Only the
+      grades of operation signatures have their events validated when they are
+      declared (see {!add_operation_signature}); the events of any other grade
+      literal — a [box] grade or a grade written in a type — are checked lazily,
+      here, the first time the order needs their cost. *)
+  let op_bounds state ev =
+    match StringMap.find_opt ev state.op_bounds with
+    | Some bounds -> bounds
+    | None ->
+        Error.typing
+          "Unknown event '%s'; the events of a resource grade must be declared \
+           operations"
+          ev
+
   let rec check_rho_ineq_constraints state =
     let check_ineq ?eternal_ty rho_smaller rho_greater_or_equal =
       let rho_smaller_simplified = simplify_rho rho_smaller in
@@ -1022,7 +1106,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           in
           if
             not
-              (ResourceGrade.is_sub_rho rho_smaller_val rho_greater_or_equal_val)
+              (ResourceGrade.is_sub_rho (op_bounds state) rho_smaller_val
+                 rho_greater_or_equal_val)
           then
             raise
               (Exception.InequalityCheckFailed
@@ -1161,14 +1246,77 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     List.iter (fun (_, _, ty_def) -> check_ty_def state' ty_def) ty_defs;
     state'
 
-  let add_operation_signature state (op, ty1, ty2, rho) =
-    let state' =
-      {
-        state with
-        op_signatures = Ast.OpNameMap.add op (ty1, ty2, rho) state.op_signatures;
-      }
+  (* The runtime bounds an operation declares must agree with the runs its grade
+     promises: [lo] may not undercut the fastest run the grade allows and [hi]
+     must cover the slowest one, where a run costs its delays plus, for each of
+     its events, the matching end of the bounds of the operation named. The
+     operation's own bounds are used for its own events, so an operation graded
+     by the single run that is itself is trivially consistent, while a
+     self-referential grade such as [{Send | Send; Send}] never is, its retry
+     run costing twice the upper bound. This is the duration morphism of the
+     Agda [System/Traces/Timed/*] modules, [minSetDuration] for the lower
+     bound and [setDuration] for the upper bound. *)
+  let check_op_bounds op_name (lo, hi) bounds grade =
+    match ResourceGrade.implied_bounds bounds grade with
+    | Some (imp_lo, imp_hi) when lo > imp_lo || hi < imp_hi ->
+        Error.typing
+          "the runtime bounds of operation %s, within (%d, %d), are \
+           inconsistent with its grade %s, whose runs take between %d and %d \
+           time units"
+          op_name lo hi (ResourceGrade.show grade) imp_lo imp_hi
+    | Some _ | None -> ()
+
+  let add_operation_signature state (op, ty1, ty2, rho, bounds) =
+    let op_name = Ast.OpName.string_of op in
+    let op_bounds' =
+      match (ResourceGrade.needs_op_bounds, bounds) with
+      | true, None ->
+          Error.typing
+            "operation %s needs runtime bounds `within (lo, hi)` under the \
+             '%s' grading monoid"
+            op_name ResourceGrade.name
+      | false, Some _ ->
+          Error.typing
+            "runtime bounds are only used by the timed-trace grading monoids; \
+             under '%s' the operation grade already carries them"
+            ResourceGrade.name
+      | false, None -> state.op_bounds
+      | true, Some (lo, hi) ->
+          if lo > hi then
+            Error.typing
+              "the runtime bounds of operation %s must satisfy lo <= hi" op_name
+          else if hi < 1 then
+            Error.typing
+              "the upper runtime bound of operation %s must be at least 1"
+              op_name
+          else StringMap.add op_name (lo, hi) state.op_bounds
     in
-    state'
+    (* The grade of an operation is always a literal, so its events can be
+       validated right away; the operation may name itself, as in
+       [Send : unit ~> unit # {Send | Send; Send}]. *)
+    (match rho with
+    | Ast.RhoConst grade ->
+        List.iter
+          (fun ev ->
+            if not (StringMap.mem ev op_bounds') then
+              Error.typing "unknown event '%s' in the grade of operation %s" ev
+                op_name)
+          (ResourceGrade.events grade)
+    | Ast.RhoParam _ | Ast.RhoAdd _ -> ());
+    (* every event of the grade is now known to be declared, so the lookup in
+       [op_bounds'] --- which already holds the bounds of the operation being
+       declared --- is total *)
+    (match (rho, bounds) with
+    | Ast.RhoConst grade, Some declared ->
+        check_op_bounds op_name declared
+          (fun ev -> StringMap.find ev op_bounds')
+          grade
+    | (Ast.RhoConst _ | Ast.RhoParam _ | Ast.RhoAdd _), _ -> ());
+    {
+      state with
+      op_signatures = Ast.OpNameMap.add op (ty1, ty2, rho) state.op_signatures;
+      op_bounds = op_bounds';
+    }
 
   let load_primitive state x prim =
     let ty_params, rho_params, ty = P.primitive_type_scheme prim in

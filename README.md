@@ -78,7 +78,7 @@ the program is run:
   built-in examples switches the selector to the grading monoid that example is
   written for; you are free to change it afterwards for your own programs.
 
-In both cases the default is the `time-lower-bound` grading monoid. Three
+In both cases the default is the `time-lower-bound` grading monoid. Six
 grading monoids are currently available:
 
 - **`time-lower-bound`** — grades are non-negative integers representing
@@ -101,6 +101,57 @@ grading monoids are currently available:
   contained within the other). Grades are written as pair literals, e.g. `(1,
   4)`. See [this](examples/interval.mlt) example for a demonstration of
   time-interval grades.
+
+The remaining three grading monoids grade computations by the *timed traces*
+they may exhibit rather than by time alone. They are the timed trace grades of
+the Agda formalisation `graded-temporal-resources`, whose
+`Syntax/Grades/Example/Traces/Timed/*` modules are the reference definitions for
+everything described below. A *timed trace* is one possible run of a
+computation, written as an alternation of operation events and delays, e.g.
+`Read; 3; Send` is the run that performs `Read`, waits three time units, and
+performs `Send`. The events are the operations declared in the source file (see
+below) and the delays are positive integers. A grade is a non-empty finite set
+of such runs, read as the alternatives a computation may exhibit, and written
+`{Read; 3; Send | Send; Send}`; grades are multiplied by the language product of
+these sets, which, unlike the product of the time grades, is not commutative. A
+plain integer literal `n` is short for `{n}`, the set containing the single run
+that only waits, so in particular the zero grade is `{0}`. The sub-grade orders
+trade time against operations using the runtime bounds `within (lo, hi)` that
+every operation has to declare under these grading monoids (see below): the
+coverage order reads the lower end `lo` and the allowance order reads the upper
+end `hi`.
+
+- **`timed-traces-lower-bound`** — grades are non-empty finite sets of timed
+  traces describing the runs a computation is required to cover. The sub-grade
+  order is the *coverage* order: grade `rho` is considered a sub-grade of grade
+  `rho'` when every run of `rho` covers some run of `rho'`, where performing an
+  operation banks the lower end `lo` of its runtime bounds towards the delays
+  `rho'` demands. In other words, operations bank their lower bound to cover
+  required delays, but waiting is never a way of performing a demanded
+  operation. The zero grade `{0}` is the *top* element of the sub-grade order.
+  See [this](examples/timed_traces_lower.mlt) example for a demonstration.
+
+- **`timed-traces-upper-bound`** — grades are non-empty finite sets of timed
+  traces describing the runs a computation is permitted to exhibit. The
+  sub-grade order is the *allowance* order: grade `rho` is considered a
+  sub-grade of grade `rho'` when every run of `rho` fits inside some run of
+  `rho'`, where a delay of `rho'` pays for the operations of `rho`, each at the
+  upper end `hi` of its runtime bounds. In other words, time in the bound buys
+  operations, but waiting is never a way of performing an operation the bound
+  asks for. The zero grade `{0}` is the *minimal* element of the sub-grade
+  order. See [this](examples/timed_traces_upper.mlt) example for a
+  demonstration.
+
+- **`timed-traces-interval`** — grades are pairs `({...}, {...})` of non-empty
+  finite sets of timed traces, the first component a lower bound ordered by the
+  coverage order (reading `lo`) and the second component an upper bound
+  ordered by the allowance order (reading `hi`); grade `rho` is considered a
+  sub-grade of grade `rho'` when both of its components are. A single set
+  `{...}` abbreviates the pair of that set with itself, a plain integer `n`
+  abbreviates `({n}, {n})`, and a pair of integers `(n, m)` abbreviates
+  `({n}, {m})`. The zero grade `({0}, {0})` is neither the minimal nor the top
+  element of the sub-grade order. See [this](examples/timed_traces_interval.mlt)
+  example for a demonstration.
 
 ## Temporal resources
 
@@ -196,6 +247,38 @@ type expressions, and `operation-grade` is a grade specifying the resource usage
 incurred by the operation (e.g., how much time, how many steps, or what sequence
 of sub-operations the given operation is supposed to involve).
 
+Under the timed-trace grading monoids, the signature of an operation must in
+addition declare the runtime bounds of the operation, using the format
+```
+operation OperationName : operation-input-type ~> operation-result-type # operation-grade within (lo, hi)
+```
+where `lo` and `hi` are the least and the greatest number of time units a call
+to the operation may take, with `within n` being short for `within (n, n)`.
+These bounds are the cost model against which the orders of the trace grades
+trade time for operations: the coverage order of `timed-traces-lower-bound`
+reads `lo`, the allowance order of `timed-traces-upper-bound` reads `hi`, and
+`timed-traces-interval` reads both. The declared bounds are themselves checked
+for consistency with the grade of the operation: `lo` may not exceed the
+duration of the fastest run the grade allows and `hi` must cover the duration of
+its slowest run, where a run costs its delays plus, for each of its events, the
+matching end of the runtime bounds of the operation named — the operation's own
+bounds being used for its own events. An atomic operation, graded by the
+single run that is itself, is therefore trivially consistent, as in `Heat #
+{Heat} within (1, 2)`, while `Send : string ~> unit # {Tx | Tx; Tx} within (2,
+6)` is consistent exactly because a `Tx within (2, 3)` takes between two and
+three ticks and `Send` promises one or two of them. A self-referential grade
+such as `Send # {Send | Send; Send}` is on the other hand never consistent,
+since its retrying run costs twice the upper bound of `Send` itself, so an
+operation that may be retried has to be expressed through a smaller operation,
+as in `{Tx | Tx; Tx}`, rather than through itself. Under the time grading
+monoids the bounds must not be declared, because there the grade of an operation
+already is its runtime bound.
+
+The events that a trace literal is built from are operation names, and each of
+them must be the name of an operation that has already been declared, or the
+name of the operation being declared. The latter is what makes grades such as `#
+{Send | Send; Send}` possible, promising a send that may be retried once.
+
 These algebraic operations can be then used in the following program code using
 the format
 ```
@@ -241,6 +324,25 @@ the result of handling the operation `OperationName`.
 
 Operations that do not have their corresponding operation cases given in a
 handler are handled by themselves by the given handler.
+
+The grade of an operation case does not have to match the grade of the operation
+it handles exactly — it suffices that it is a sub-grade of `operation-grade`
+composed with the grade of the continuation `k` (sub-effecting). For instance,
+the operation
+```
+operation PrintModel : model ~> fresh # {Heat; Extrude; Cool} within (6, 9)
+```
+can be handled by an operation case that performs `Heat`, `Extrude`, and `Cool`,
+in that order, and then continues, because the grade accumulated by the three
+calls is a sub-grade of the grade of `PrintModel`. Performing the same three
+operations in another order is instead rejected with a message such as
+```
+Comparing resource inequality {Cool; Extrude; Heat} <= {Heat; Extrude; Cool} failed
+```
+Under the time grading monoids the same rule means that an operation case may
+delay for longer than the grade of the operation prescribes when the monoid is
+`time-lower-bound`, and for less than it prescribes when the monoid is
+`time-upper-bound`.
 
 See [this](examples/handlers.mlt) and [this](examples/3dprint_handlers.mlt)
 example for a worked out examples of how to use algebraic effects and effect

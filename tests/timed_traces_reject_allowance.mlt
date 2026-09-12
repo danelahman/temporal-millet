@@ -1,0 +1,11 @@
+(* Correctly rejected by the typechecker, under the 'timed-traces-upper-bound'
+   grading monoid: one tick of allowance does not buy a 'Heat', which may take
+   up to two. *)
+
+operation Heat : unit ~> unit # {Heat} within (1, 2)
+
+run
+  box 1 42 as r in
+  perform Heat ();
+  unbox r as x in
+  x

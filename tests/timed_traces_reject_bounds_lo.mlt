@@ -1,0 +1,6 @@
+(* Correctly rejected by the typechecker, under the 'timed-traces-upper-bound'
+   grading monoid: the lower runtime bound of an operation may not overclaim its
+   fastest run, and a single transmission takes as little as two ticks. *)
+
+operation Tx : string ~> unit # {Tx} within (2, 3)
+operation Send : string ~> unit # {Tx | Tx; Tx} within (3, 6)

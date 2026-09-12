@@ -1,0 +1,20 @@
+(* Correctly rejected by the typechecker, under the 'timed-traces-upper-bound'
+   grading monoid: the operation case performs the three steps of a print in the
+   wrong order, and the order of the events is part of the bound. *)
+
+type model = Model of string
+type fresh = Fresh of model
+
+operation Heat : unit ~> unit # {Heat} within (1, 2)
+operation Extrude : unit ~> unit # {Extrude} within (3, 5)
+operation Cool : unit ~> unit # {Cool} within (2, 2)
+operation PrintModel : model ~> fresh # {Heat; Extrude; Cool} within (6, 9)
+
+let printer =
+  handler
+  | x -> x
+  | PrintModel m k ->
+      perform Cool ();
+      perform Extrude ();
+      perform Heat ();
+      continue k with (Fresh m)

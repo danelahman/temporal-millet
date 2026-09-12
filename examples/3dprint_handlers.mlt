@@ -1,3 +1,7 @@
+(* Run this example with the 'time-lower-bound' grading monoid, e.g.
+
+     ./cli.exe --resources time-lower-bound examples/3dprint_handlers.mlt *)
+
 type model = Model of string
 type fresh = Fresh of model
 type cooled = Cooled of fresh

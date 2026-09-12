@@ -1,0 +1,11 @@
+(* Correctly accepted by the typechecker, under the 'timed-traces-upper-bound'
+   grading monoid. Trace literals are normalised: zero delays are dropped and
+   adjacent delays are merged, and the alternatives of a set are sorted and
+   deduplicated. The state printed below therefore shows the grade of the
+   resource as {Heat; 4 | 4; Heat}. *)
+
+operation Heat : unit ~> unit # {Heat} within (1, 2)
+
+run
+  box {Heat; 0; 2; 2 | 4; Heat | Heat; 4} 42 as r in
+  7

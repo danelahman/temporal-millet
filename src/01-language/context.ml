@@ -66,11 +66,18 @@ struct
     in
     find lst
 
+  (** [sum_rhos_added_after key lst] is the sum of the resource grades recorded
+      in [lst] since [key] was bound. The context is kept most-recent-first, so
+      walking it from the front visits the grades newest-first and each one is
+      added on the *left* of what has been accumulated so far: the sum reads
+      chronologically, oldest first. This matters for the non-commutative
+      (timed-trace) grades, where the order of the summands is the order the
+      events happened in. *)
   let sum_rhos_added_after (key : var) (lst : 'a t) : base_rho =
     let rec go acc = function
       | [] ->
           raise (VariableNotFound (Format.asprintf "%t" (Variable.print key)))
-      | Rho t :: rest -> go (Ast.RhoAdd (acc, t)) rest
+      | Rho t :: rest -> go (Ast.RhoAdd (t, acc)) rest
       | VarMap map :: rest -> (
           match VariableMap.find_opt key map with
           | Some _ -> acc
@@ -78,10 +85,12 @@ struct
     in
     go (Ast.RhoConst Base.zero) lst
 
+  (** [abstract_rho_sum lst] is the sum of all the resource grades recorded in
+      [lst], oldest first, for the same reason as in {!sum_rhos_added_after}. *)
   let abstract_rho_sum (lst : 'a t) : base_rho =
     let rec sum acc = function
       | [] -> acc
-      | Rho t :: rest -> sum (RhoAdd (acc, t)) rest
+      | Rho t :: rest -> sum (RhoAdd (t, acc)) rest
       | VarMap _ :: rest -> sum acc rest
     in
     sum (RhoConst Base.zero) lst

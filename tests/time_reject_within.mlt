@@ -1,0 +1,6 @@
+(* Correctly rejected by the typechecker, under the default 'time-lower-bound'
+   grading monoid: runtime bounds are only declared under the timed-trace
+   grading monoids, where the grade of an operation does not already give
+   them. *)
+
+operation Heat : unit ~> unit # 2 within (1, 2)

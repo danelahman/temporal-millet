@@ -1,0 +1,24 @@
+(* Correctly accepted by the typechecker, under the default 'time-lower-bound'
+   grading monoid: the two delays of the operation case are folded into the
+   single delay of 7 that the grade of 'Tick' asks for, and an operation case
+   may in any case take longer than the grade of its operation prescribes. *)
+
+operation Tick : unit ~> unit # 7
+
+let h =
+  handler
+  | x -> x
+  | Tick () k -> delay 3; delay 4; continue k with ()
+
+let h' =
+  handler
+  | x -> x
+  | Tick () k -> delay 8; continue k with ()
+
+run
+  handle
+    box 7 42 as r in
+    perform Tick ();
+    unbox r as x in
+    x
+  with h

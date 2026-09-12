@@ -1,0 +1,358 @@
+(* Run this example with the 'timed-traces-interval' grading monoid, e.g.
+
+     ./cli.exe --resources timed-traces-interval examples/timed_traces_interval.mlt *)
+
+type model = Model of string
+type fresh = Fresh of model
+
+operation Heat : unit ~> unit # ({Heat}, {Heat}) within (1, 2)
+operation Extrude : unit ~> unit # ({Extrude}, {Extrude}) within (3, 5)
+operation Cool : unit ~> unit # ({Cool}, {Cool}) within (2, 2)
+
+(* A print is the three steps, in that order, on both sides of the pair. *)
+operation PrintModel : model ~> fresh
+  # ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
+  within (6, 9)
+
+(* A print job either extrudes a fresh model or is a quick reheat, again on both
+   sides of the pair. *)
+operation Print : model ~> fresh
+  # ({Heat; Extrude; Cool | Heat; Cool}, {Heat; Extrude; Cool | Heat; Cool})
+  within (3, 9)
+
+(* An asymmetric job: the lower bound guarantees at least a reheat, while the
+   upper bound allows a full print. *)
+operation Print2 : model ~> fresh
+  # ({Heat; Cool}, {Heat; Extrude; Cool | Heat; Cool})
+  within (3, 9)
+
+operation Tx : string ~> unit # ({Tx}, {Tx}) within (2, 3)
+
+(* A send is one or two transmissions, on both sides of the pair. *)
+operation Send : string ~> unit # ({Tx | Tx; Tx}, {Tx | Tx; Tx}) within (2, 6)
+
+(* Correctly accepted by the typechecker: heating and extruding banks 1 + 3
+   ticks towards the lower bound of the box, which demands three, and costs at
+   most 2 + 5 ticks of its upper bound, which allows seven. *)
+let make_cog () =
+  box (3, 7) (Model "Cog") as blueprint in
+  perform Heat ();
+  perform Extrude ();
+  unbox blueprint as m in
+  Fresh m
+
+(* Correctly accepted by the typechecker: the same bound spelled out with the
+   two events on each side of the pair instead of as a time interval. *)
+let make_gear () =
+  box ({Heat; Extrude}, {Heat; Extrude}) (Model "Gear") as blueprint in
+  perform Heat ();
+  perform Extrude ();
+  unbox blueprint as m in
+  Fresh m
+
+(* Correctly accepted by the typechecker by sub-effecting: a clause may forward
+   the operation it handles, since '({Heat}, {Heat})' is a sub-grade of itself
+   composed with the grade of the continuation. *)
+let forward =
+  handler
+  | x -> x
+  | Heat () k -> perform Heat (); continue k with ()
+
+(* Correctly accepted by the typechecker: the clause performs exactly the three
+   steps 'PrintModel' promises, in the promised order, which covers the lower
+   bound and fits inside the upper bound. *)
+let printer =
+  handler
+  | x -> x
+  | PrintModel m k ->
+      perform Heat ();
+      perform Extrude ();
+      perform Cool ();
+      continue k with (Fresh m)
+
+(* Correctly accepted by the typechecker: a whole 'PrintModel' banks the six
+   ticks the lower bound of the box demands, because 1 + 3 + 2 = 6, and costs
+   at most the nine the upper bound allows, because 2 + 5 + 2 = 9 --- both
+   endpoints exact. *)
+let print_sword () =
+  handle
+    box (6, 9) (Model "Sword") as blueprint in
+    let printed = perform PrintModel (Model "Sword") in
+    unbox blueprint as m in
+    (m, printed)
+  with printer
+
+(* Correctly accepted by the typechecker: the same bound spelled out with the
+   three events on each side of the pair instead of as a time interval. *)
+let print_cog () =
+  handle
+    box ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
+        (Model "Cog") as blueprint in
+    let printed = perform PrintModel (Model "Cog") in
+    unbox blueprint as m in
+    (m, printed)
+  with printer
+
+(* Correctly accepted by the typechecker: the clause realises the first of the
+   two runs 'Print' allows, covering it on the lower bound and fitting inside
+   it on the upper bound. *)
+let full_printer =
+  handler
+  | x -> x
+  | Print m k ->
+      perform Heat ();
+      perform Extrude ();
+      perform Cool ();
+      continue k with (Fresh m)
+
+(* Correctly accepted by the typechecker: the clause realises the other run, a
+   reheat that skips the extrusion. *)
+let quick_printer =
+  handler
+  | x -> x
+  | Print m k -> perform Heat (); perform Cool (); continue k with (Fresh m)
+
+(* Correctly accepted by the typechecker: a reheat is exactly what the lower
+   bound of 'Print2' guarantees, and it fits inside the second run of its
+   upper bound. *)
+let reheater =
+  handler
+  | x -> x
+  | Print2 m k -> perform Heat (); perform Cool (); continue k with (Fresh m)
+
+(* Correctly accepted by the typechecker: the upper bound of 'Print2' also
+   allows a full print, and the extrusion in the middle does not stop the
+   clause from covering the reheat the lower bound demands. *)
+let deluxe_printer =
+  handler
+  | x -> x
+  | Print2 m k ->
+      perform Heat ();
+      perform Extrude ();
+      perform Cool ();
+      continue k with (Fresh m)
+
+(* Correctly accepted by the typechecker: transmitting once covers the first
+   trace of the lower bound and fits inside the first trace of the upper
+   bound. *)
+let send_once =
+  handler
+  | x -> x
+  | Send msg k -> perform Tx msg; continue k with ()
+
+(* Correctly accepted by the typechecker: the retry likewise covers and fits
+   inside the two-transmission trace on either side of the pair. *)
+let send_retry =
+  handler
+  | x -> x
+  | Send msg k -> perform Tx msg; perform Tx msg; continue k with ()
+
+(* Correctly accepted by the typechecker: a single transmission banks at least
+   the two ticks the lower bound demands, and a retried one costs at most the
+   six ticks the upper bound allows. *)
+let send_telemetry () =
+  handle
+    box (2, 6) "ack" as slot in
+    perform Send "telemetry";
+    unbox slot as a in
+    a
+  with send_retry
+
+(* Correctly accepted by the typechecker: a non-exact bound on both sides ---
+   the lower bound demands only the first transmission, and the upper bound
+   allows either two transmissions or six ticks of waiting. *)
+let send_by_events () =
+  box ({Tx}, {Tx; Tx | 6}) "ack" as slot in
+  perform Send "telemetry";
+  unbox slot as a in
+  a
+
+(* Correctly rejected by the typechecker: the order of the events is part of
+   both sides of the pair, and this clause performs the three steps of a print
+   in the wrong one:
+
+     Typing error: Comparing resource inequality
+       ({Cool; Extrude; Heat},{Cool; Extrude; Heat})
+       <= ({Heat; Extrude; Cool},{Heat; Extrude; Cool}) failed
+*)
+(*
+let backwards =
+  handler
+  | x -> x
+  | PrintModel m k ->
+      perform Cool ();
+      perform Extrude ();
+      perform Heat ();
+      continue k with (Fresh m)
+*)
+
+(* Correctly rejected by the typechecker: neither run of 'Print' begins with a
+   'Cool', and the order of a bound is not negotiable:
+
+     Typing error: Comparing resource inequality
+       ({Cool; Heat},{Cool; Heat})
+       <= ({Heat; Cool | Heat; Extrude; Cool},
+           {Heat; Cool | Heat; Extrude; Cool}) failed
+*)
+(*
+let twisted_printer =
+  handler
+  | x -> x
+  | Print m k -> perform Cool (); perform Heat (); continue k with (Fresh m)
+*)
+
+(* Correctly rejected by the typechecker on the lower bound, which demands the
+   whole run it promises: a clause that stops after the extrusion covers
+   neither run of 'Print', even though the upper bound of 'Print' would
+   happily allow it:
+
+     Typing error: Comparing resource inequality
+       ({Heat; Extrude},{Heat; Extrude})
+       <= ({Heat; Cool | Heat; Extrude; Cool},
+           {Heat; Cool | Heat; Extrude; Cool}) failed
+*)
+(*
+let sloppy_printer =
+  handler
+  | x -> x
+  | Print m k -> perform Heat (); perform Extrude (); continue k with (Fresh m)
+*)
+
+(* Correctly rejected by the typechecker on the lower bound, whose seven ticks
+   are not banked by a print, which banks only 1 + 3 + 2:
+
+     Typing error: Comparing resource inequality
+       ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
+       <= ({7},{9}) failed
+*)
+(*
+let print_sword_lazy () =
+  handle
+    box (7, 9) (Model "Sword") as blueprint in
+    let printed = perform PrintModel (Model "Sword") in
+    unbox blueprint as m in
+    (m, printed)
+  with printer
+*)
+
+(* Correctly rejected by the typechecker on the upper bound, whose eight ticks
+   do not pay for a print, which may take 2 + 5 + 2:
+
+     Typing error: Comparing resource inequality
+       ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
+       <= ({6},{8}) failed
+*)
+(*
+let print_sword_impatient () =
+  handle
+    box (6, 8) (Model "Sword") as blueprint in
+    let printed = perform PrintModel (Model "Sword") in
+    unbox blueprint as m in
+    (m, printed)
+  with printer
+*)
+
+(* Correctly rejected by the typechecker: the upper bound of the box is too
+   small, since heating and extruding may take up to seven ticks:
+
+     Typing error: Comparing resource inequality
+       ({Heat; Extrude},{Heat; Extrude})
+       <= ({3},{6}) failed
+*)
+(*
+let make_cog_impatient () =
+  box (3, 6) (Model "Cog") as blueprint in
+  perform Heat ();
+  perform Extrude ();
+  unbox blueprint as m in
+  Fresh m
+*)
+
+(* Correctly rejected by the typechecker: the lower bound of the box is not
+   covered, since heating and extruding bank only 1 + 3 ticks, not five:
+
+     Typing error: Comparing resource inequality
+       ({Heat; Extrude},{Heat; Extrude})
+       <= ({5},{7}) failed
+*)
+(*
+let make_cog_lazy () =
+  box (5, 7) (Model "Cog") as blueprint in
+  perform Heat ();
+  perform Extrude ();
+  unbox blueprint as m in
+  Fresh m
+*)
+
+(* Correctly rejected by the typechecker: the upper bound of 'Send' allows at
+   most two transmissions, so a clause that retries twice does not fit:
+
+     Typing error: Comparing resource inequality
+       ({Tx; Tx; Tx},{Tx; Tx; Tx})
+       <= ({Tx | Tx; Tx},{Tx | Tx; Tx}) failed
+*)
+(*
+let send_thrice =
+  handler
+  | x -> x
+  | Send msg k ->
+      perform Tx msg;
+      perform Tx msg;
+      perform Tx msg;
+      continue k with ()
+*)
+
+(* Correctly rejected by the typechecker: the upper bound of 'Send' contains no
+   delays, so there is no allowance left to pay for a tick of waiting, even
+   though the lower bound would be happy with it:
+
+     Typing error: Comparing resource inequality
+       ({Tx; 1},{Tx; 1})
+       <= ({Tx | Tx; Tx},{Tx | Tx; Tx}) failed
+*)
+(*
+let send_lazy =
+  handler
+  | x -> x
+  | Send msg k -> perform Tx msg; delay 1; continue k with ()
+*)
+
+(* Correctly rejected by the typechecker on the upper bound, whose five ticks
+   do not pay for a retried send, which costs 3 + 3:
+
+     Typing error: Comparing resource inequality
+       ({Tx | Tx; Tx},{Tx | Tx; Tx})
+       <= ({2},{5}) failed
+*)
+(*
+let send_telemetry_impatient () =
+  handle
+    box (2, 5) "ack" as slot in
+    perform Send "telemetry";
+    unbox slot as a in
+    a
+  with send_retry
+*)
+
+(* Correctly rejected by the typechecker on the lower bound, whose four ticks
+   are not banked by a send that may consist of a single transmission:
+
+     Typing error: Comparing resource inequality
+       ({Tx | Tx; Tx},{Tx | Tx; Tx})
+       <= ({4},{6}) failed
+*)
+(*
+let send_telemetry_lazy () =
+  handle
+    box (4, 6) "ack" as slot in
+    perform Send "telemetry";
+    unbox slot as a in
+    a
+  with send_retry
+*)
+
+(* The single run below handles the 'PrintModel' with 'printer', which replaces
+   it by the three steps of a print. Nothing handles those, so the run stops at
+   the first of them and prints the rest of the program, the extrusion and the
+   cooling included, as the pending continuation. *)
+run print_sword ()

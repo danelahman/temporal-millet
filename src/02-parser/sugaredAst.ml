@@ -87,8 +87,9 @@ type 'rho command = 'rho plain_command annotated
 and 'rho plain_command =
   | TyDef of (ty_param list * ty_name * 'rho ty_def) list
       (** [type ('a...1) t1 = def1 and ... and ('a...n) tn = defn] *)
-  | OpSig of (operation * 'rho ty * 'rho ty * 'rho)
-      (** [operation op : t1 -> t2 # rho ] *)
+  | OpSig of (operation * 'rho ty * 'rho ty * 'rho * (int * int) option)
+      (** [operation op : t1 -> t2 # rho within (lo, hi)]; the runtime bounds
+          are optional and only the timed-trace grading monoids use them *)
   | TopLet of variable * 'rho term  (** [let x = t] *)
   | TopLetRec of variable * 'rho term  (** [let rec f = t] *)
   | TopDo of 'rho term  (** [do t] *)

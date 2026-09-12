@@ -1,3 +1,7 @@
+(* Run this example with the 'time-lower-bound' grading monoid, e.g.
+
+     ./cli.exe --resources time-lower-bound examples/basic_unbox.mlt *)
+
 run
     let x = (10, 10) in
     box 5 x as boxed in
@@ -5,7 +9,8 @@ run
     unbox boxed as (l, r) in
     l + r
 
-(* Same code as above, but instead using the generic effect versions of box and unbox *)
+(* Same code as above, but instead using the generic effect versions
+   of box and unbox *)
 
 run
     let x = (10, 10) in

@@ -1,3 +1,7 @@
+(* Run this example with the 'time-interval' grading monoid, e.g.
+
+     ./cli.exe --resources time-interval examples/interval.mlt *)
+
 (* Correctly accepted by the typechecker. *)
 let foo1 () = 
   box (1,4) 1 as r in
@@ -34,8 +38,10 @@ let foo4 () =
   unbox r as y in
   y + x
 
-(* Correctly accepted by the typechecker because boxing x requires x to be usable after *)
-(* (3,3) interval, which is possible because x's its type (int) is an eternal type. *)
+(* Correctly accepted by the typechecker because boxing x requires x to be
+   usable after *)
+(* (3,3) interval, which is possible because x's its type (int) is an
+   eternal type. *)
 let foo5 () = 
   let x = 7 in
   box (2,5) x as x' in

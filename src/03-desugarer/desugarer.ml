@@ -369,13 +369,13 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         in
         let state'', defs' = List.fold_right2 aux defs new_names (state', []) in
         (state'', Untyped.TyDef defs')
-    | Sugared.OpSig (op_name, ty1_name, ty2_name, rho_val) ->
+    | Sugared.OpSig (op_name, ty1_name, ty2_name, rho_val, bounds) ->
         let operation = Untyped.OpName.fresh op_name in
         let ty1 = desugar_ty state ty1_name in
         let ty2 = desugar_ty state ty2_name in
         let rho = Untyped.RhoConst rho_val in
         let state' = add_operation ~loc state op_name operation in
-        (state', Untyped.OpSig (operation, ty1, ty2, rho))
+        (state', Untyped.OpSig (operation, ty1, ty2, rho, bounds))
     | Sugared.TopLet (x, term) ->
         let x' = Untyped.Variable.fresh x in
         let state' = add_fresh_variables state (StringMap.singleton x x') in

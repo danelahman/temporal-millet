@@ -5,7 +5,7 @@
 
 %parameter<ResourceGrade : Language.ResourceGrade.Grade>
 
-%token LPAREN RPAREN LBRACK RBRACK
+%token LPAREN RPAREN LBRACK RBRACK LBRACE RBRACE
 %token COLON COMMA SEMI EQUAL CONS
 %token BEGIN END
 %token <string> LNAME
@@ -16,7 +16,7 @@
 %token <float> FLOAT
 %token <SugaredAst.label> UNAME
 %token <SugaredAst.ty_param> PARAM
-%token TYPE OPERATION ARROW SIGARROW OF HASH
+%token TYPE OPERATION WITHIN ARROW SIGARROW OF HASH
 %token MATCH WITH FUNCTION HANDLER HANDLE CONTINUE
 %token RUN LET REC AND IN
 %token DELAY BOX UNBOX PERFORM
@@ -63,7 +63,8 @@ plain_command:
   | TYPE defs = separated_nonempty_list(AND, ty_def)
     { TyDef defs }
   | OPERATION op = UNAME COLON ty1 = ty SIGARROW ty2 = ty HASH grade = rho_grade
-    { OpSig (op, ty1, ty2, grade) }
+    bounds = option(op_bounds)
+    { OpSig (op, ty1, ty2, grade, bounds) }
   | LET x = ident t = lambdas0(EQUAL)
     { TopLet (x, t) }
   | LET REC def = let_rec_def
@@ -445,8 +446,27 @@ sum_case:
   | lbl = UNAME OF t = ty
     { (lbl, Some t) }
 
+(* The runtime bounds an operation declares; [within n] is sugar for
+   [within (n, n)]. Only the timed-trace grading monoids read them. *)
+op_bounds:
+  | WITHIN n = INT { (n, n) }
+  | WITHIN LPAREN n = INT COMMA m = INT RPAREN { (n, m) }
+
 rho_grade:
   | n = INT { ResourceGrade.of_lit (Language.ResourceGrade.Int n) }
   | LPAREN n = INT COMMA m = INT RPAREN { ResourceGrade.of_lit (Language.ResourceGrade.Pair (n, m)) }
+  | LBRACE ts = trace_set RBRACE { ResourceGrade.of_lit (Language.ResourceGrade.Traces ts) }
+  | LPAREN LBRACE ts1 = trace_set RBRACE COMMA LBRACE ts2 = trace_set RBRACE RPAREN
+    { ResourceGrade.of_lit (Language.ResourceGrade.TracePair (ts1, ts2)) }
+
+trace_set:
+  | ts = separated_nonempty_list(BAR, trace_lit) { ts }
+
+trace_lit:
+  | evs = separated_nonempty_list(SEMI, trace_event) { evs }
+
+trace_event:
+  | op = UNAME { Language.ResourceGrade.Ev op }
+  | n = INT { Language.ResourceGrade.Wait n }
 
 %%

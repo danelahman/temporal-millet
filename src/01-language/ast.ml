@@ -93,7 +93,7 @@ type 'a ty_def = TySum of (label * 'a ty option) list | TyInline of 'a ty
 
 type 'a command =
   | TyDef of (ty_param list * ty_name * 'a ty_def) list
-  | OpSig of (operation * 'a ty * 'a ty * 'a rho)
+  | OpSig of (operation * 'a ty * 'a ty * 'a rho * (int * int) option)
   | TopLet of variable * 'a expression
   | TopDo of 'a computation
 

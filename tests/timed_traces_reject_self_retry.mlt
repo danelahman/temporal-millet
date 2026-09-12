@@ -1,0 +1,6 @@
+(* Correctly rejected by the typechecker, under the 'timed-traces-upper-bound'
+   grading monoid: an operation whose grade retries itself is never consistent
+   with its runtime bounds, since the retrying run costs twice the upper bound.
+   A retry has to be expressed through a smaller operation instead. *)
+
+operation Send : string ~> unit # {Send | Send; Send} within (4, 6)

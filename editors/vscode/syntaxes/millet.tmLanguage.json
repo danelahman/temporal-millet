@@ -70,7 +70,7 @@
         },
         {
           "name": "keyword.other.millet",
-          "match": "\\b(let|in|and|rec|fun|function|as|of|type|operation|handler|box|unbox|delay|begin|end|if|then|else|match|with|run|handle|return|perform|continue)\\b"
+          "match": "\\b(let|in|and|rec|fun|function|as|of|type|operation|handler|box|unbox|delay|begin|end|if|then|else|match|with|run|handle|return|perform|continue|within)\\b"
         }
       ]
     },

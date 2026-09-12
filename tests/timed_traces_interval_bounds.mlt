@@ -1,0 +1,13 @@
+(* Correctly accepted by the typechecker, under the 'timed-traces-interval'
+   grading monoid: the two components of the grade are checked against their own
+   end of the runtime bounds. The lower bound promises a single transmission,
+   whose fastest run takes two ticks, and the upper bound permits a retry,
+   whose slowest run takes six, so 'within (2, 6)' is consistent with both.
+   Declaring the lower bound as the retry as well,
+   '({Tx | Tx; Tx}, {Tx | Tx; Tx})', is consistent too, while declaring the
+   upper bound as the single transmission is not. *)
+
+operation Tx : string ~> unit # ({Tx}, {Tx}) within (2, 3)
+operation Send : string ~> unit # ({Tx}, {Tx | Tx; Tx}) within (2, 6)
+
+run 1

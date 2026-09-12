@@ -6,6 +6,10 @@
   >   case $f in
   >     interval.mlt) ../cli.exe --resources time-interval $f;;
   >     upper-bound.mlt) ../cli.exe --resources time-upper-bound $f;;
+  >     timed_traces_lower.mlt) ../cli.exe --resources timed-traces-lower-bound $f;;
+  >     timed_traces_interval.mlt) ../cli.exe --resources timed-traces-interval $f;;
+  >     timed_traces_interval_bounds.mlt) ../cli.exe --resources timed-traces-interval $f;;
+  >     timed_traces_*.mlt) ../cli.exe --resources timed-traces-upper-bound $f;;
   >     *) ../cli.exe $f;;
   >   esac
   >   :  # this command is here to suppress potential non-zero exit codes in the output
@@ -828,8 +832,176 @@
   ======================================================================
   test_temporal.mlt
   ======================================================================
-  Typing error: Type α → β # ρ₀ is not eternal and cannot compare non-ground resource values 0 and 
-  ρ₀ + ρ₀
+  === Run 1 ===
+  return 0
+  State: []
+  
+  === Run 2 ===
+  return 0
+  State: [
+    3
+  ]
+  
+  === Run 3 ===
+  return 1
+  State: [
+    9,
+    2,
+    3
+  ]
+  
+  === Run 4 ===
+  return 11
+  State: [
+    5
+  ]
+  
+  === Run 5 ===
+  return 11
+  State: [
+    10,
+    5
+  ]
+  
+  === Run 6 ===
+  return ()
+  State: [
+    24,
+    24,
+    24,
+    23,
+    23,
+    42
+  ]
+  
+  === Run 7 ===
+  return resource_0
+  State: [
+    5,
+    { resource_0 ↦ 11 # 3 },
+    3
+  ]
+  
+  === Run 8 ===
+  return 42
+  State: [
+    { resource_0 ↦ 42 # 3 },
+    3
+  ]
+  
+  === Run 9 ===
+  return (43, "test")
+  State: [
+    2,
+    10,
+    { resource_0 ↦ (43, 99, "test") # 3 },
+    3
+  ]
+  
+  ======================================================================
+  time_fold_delays.mlt
+  ======================================================================
+  === Run 1 ===
+  return 42
+  State: [
+    { resource_0 ↦ 42 # 7,
+      resource_2 ↦
+        fun op_var ↦
+          handle
+            return op_var;
+            unbox resource_0 as x in
+            return x
+          with h
+        # 7
+    },
+    3,
+    4
+  ]
+  
+  ======================================================================
+  time_reject_within.mlt
+  ======================================================================
+  Typing error: runtime bounds are only used by the timed-trace grading monoids; under 'time-lower-bound' the operation grade already carries them
+  ======================================================================
+  timed_traces_interval.mlt
+  ======================================================================
+  === Run 1 (unhandled operation) ===
+  perform Heat () (op_var.
+    (return op_var;
+     perform Extrude () (op_var. return op_var);
+     perform Cool () (op_var. return op_var);
+     unbox resource_2 as unbox_var in
+     unbox_var (Fresh (Model "Sword"))))
+  
+  ======================================================================
+  timed_traces_interval_bounds.mlt
+  ======================================================================
+  === Run 1 ===
+  return 1
+  State: []
+  
+  ======================================================================
+  timed_traces_lower.mlt
+  ======================================================================
+  === Run 1 (unhandled operation) ===
+  perform Heat () (op_var.
+    (return op_var;
+     perform Extrude () (op_var. return op_var);
+     perform Cool () (op_var. return op_var);
+     unbox resource_2 as unbox_var in
+     unbox_var (Fresh (Model "Sword"))))
+  
+  ======================================================================
+  timed_traces_normalise.mlt
+  ======================================================================
+  === Run 1 ===
+  return 7
+  State: [
+    { resource_0 ↦ 42 # {Heat; 4 | 4; Heat} }
+  ]
+  
+  ======================================================================
+  timed_traces_reject_allowance.mlt
+  ======================================================================
+  Typing error: Comparing resource inequality {Heat} <= {1} failed
+  ======================================================================
+  timed_traces_reject_bounds.mlt
+  ======================================================================
+  Typing error: the runtime bounds of operation Heat must satisfy lo <= hi
+  ======================================================================
+  timed_traces_reject_bounds_hi.mlt
+  ======================================================================
+  Typing error: the runtime bounds of operation Send, within (2, 5), are inconsistent with its grade {Tx | Tx; Tx}, whose runs take between 2 and 6 time units
+  ======================================================================
+  timed_traces_reject_bounds_lo.mlt
+  ======================================================================
+  Typing error: the runtime bounds of operation Send, within (3, 6), are inconsistent with its grade {Tx | Tx; Tx}, whose runs take between 2 and 6 time units
+  ======================================================================
+  timed_traces_reject_missing_within.mlt
+  ======================================================================
+  Typing error: operation Heat needs runtime bounds `within (lo, hi)` under the 'timed-traces-upper-bound' grading monoid
+  ======================================================================
+  timed_traces_reject_order.mlt
+  ======================================================================
+  Typing error: Comparing resource inequality {Cool; Extrude; Heat} <= {Heat; Extrude; Cool} failed
+  ======================================================================
+  timed_traces_reject_self_retry.mlt
+  ======================================================================
+  Typing error: the runtime bounds of operation Send, within (4, 6), are inconsistent with its grade {Send | Send; Send}, whose runs take between 4 and 12 time units
+  ======================================================================
+  timed_traces_reject_unknown_event.mlt
+  ======================================================================
+  Typing error: unknown event 'Extrude' in the grade of operation PrintModel
+  ======================================================================
+  timed_traces_upper.mlt
+  ======================================================================
+  === Run 1 (unhandled operation) ===
+  perform Tx "telemetry" (op_var.
+    (return op_var;
+     perform Tx "telemetry" (op_var. return op_var);
+     unbox resource_2 as unbox_var in
+     unbox_var ()))
+  
   ======================================================================
   tydef.mlt
   ======================================================================

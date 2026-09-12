@@ -29,6 +29,7 @@ let keywords =
     "unbox";
     "delay";
     "and";
+    "within";
   ]
 
 let is_lower c = c >= 'a' && c <= 'z'

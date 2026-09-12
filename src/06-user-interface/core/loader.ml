@@ -68,9 +68,10 @@ module Loader (Backend : Backend.S) = struct
           typechecker = typechecker_state';
           backend = backend_state';
         }
-    | Ast.OpSig (op, ty1, ty2, rho) ->
+    | Ast.OpSig (op, ty1, ty2, rho, bounds) ->
         let typechecker_state' =
-          TC.add_operation_signature state.typechecker (op, ty1, ty2, rho)
+          TC.add_operation_signature state.typechecker
+            (op, ty1, ty2, rho, bounds)
         in
         let _evaluation_environment_state' = state.backend in
         {

@@ -32,6 +32,7 @@
     ("true", BOOL true);
     ("type", TYPE);
     ("with", WITH);
+    ("within", WITHIN);
     ("delay", DELAY);
     ("box", BOX);
     ("unbox", UNBOX);
@@ -107,6 +108,8 @@ rule token = parse
   | ')'                 { RPAREN }
   | '['                 { LBRACK }
   | ']'                 { RBRACK }
+  | '{'                 { LBRACE }
+  | '}'                 { RBRACE }
   | "::"                { CONS }
   | ':'                 { COLON }
   | ','                 { COMMA }

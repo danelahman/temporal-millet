@@ -3,6 +3,8 @@ type token =
   | RPAREN
   | LBRACK
   | RBRACK
+  | LBRACE
+  | RBRACE
   | COLON
   | COMMA
   | SEMI
@@ -21,6 +23,7 @@ type token =
   | PARAM of SugaredAst.ty_param
   | TYPE
   | OPERATION
+  | WITHIN
   | ARROW
   | SIGARROW
   | OF

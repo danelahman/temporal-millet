@@ -1,3 +1,7 @@
+(* Run this example with the 'time-lower-bound' grading monoid, e.g.
+
+     ./cli.exe --resources time-lower-bound examples/nat.mlt *)
+
 type nat =
   | Zero
   | Succ of nat
