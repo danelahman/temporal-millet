@@ -114,8 +114,10 @@ of time, a sequence of operations, or whatever the chosen monoid measures.
 - `box rho e` creates a resource of type `[rho]a`. The expression `e` is typed
   in the hypothetical future in which the accumulated grade has grown by `rho`.
 - `unbox e` opens a resource `e : [rho]a`, yielding an `a`. It is allowed only
-  if the grade accumulated since `e` was boxed is at least `rho` in the
-  sub-grade order.
+  if the grade accumulated since `e` was boxed is a sub-grade of `rho`: at
+  least `rho` ticks under the lower-bound monoids, at most `rho` under the
+  upper-bound ones, and a run that covers or fits inside `rho` under the trace
+  monoids.
 - `delay tau` advances the accumulated grade by `tau`. Operation calls (below)
   advance it by the grade of the operation.
 
