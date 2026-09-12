@@ -1,5 +1,3 @@
-resources time-lower-bound
-
 operation Get : unit ~> int # 3
 operation Set : int ~> unit # 7
 

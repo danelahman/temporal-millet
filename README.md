@@ -61,20 +61,25 @@ Temporal Millet, like original Millet, gives you two options to run programs:
   is no option of introducing external interrupts. If you do not want to load
   the standard library, run Temporal Millet with the `--no-stdlib` option. If
   you want to see the variable context and state at the end of a program, run
-  Temporal Millet with the `--debug` option.
+  Temporal Millet with the `--debug` option. To pick the grading monoid the
+  program is checked against, use the `--resources` option (see below).
 
 ## Grading monoids
 
-A Temporal Millet source file can optionally begin with a `resources`
-declaration that selects the grading monoid (an ordered monoid satisfying some
-additional properties) used to track resource usage throughout the file:
+The grading monoid (an ordered monoid satisfying some additional properties)
+used to track resource usage is not part of a source file — it is chosen when
+the program is run:
 
-```
-resources grade-name
-```
+- On the command line, with the `--resources` option, e.g.
 
-If no such declaration is present, the `time-lower-bound` grading monoid is used
-by default. Three grading monoids are currently available:
+      ./cli.exe --resources time-interval examples/interval.mlt
+
+- In the web interface, with the **Resource grade** selector. Loading one of the
+  built-in examples switches the selector to the grading monoid that example is
+  written for; you are free to change it afterwards for your own programs.
+
+In both cases the default is the `time-lower-bound` grading monoid. Three
+grading monoids are currently available:
 
 - **`time-lower-bound`** — grades are non-negative integers representing
   discrete time units tracking the lower bound of the time-cost of computations.

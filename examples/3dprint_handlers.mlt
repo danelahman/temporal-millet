@@ -1,5 +1,3 @@
-resources time-lower-bound
-
 type model = Model of string
 type fresh = Fresh of model
 type cooled = Cooled of fresh

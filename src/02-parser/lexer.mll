@@ -40,7 +40,6 @@
     ("handler", HANDLER);
     ("handle", HANDLE);
     ("continue", CONTINUE);
-    ("resources", RESOURCES);
   ]
 
   let escaped_characters = [

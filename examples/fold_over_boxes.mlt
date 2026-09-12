@@ -1,5 +1,3 @@
-resources time-lower-bound
-
 let rec box_n_values n boxed =
   if n = 0 
   then boxed 

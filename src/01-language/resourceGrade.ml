@@ -42,13 +42,11 @@ module TimeLowerBoundGrade : Grade = struct
 
   let of_lit = function
     | Int n ->
-        if n < 0 then
-          invalid_arg
-            "TimeLowerBoundGrade.of_lit: expected non-negative integer"
-        else n
+        if n < 0 then invalid_arg "grades must be non-negative integers" else n
     | Pair _ ->
         invalid_arg
-          "TimeLowerBoundGrade.of_lit: pair literals are not supported"
+          "grades are plain integers, not pairs; did you mean to use the \
+           'time-interval' grading monoid?"
 
   let of_nat n =
     if n < 0 then
@@ -71,13 +69,11 @@ module TimeUpperBoundGrade : Grade = struct
 
   let of_lit = function
     | Int n ->
-        if n < 0 then
-          invalid_arg
-            "TimeUpperBoundGrade.of_lit: expected non-negative integer"
-        else n
+        if n < 0 then invalid_arg "grades must be non-negative integers" else n
     | Pair _ ->
         invalid_arg
-          "TimeUpperBoundGrade.of_lit: pair literals are not supported"
+          "grades are plain integers, not pairs; did you mean to use the \
+           'time-interval' grading monoid?"
 
   let of_nat n =
     if n < 0 then
@@ -102,12 +98,13 @@ module IntervalResourceGrade : Grade = struct
   let is_zero_top_sub_rho = false
 
   let of_lit = function
-    | Int _ -> invalid_arg "IntervalResourceGrade.of_lit: pair literal expected"
+    | Int _ ->
+        invalid_arg
+          "grades are intervals '(n, m)', not plain integers; did you mean to \
+           use the 'time-lower-bound' or 'time-upper-bound' grading monoid?"
     | Pair (n, m) ->
-        if n < 0 then
-          invalid_arg "IntervalResourceGrade.of_lit: interval endpoint negative"
-        else if n > m then
-          invalid_arg "IntervalResourceGrade.of_lit: non-well-formed interval"
+        if n < 0 then invalid_arg "interval endpoints must be non-negative"
+        else if n > m then invalid_arg "interval endpoints must satisfy n <= m"
         else (n, m)
 
   let of_nat n =

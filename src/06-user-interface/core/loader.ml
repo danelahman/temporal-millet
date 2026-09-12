@@ -48,6 +48,14 @@ module Loader (Backend : Backend.S) = struct
         Error.syntax
           ~loc:(Location.of_lexeme (Lexing.lexeme_start_p lexbuf))
           "unrecognised symbol."
+    (* Grade literals are converted by the grading monoid the parser is
+       parameterised by, which rejects literal forms it does not support. This
+       is the usual symptom of running a file under the wrong grading monoid,
+       so report it as a located syntax error naming the monoid in use. *)
+    | Invalid_argument msg ->
+        Error.syntax
+          ~loc:(Location.of_lexeme (Lexing.lexeme_start_p lexbuf))
+          "in the '%s' grading monoid, %s" Backend.ResourceGrade.name msg
 
   let execute_command state = function
     | Ast.TyDef ty_defs ->
@@ -84,12 +92,6 @@ module Loader (Backend : Backend.S) = struct
         let _ = TC.infer state.typechecker comp in
         let backend_state' = Backend.load_top_do state.backend comp in
         { state with backend = backend_state' }
-    | Ast.Resources resource_name ->
-        if resource_name <> Backend.ResourceGrade.name then
-          Error.typing
-            "File specifies resources '%s' but interpreter is using '%s'."
-            resource_name Backend.ResourceGrade.name;
-        state
 
   let load_commands state cmds =
     let desugarer_state', cmds' =

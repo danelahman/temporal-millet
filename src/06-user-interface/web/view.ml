@@ -120,9 +120,11 @@ let view_compiler (model : Model.model) =
                 select
                   ~a:[ class_ "select is-fullwidth" ]
                   "Load example"
-                  (fun (_, source) -> Model.EditMsg (ChangeSource source))
-                  (fun (title, _) -> title)
-                  (fun _ -> false)
+                  (fun (title, resource_name, source) ->
+                    Model.EditMsg (LoadExample (title, resource_name, source)))
+                  (fun (title, _, _) -> title)
+                  (fun (title, _, _) ->
+                    Some title = model.edit_model.selected_example)
                   (* The module Examples_mlt is semi-automatically generated from examples/*.mlt. Check the dune file for details. *)
                   Examples_mlt.examples;
               ];
@@ -166,7 +168,7 @@ let view_compiler (model : Model.model) =
       ]
   in
   panel "Code options"
-    [ use_stdlib; select_resource; load_example; run_process ]
+    [ use_stdlib; load_example; select_resource; run_process ]
 
 let edit_view (model : Model.model) =
   view_contents

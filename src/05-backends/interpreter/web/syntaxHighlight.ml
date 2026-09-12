@@ -19,7 +19,6 @@ let keywords =
     "of";
     "type";
     "operation";
-    "resources";
     "run";
     "return";
     "perform";

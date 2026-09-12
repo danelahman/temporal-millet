@@ -34,6 +34,9 @@ and run_model_state = {
 and edit_msg =
   | UseStdlib of bool
   | ChangeSource of string
+  | LoadExample of string * string * string
+      (** Load a bundled example: its title, the name of the resource grade it
+          is meant to be run with, and its source. *)
   | SelectResource of string
       (** Select the resource grade to use (by name from
           [resource_grade_modules]). *)
@@ -53,6 +56,9 @@ type edit_model = {
   selected_resource : string;
       (** Name of the currently selected resource grade (key in
           [resource_grade_modules]). *)
+  selected_example : string option;
+      (** Title of the bundled example currently loaded, if the source has not
+          been edited since. *)
 }
 
 let default_resource_name =
@@ -63,11 +69,22 @@ let edit_init =
     use_stdlib = true;
     unparsed_code = "";
     selected_resource = default_resource_name;
+    selected_example = None;
   }
 
 let edit_update edit_model = function
   | UseStdlib use_stdlib -> { edit_model with use_stdlib }
-  | ChangeSource input -> { edit_model with unparsed_code = input }
+  | ChangeSource input ->
+      { edit_model with unparsed_code = input; selected_example = None }
+  | LoadExample (title, resource_name, source) ->
+      (* An example is written for a particular resource grade, so loading one
+         switches to that grade. The user remains free to change it afterwards. *)
+      {
+        edit_model with
+        unparsed_code = source;
+        selected_resource = resource_name;
+        selected_example = Some title;
+      }
   | SelectResource name -> { edit_model with selected_resource = name }
 
 type run_model = {
@@ -145,21 +162,6 @@ let update model = function
                 (if model.edit_model.use_stdlib then L.stdlib_source else "")
                 ^ "\n\n\n" ^ model.edit_model.unparsed_code
               in
-              (* The parser is parameterized by the selected resource grade
-                 and will raise on syntactic forms (e.g. pair literals) that
-                 the grade does not support — masking a mismatch with the
-                 user's [resources X] declaration. Detect that mismatch up
-                 front so the user gets a clear error. *)
-              (match
-                 Source_scan.find_resources_declaration
-                   model.edit_model.unparsed_code
-               with
-              | Some declared when declared <> RG.name ->
-                  Utils.Error.typing
-                    "Source declares 'resources %s' but the selected resource \
-                     grade is '%s'."
-                    declared RG.name
-              | _ -> ());
               let state = L.load_source L.initial_state source in
               let run_state = B.run state.backend in
               (* Build a run_model_state from a B.run_state, capturing all
