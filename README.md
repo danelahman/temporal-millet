@@ -55,7 +55,7 @@ Resource usage is measured in a grading monoid (an ordered monoid with some
 additional structure). The monoid is not part of a source file but chosen when
 the program is run: with `--resources` on the command line, e.g.
 
-    ./cli.exe --resources time-interval examples/interval.mlt
+    ./cli.exe --resources time-interval examples/time_intervals.mlt
 
 or with the **Resource grade** selector in the web interface, which switches
 automatically when a built-in example is loaded. The default is
@@ -73,7 +73,7 @@ pairs such as `(1, 4)`:
 - **`time-interval`** — pairs `(n, m)` with `n <= m`, a lower and an upper
   bound at once. `(n, m)` is a sub-grade of `(k, l)` when `n >= k` and
   `l >= m` (interval containment); `(0, 0)` is the minimum. See
-  [`examples/interval.mlt`](examples/interval.mlt).
+  [`examples/time_intervals.mlt`](examples/time_intervals.mlt).
 
 Three grade computations by the *timed traces* they may exhibit. These are the
 timed-trace grades of the Agda formalisation `graded-temporal-resources`
@@ -86,24 +86,24 @@ language product. An integer `n` abbreviates `{n}`, so the zero grade is `{0}`.
 The orders trade time against operations through the runtime bounds
 `within (lo, hi)` every operation declares under these monoids (see below).
 
-- **`timed-traces-lower-bound`** — the runs a computation must *cover*. `rho`
+- **`traces-lower-bound`** — the runs a computation must *cover*. `rho`
   is a sub-grade of `rho'` when every run of `rho` covers some run of `rho'`:
   each operation performed banks its `lo` towards the delays `rho'` demands,
   but waiting never counts as performing a demanded operation. `{0}` is the
   top of the order. See
-  [`examples/timed_traces_lower.mlt`](examples/timed_traces_lower.mlt).
-- **`timed-traces-upper-bound`** — the runs a computation is *allowed*. `rho`
+  [`examples/traces_lower.mlt`](examples/traces_lower.mlt).
+- **`traces-upper-bound`** — the runs a computation is *allowed*. `rho`
   is a sub-grade of `rho'` when every run of `rho` fits inside some run of
   `rho'`: a delay in `rho'` pays for operations of `rho` at their `hi`, but
   waiting never counts as performing an operation the bound asks for. `{0}` is
   the minimum of the order. See
-  [`examples/timed_traces_upper.mlt`](examples/timed_traces_upper.mlt).
-- **`timed-traces-interval`** — pairs `({...}, {...})` of a lower bound
+  [`examples/traces_upper.mlt`](examples/traces_upper.mlt).
+- **`traces-interval`** — pairs `({...}, {...})` of a lower bound
   (coverage order, reading `lo`) and an upper bound (allowance order, reading
   `hi`), compared componentwise. `{...}` abbreviates the pair of a set with
   itself, `n` abbreviates `({n}, {n})`, and `(n, m)` abbreviates
   `({n}, {m})`. `({0}, {0})` is neither the top nor the minimum. See
-  [`examples/timed_traces_interval.mlt`](examples/timed_traces_interval.mlt).
+  [`examples/traces_intervals.mlt`](examples/traces_intervals.mlt).
 
 ## Temporal resources
 
@@ -132,7 +132,7 @@ either.
 
 Referencing a local variable `x : a` generates the constraint "`a` is eternal,
 or the grade accumulated since `x` was bound is a sub-grade of zero". Under
-`time-lower-bound` and `timed-traces-lower-bound` zero is the top of the order,
+`time-lower-bound` and `traces-lower-bound` zero is the top of the order,
 so the constraint always holds and any local variable may be used at any later
 point. Under the other monoids a local variable of a non-eternal type must be
 used before any `delay` or operation call has happened since it was bound.
@@ -170,8 +170,8 @@ operation OperationName : input-type ~> result-type # grade within (lo, hi)
 
 the least and greatest number of ticks a call may take (`within n` is short for
 `within (n, n)`). The bounds are the cost model of the trace orders:
-`timed-traces-lower-bound` reads `lo`, `timed-traces-upper-bound` reads `hi`,
-and `timed-traces-interval` reads both. They must agree with the grade: `lo`
+`traces-lower-bound` reads `lo`, `traces-upper-bound` reads `hi`,
+and `traces-interval` reads both. They must agree with the grade: `lo`
 may not exceed the fastest run the grade allows and `hi` must cover the
 slowest, each event costed at the matching end of its own bounds. An atomic
 operation such as `Heat : unit ~> unit # {Heat} within (1, 2)` is trivially
@@ -238,8 +238,8 @@ call and its result goes to the continuation.
 
 A default is checked against the operation's runtime bounds rather than its
 grade: the body must have a sub-grade of `{lo}` under
-`timed-traces-lower-bound`, of `{hi}` under `timed-traces-upper-bound`, and of
-`({lo}, {hi})` under `timed-traces-interval`. Under the time monoids it is
+`traces-lower-bound`, of `{hi}` under `traces-upper-bound`, and of
+`({lo}, {hi})` under `traces-interval`. Under the time monoids it is
 checked against the operation's grade. The grade itself cannot be required,
 since realising `{Heat}` would mean performing `Heat` again. So
 
@@ -248,7 +248,7 @@ operation Heat : unit ~> unit # ({Heat}, {Heat}) within (1, 2)
 default Heat () = delay 1
 ```
 
-is accepted under `timed-traces-interval` because `({1}, {1}) <= ({1}, {2})`,
+is accepted under `traces-interval` because `({1}, {1}) <= ({1}, {2})`,
 while `delay 6` is rejected:
 
 ```

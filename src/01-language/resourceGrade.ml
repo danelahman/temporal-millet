@@ -80,8 +80,8 @@ let reject_trace_lit which =
   invalid_arg
     ("grades are " ^ which
    ^ ", not sets of timed traces; did you mean to use one of the \
-      'timed-traces-lower-bound', 'timed-traces-upper-bound' or \
-      'timed-traces-interval' grading monoids?")
+      'traces-lower-bound', 'traces-upper-bound' or 'traces-interval' grading \
+      monoids?")
 
 module TimeLowerBoundGrade : Grade = struct
   type t = int
@@ -204,12 +204,12 @@ end
 
 let trace_of_lit_pair_msg =
   "grades are a single set of timed traces '{...}' or a plain integer; did you \
-   mean to use the 'timed-traces-interval' grading monoid?"
+   mean to use the 'traces-interval' grading monoid?"
 
 module TimedTracesLowerBoundGrade : Grade = struct
   type t = TimedTrace.traces
 
-  let name = "timed-traces-lower-bound"
+  let name = "traces-lower-bound"
   let zero = TimedTrace.of_nat 0
   let add = TimedTrace.product
 
@@ -257,7 +257,7 @@ end
 module TimedTracesUpperBoundGrade : Grade = struct
   type t = TimedTrace.traces
 
-  let name = "timed-traces-upper-bound"
+  let name = "traces-upper-bound"
   let zero = TimedTrace.of_nat 0
   let add = TimedTrace.product
 
@@ -304,7 +304,7 @@ end
 module TimedTracesIntervalGrade : Grade = struct
   type t = TimedTrace.traces * TimedTrace.traces
 
-  let name = "timed-traces-interval"
+  let name = "traces-interval"
   let zero = (TimedTrace.of_nat 0, TimedTrace.of_nat 0)
 
   let add (lo, hi) (lo', hi') =

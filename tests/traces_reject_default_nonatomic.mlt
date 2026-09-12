@@ -1,4 +1,4 @@
-(* Correctly rejected by the typechecker, under the 'timed-traces-upper-bound'
+(* Correctly rejected by the typechecker, under the 'traces-upper-bound'
    grading monoid: only an atomic operation may be given a default
    implementation. A compound operation names the operations it decomposes
    into, and is to be given meaning by a handler in terms of them. *)

@@ -1,6 +1,6 @@
-(* Run this example with the 'timed-traces-upper-bound' grading monoid, e.g.
+(* Run this example with the 'traces-upper-bound' grading monoid, e.g.
 
-     ./cli.exe --resources timed-traces-upper-bound examples/timed_traces_upper.mlt *)
+     ./cli.exe --resources traces-upper-bound examples/traces_upper.mlt *)
 
 type model = Model of string
 type heated = Heated of model

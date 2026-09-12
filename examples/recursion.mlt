@@ -2,18 +2,23 @@
 
      ./cli.exe --resources time-lower-bound examples/recursion.mlt *)
 
+(* Correctly accepted by the typechecker: plain recursion on integers, of
+   grade 0 --- nothing in this file takes time. *)
 let rec fact n =
   if n = 0 then 1 else n * fact (n - 1)
 
+(* The Fibonacci numbers, by a tail-recursive local helper. *)
 let fib n =
   let rec aux n a b =
     if n = 0 then a else aux (n - 1) b (a + b)
   in
   aux n 0 1
 
+(* Euclid's algorithm, recursing on the remainder. *)
 let rec gcd m n =
   match n with
   | 0 -> m
   | _ -> gcd n (m mod n)
 
+(* The run is arithmetic only, so it ends in an empty resource state. *)
 run (gcd (fib 10) (fact 10))

@@ -2,48 +2,76 @@
 
      ./cli.exe --resources time-lower-bound examples/delay.mlt *)
 
+(* Unary natural numbers, here only something to match on. *)
 type nat =
   | Zero
   | Succ of nat
 
+(* Correctly accepted by the typechecker: a plain match, of grade 0 --- nothing
+   in it takes time. *)
 let foo_int =
   function
   | Zero -> 0
   | Succ m -> 1
 
+(* Correctly accepted by the typechecker: both branches delay three ticks, so
+   the function has grade 3. *)
 let foo_int_temporal =
   function
   | Zero -> delay 3; 0
   | Succ m -> delay 3; 1
 
+(* Correctly accepted by the typechecker: grade 14, the nine ticks of the
+   delay, the two spent building the argument and the three of
+   'foo_int_temporal'. *)
 let del n = 
   delay 9; 
   foo_int_temporal (delay 2; Succ n)
 
+(* Correctly accepted by the typechecker: returning the closure costs nothing
+   and its five ticks are paid on application, so the grade sits on the inner
+   arrow: int -> int -> int # 5. *)
 let higher n = fun m -> delay 5; n + m
 
+(* Correctly accepted by the typechecker: ten ticks are paid before the closure
+   is returned and five more when it is applied: int -> int -> int # 5 # 10. *)
 let higher2 n = 
   delay 10; 
   fun m -> delay 5; n + m
 
+(* Correctly accepted by the typechecker: the grades of the two function
+   arguments stay polymorphic, giving grade rho0 + rho1 + 42. *)
 let foo f1 f2 n = f1 n; f2 n; delay 42
 
+(* A delaying function of grade 24, to instantiate 'foo' with. *)
 let bar1 n = delay 24
 
+(* And one of grade 23. *)
 let bar2 n = delay 23
 
+(* Correctly accepted by the typechecker: instantiating 'foo' with the two
+   gives grade 24 + 23 + 42 = 89. *)
 let foobar () = foo bar1 bar2 7
 
+(* Correctly accepted by the typechecker: grade 8, the five ticks of
+   'higher 5 6' inside the box plus the delay of three. The box type is not
+   eternal, but under this monoid zero is the top of the sub-grade order, so
+   returning it after the delay is still allowed. *)
 let test () = 
   let x = box 3 (higher 5 6) in 
   delay 3; 
   x
 
+(* Correctly accepted by the typechecker: the delay banks exactly the three
+   ticks the box demands. *)
 let test2 () = 
   box 3 (42) as r in 
   delay 3; 
   unbox r as y in y
 
+(* Correctly accepted by the typechecker: grade 15 = 2 + 10 + 3, the delay
+   before the box, the ten ticks spent inside it and the delay after, which
+   banks exactly the three the unbox demands. *)
 let test3 () = 
   delay 2; 
   box 3 (
@@ -56,6 +84,8 @@ let test3 () =
   let (n, a, h) = unbox r in 
   (n, h)
 
+(* The runs below evaluate the definitions above; the resource state printed
+   with each is the delays it accumulated. *)
 run foo_int Zero
 run foo_int_temporal Zero
 run del Zero

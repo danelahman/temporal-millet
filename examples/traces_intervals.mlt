@@ -1,6 +1,6 @@
-(* Run this example with the 'timed-traces-interval' grading monoid, e.g.
+(* Run this example with the 'traces-interval' grading monoid, e.g.
 
-     ./cli.exe --resources timed-traces-interval examples/timed_traces_interval.mlt *)
+     ./cli.exe --resources traces-interval examples/traces_intervals.mlt *)
 
 type model = Model of string
 type heated = Heated of model

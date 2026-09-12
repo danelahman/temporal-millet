@@ -1,6 +1,6 @@
-(* Run this example with the 'timed-traces-lower-bound' grading monoid, e.g.
+(* Run this example with the 'traces-lower-bound' grading monoid, e.g.
 
-     ./cli.exe --resources timed-traces-lower-bound examples/timed_traces_lower.mlt *)
+     ./cli.exe --resources traces-lower-bound examples/traces_lower.mlt *)
 
 type model = Model of string
 type heated = Heated of model

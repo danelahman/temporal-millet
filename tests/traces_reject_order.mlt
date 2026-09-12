@@ -1,4 +1,4 @@
-(* Correctly rejected by the typechecker, under the 'timed-traces-upper-bound'
+(* Correctly rejected by the typechecker, under the 'traces-upper-bound'
    grading monoid: the operation case performs the three steps of a print in the
    wrong order, and the order of the events is part of the bound. *)
 

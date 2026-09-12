@@ -2,15 +2,23 @@
 
      ./cli.exe --resources time-lower-bound examples/3dprint_handlers.mlt *)
 
+(* The stages a printed model goes through, from the model file to a
+   finished print. *)
 type model = Model of string
 type fresh = Fresh of model
 type cooled = Cooled of fresh
 type uvCured = UvCured of cooled
 type complete = Complete of uvCured
 
+(* Printing takes seven ticks, and the print it returns has to cool for five
+   before it may be touched. *)
 operation PrintResinModel : model ~> [5]fresh # 7
+(* Curing a cooled print takes five ticks. *)
 operation UvCure : cooled ~> uvCured # 5
 
+(* Correctly accepted by the typechecker: each clause delays exactly the grade
+   of the operation it handles and then continues, so each clause grade is that
+   of the operation composed with that of the continuation. *)
 let h = 
   handler
   | x -> x
@@ -21,6 +29,9 @@ let h =
       delay 5;
       continue k with (UvCured cooled)
 
+(* Correctly accepted by the typechecker: printing the hammer banks the seven
+   ticks the sword's '[5]' box demands, and curing the sword banks the five the
+   hammer's box demands. *)
 run
   handle
     let freshSword = perform PrintResinModel (Model "Sword") in

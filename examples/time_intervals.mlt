@@ -1,0 +1,93 @@
+(* Run this example with the 'time-interval' grading monoid, e.g.
+
+     ./cli.exe --resources time-interval examples/time_intervals.mlt *)
+
+(* Correctly accepted by the typechecker: the two delays accumulate (3, 3),
+   which lies inside the (1, 4) the box demands. *)
+let foo1 () = 
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  unbox r as y in
+  1
+
+(* Correctly accepted by the typechecker: as 'foo1', and the unboxed value may
+   be returned since the box has been opened. *)
+let foo2 () = 
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  unbox r as y in
+  y
+
+(* Correctly accepted by the typechecker: 'z' is bound after the delays, so no
+   grade has accumulated since it was bound. *)
+let foo3 () = 
+  let x = 7 in
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  let z = 3 in
+  unbox r as y in
+  y + z
+
+(* Correctly accepted by the typechecker: 'x' is used three ticks after it was
+   bound, which is fine because 'int' is an eternal type. *)
+let foo4 () = 
+  let x = 7 in
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  let z = 3 in
+  unbox r as y in
+  y + x
+
+(* Correctly accepted by the typechecker: boxing 'x' at (2, 5) requires it to be
+   usable in that future, which 'int' being eternal allows, and the delays'
+   (3, 3) lies inside both (1, 4) and (2, 5). *)
+let foo5 () = 
+  let x = 7 in
+  box (2,5) x as x' in
+  box (1,4) 1 as r in
+  let _ = delay 1 in
+  let _ = delay 2 in
+  let z = 3 in
+  unbox r as y in
+  unbox x' as x'' in
+  y + x + x''
+
+(* Correctly rejected by the typechecker: five ticks overshoot the upper end of
+   the (1, 4) interval the box demands:
+
+     Typing error: Comparing resource inequality (5,5) <= (1,4) failed
+*)
+(*
+let foo6 () = 
+  let r = box (1,4) 1 in
+  delay 5;
+  unbox r as y in
+  y + 1
+*)
+
+(* Correctly rejected by the typechecker: 'r'' is a boxed value, whose type is
+   not eternal, so it cannot be used after the three ticks that follow its
+   binding:
+
+     Typing error: Type [(1,4)]int is not eternal and resource inequality
+       (3,3) <= (0,0) failed
+*)
+(*
+let foo7 () =
+  let r = box (1,4) 1 in
+  delay 3;
+  let r' = r in
+  delay 3;
+  unbox r' as y in
+  y + 1
+*)
+
+run foo1 ()
+run foo2 ()
+run foo3 ()
+run foo4 ()
+run foo5 ()

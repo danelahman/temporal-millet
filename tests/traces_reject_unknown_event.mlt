@@ -1,4 +1,4 @@
-(* Correctly rejected by the typechecker, under the 'timed-traces-upper-bound'
+(* Correctly rejected by the typechecker, under the 'traces-upper-bound'
    grading monoid: the events of a grade must be operations that have already
    been declared, or the operation being declared. *)
 

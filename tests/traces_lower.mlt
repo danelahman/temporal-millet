@@ -1,15 +1,14 @@
-(* Run this example with the 'timed-traces-lower-bound' grading monoid, e.g.
+(* Run this example with the 'traces-lower-bound' grading monoid, e.g.
 
-     ./cli.exe --resources timed-traces-lower-bound examples/timed_traces_lower.mlt *)
+     ./cli.exe --resources traces-lower-bound examples/traces_lower.mlt *)
 
 type model = Model of string
 type heated = Heated of model
 type extruded = Extruded of heated
 type cooled = Cooled of extruded
 type fresh = Fresh of cooled | Reheated of heated
-(* Mixed epoxy does not keep: 'noneternal' makes the type non-eternal whatever
-   its structure says, so the glue has to be used in the very step in which it
-   is unboxed. *)
+(* Mixed epoxy does not keep: 'noneternal' annotation means the glue has to be
+   used in the very step in which it is unboxed. *)
 noneternal type epoxy = Epoxy
 
 (* Mounting uses the glue up, so a mounted print holds no epoxy and is

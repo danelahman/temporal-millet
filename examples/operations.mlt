@@ -2,9 +2,13 @@
 
      ./cli.exe --resources time-lower-bound examples/operations.mlt *)
 
+(* Reading the state takes 3 ticks. *)
 operation Get : unit ~> int # 3
+(* Writing it takes 7. *)
 operation Set : int ~> unit # 7
 
+(* Correctly accepted by the typechecker: grade 13, the three ticks of each of
+   the two 'Get's and the seven of the 'Set'. *)
 let foo () =
   perform Get (); 
   perform Set 42; 

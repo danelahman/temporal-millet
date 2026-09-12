@@ -2,23 +2,31 @@
 
      ./cli.exe --resources time-lower-bound examples/3dprint.mlt *)
 
+(* The stages a printed model goes through, from the model file to a
+   finished print. *)
 type model = Model of string
 type fresh = Fresh of model
 type cooled = Cooled of fresh
 type uvCured = UvCured of cooled
 type complete = Complete of uvCured
 
-(* Mock 3D printing operation with signature model -> [5]fresh # 7 *)
+(* Correctly accepted by the typechecker: a mock print, of type
+   model -> [5]fresh # 7 --- it takes seven ticks, and the print it hands back
+   has to cool for five before it may be touched. *)
 let printResinModel model = 
   delay 7;
   box 5 (Fresh model) as printingResult in 
   printingResult
 
-(* Mock UV curing operation with signature cooled -> uvCured # 5 *)
+(* Correctly accepted by the typechecker: a mock UV cure, of type
+   cooled -> uvCured # 5. *)
 let uvCure cooledObject = 
   delay 5;
   UvCured cooledObject
 
+(* Correctly accepted by the typechecker: printing the hammer banks the seven
+   ticks the sword's box demands, and curing the sword banks the five the
+   hammer's box demands, exactly. *)
 run
     let freshSword = printResinModel (Model "Sword") in
     let freshHammer = printResinModel (Model "Hammer") in
@@ -28,17 +36,19 @@ run
     let curedHammer = uvCure (Cooled cooledHammer) in
     (Complete curedSword, Complete curedHammer)
 
-(* Same code as above, but instead using the generic effect versions
-   of box and unbox *)
-
+(* Correctly accepted by the typechecker: the same print with the
+   generic-effect form of 'box', and with the same grade. *)
 let printResinModel' model = 
   delay 7;
   box 5 (Fresh model)
 
+(* Correctly accepted by the typechecker: 'uvCure' again, unchanged. *)
 let uvCure' cooledObject = 
   delay 5;
   UvCured cooledObject
 
+(* Correctly accepted by the typechecker: the run above with the
+   generic-effect form of 'unbox', banking the same ticks. *)
 run
     let freshSword = printResinModel' (Model "Sword") in
     let freshHammer = printResinModel' (Model "Hammer") in
@@ -48,9 +58,9 @@ run
     let curedHammer = uvCure' (Cooled cooledHammer) in
     (Complete curedSword, Complete curedHammer)
 
-(* Here it is safe to inline the unboxes into the respective uvCure'
-   function arguments *)
-
+(* Correctly accepted by the typechecker: the unboxes may be inlined into the
+   arguments of 'uvCure'', since they still happen after the seven and the five
+   ticks that bank them. *)
 run
     let freshSword = printResinModel' (Model "Sword") in
     let freshHammer = printResinModel' (Model "Hammer") in
@@ -58,16 +68,20 @@ run
     let curedHammer = uvCure' (Cooled (unbox freshHammer)) in
     (Complete curedSword, Complete curedHammer)
 
-(* And by inlining even further, we get the following code *)
-
+(* Correctly accepted by the typechecker: inlining the cures as well changes
+   nothing, since the tuple is still evaluated left to right. *)
 run
     let freshSword = printResinModel' (Model "Sword") in
     let freshHammer = printResinModel' (Model "Hammer") in
     (Complete (uvCure' (Cooled (unbox freshSword))), 
      Complete (uvCure' (Cooled (unbox freshHammer))))
 
-(* But inlining further is not type safe any more *)
+(* Correctly rejected by the typechecker: inlining the prints too unboxes each
+   print the moment it is made, with nothing banked towards the five ticks it
+   has to cool:
 
+     Typing error: Comparing resource inequality 0 >= 5 failed
+*)
 (*
 run
     (Complete (uvCure' (Cooled (unbox (printResinModel' (Model "Sword"))))), 

@@ -1,4 +1,4 @@
-(* Correctly accepted by the typechecker, under the 'timed-traces-interval'
+(* Correctly accepted by the typechecker, under the 'traces-interval'
    grading monoid: the two components of the grade are checked against their own
    end of the runtime bounds. The lower bound promises a single transmission,
    whose fastest run takes two ticks, and the upper bound permits a retry,

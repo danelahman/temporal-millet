@@ -2,11 +2,18 @@
 
      ./cli.exe --resources time-lower-bound examples/fold_over_boxes.mlt *)
 
+(* Correctly accepted by the typechecker: building the list takes no time, so
+   the function has grade 0, and each element is boxed with a demand of three
+   ticks. *)
 let rec box_n_values n boxed =
   if n = 0 
   then boxed 
   else box_n_values (n - 1) ((box 3 n*n) :: boxed)
 
+(* Correctly accepted by the typechecker: each step of the fold wraps the
+   accumulator in a box of ten ticks, and inside that box the grade has already
+   grown by ten, which covers both the accumulator's ten and the element's
+   three; the closing delay then banks the ten the outermost box demands. *)
 run
   let boxed_vals = box_n_values 5 [] in
   let boxed_fun = 

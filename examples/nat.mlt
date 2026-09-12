@@ -2,28 +2,35 @@
 
      ./cli.exe --resources time-lower-bound examples/nat.mlt *)
 
+(* Unary natural numbers. *)
 type nat =
   | Zero
   | Succ of nat
 
+(* Correctly accepted by the typechecker: structural recursion on 'm', of
+   grade 0 --- nothing in this file takes time. *)
 let rec add m n =
   match m with
   | Zero -> n
   | Succ m' -> Succ (add m' n)
 
+(* Multiplication as repeated addition. *)
 let rec multiply m n =
   match m with
   | Zero -> Zero
   | Succ m' -> add n (multiply m' n)
 
+(* Conversion to a built-in integer. *)
 let rec to_int =
   function
   | Zero -> 0
   | Succ m -> to_int m + 1
 
+(* And back, by recursion on the integer. *)
 let rec from_int n =
   if n = 0 then Zero else Succ (from_int (n - 1))
 
+(* The run computes 6 * 7 in unary and prints it as an integer. *)
 run
   let six = from_int 6 in
   let seven = Succ six in

@@ -4,19 +4,50 @@
   >   echo $f
   >   echo "======================================================================"
   >   case $f in
-  >     interval.mlt) ../cli.exe --resources time-interval $f;;
-  >     upper-bound.mlt) ../cli.exe --resources time-upper-bound $f;;
+  >     time_intervals.mlt) ../cli.exe --resources time-interval $f;;
+  >     time_upper.mlt) ../cli.exe --resources time-upper-bound $f;;
   >     noneternal_lower.mlt) ../cli.exe $f;;
   >     noneternal*.mlt) ../cli.exe --resources time-upper-bound $f;;
-  >     timed_traces_lower.mlt) ../cli.exe --resources timed-traces-lower-bound $f;;
-  >     timed_traces_interval.mlt) ../cli.exe --resources timed-traces-interval $f;;
-  >     timed_traces_interval_bounds.mlt) ../cli.exe --resources timed-traces-interval $f;;
-  >     timed_traces_interval_default_bounds.mlt) ../cli.exe --resources timed-traces-interval $f;;
-  >     timed_traces_*.mlt) ../cli.exe --resources timed-traces-upper-bound $f;;
+  >     traces_lower.mlt) ../cli.exe --resources traces-lower-bound $f;;
+  >     3dprint_traces.mlt) ../cli.exe --resources traces-interval $f;;
+  >     traces_intervals.mlt) ../cli.exe --resources traces-interval $f;;
+  >     traces_intervals_bounds.mlt) ../cli.exe --resources traces-interval $f;;
+  >     traces_intervals_default_bounds.mlt) ../cli.exe --resources traces-interval $f;;
+  >     traces_*.mlt) ../cli.exe --resources traces-upper-bound $f;;
   >     *) ../cli.exe $f;;
   >   esac
   >   :  # this command is here to suppress potential non-zero exit codes in the output
   > done
+  ======================================================================
+  3dprint_traces.mlt
+  ======================================================================
+  === Run 1 ===
+  return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
+  State: [
+    { resource_0 ↦ Epoxy # ({8},{11}),
+      resource_2 ↦
+        fun op_var ↦
+          handle
+            let printed = return op_var in
+            delay 2 (return ());
+            unbox printed as p in
+            unbox resource_0 as g in
+            perform Mount (p, g) (op_var. return op_var)
+          with printer
+        # ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
+    },
+    ({1},{1}),
+    ({3},{3}),
+    { resource_3 ↦ Extruded (Heated (Model "Sword")) # ({2},{2}) },
+    ({2},{2}),
+    { resource_4 ↦
+        Fresh (Cooled (Extruded (Heated (Model "Sword"))))
+        # ({2},{8})
+    },
+    ({2},{2}),
+    ({1},{1})
+  ]
+  
   ======================================================================
   default_ops.mlt
   ======================================================================
@@ -68,49 +99,6 @@
   ======================================================================
   Syntax error (file "duplicate_variant_tydef_sum.mlt", line 3, char 1):
   Label Horn defined multiple times.
-  ======================================================================
-  interval.mlt
-  ======================================================================
-  === Run 1 ===
-  return 1
-  State: [
-    { resource_0 ↦ 1 # (1,4) },
-    (1,1),
-    (2,2)
-  ]
-  
-  === Run 2 ===
-  return 1
-  State: [
-    { resource_0 ↦ 1 # (1,4) },
-    (1,1),
-    (2,2)
-  ]
-  
-  === Run 3 ===
-  return 4
-  State: [
-    { resource_0 ↦ 1 # (1,4) },
-    (1,1),
-    (2,2)
-  ]
-  
-  === Run 4 ===
-  return 8
-  State: [
-    { resource_0 ↦ 1 # (1,4) },
-    (1,1),
-    (2,2)
-  ]
-  
-  === Run 5 ===
-  return 15
-  State: [
-    { resource_0 ↦ 7 # (2,5), resource_1 ↦ 1 # (1,4) },
-    (1,1),
-    (2,2)
-  ]
-  
   ======================================================================
   invalid_match_type.mlt
   ======================================================================
@@ -998,11 +986,72 @@
   ]
   
   ======================================================================
+  time_intervals.mlt
+  ======================================================================
+  === Run 1 ===
+  return 1
+  State: [
+    { resource_0 ↦ 1 # (1,4) },
+    (1,1),
+    (2,2)
+  ]
+  
+  === Run 2 ===
+  return 1
+  State: [
+    { resource_0 ↦ 1 # (1,4) },
+    (1,1),
+    (2,2)
+  ]
+  
+  === Run 3 ===
+  return 4
+  State: [
+    { resource_0 ↦ 1 # (1,4) },
+    (1,1),
+    (2,2)
+  ]
+  
+  === Run 4 ===
+  return 8
+  State: [
+    { resource_0 ↦ 1 # (1,4) },
+    (1,1),
+    (2,2)
+  ]
+  
+  === Run 5 ===
+  return 15
+  State: [
+    { resource_0 ↦ 7 # (2,5), resource_1 ↦ 1 # (1,4) },
+    (1,1),
+    (2,2)
+  ]
+  
+  ======================================================================
   time_reject_within.mlt
   ======================================================================
   Typing error: runtime bounds are only used by the timed-trace grading monoids; under 'time-lower-bound' the operation grade already carries them
   ======================================================================
-  timed_traces_default.mlt
+  time_upper.mlt
+  ======================================================================
+  === Run 1 ===
+  return 1
+  State: [
+    { resource_0 ↦ 1 # 3 },
+    1,
+    2
+  ]
+  
+  === Run 2 ===
+  return 1
+  State: [
+    { resource_0 ↦ 1 # 3 },
+    2
+  ]
+  
+  ======================================================================
+  traces_default.mlt
   ======================================================================
   === Run 1 ===
   return (Fresh (Model "Sword"))
@@ -1019,7 +1068,7 @@
   ]
   
   ======================================================================
-  timed_traces_interval.mlt
+  traces_intervals.mlt
   ======================================================================
   === Run 1 ===
   return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
@@ -1049,18 +1098,18 @@
   ]
   
   ======================================================================
-  timed_traces_interval_bounds.mlt
+  traces_intervals_bounds.mlt
   ======================================================================
   === Run 1 ===
   return 1
   State: []
   
   ======================================================================
-  timed_traces_interval_default_bounds.mlt
+  traces_intervals_default_bounds.mlt
   ======================================================================
   Typing error: Comparing resource inequality ({1},{1}) <= ({3},{5}) failed
   ======================================================================
-  timed_traces_lower.mlt
+  traces_lower.mlt
   ======================================================================
   === Run 1 ===
   return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
@@ -1087,7 +1136,7 @@
   ]
   
   ======================================================================
-  timed_traces_normalise.mlt
+  traces_normalise.mlt
   ======================================================================
   === Run 1 ===
   return 7
@@ -1096,47 +1145,47 @@
   ]
   
   ======================================================================
-  timed_traces_reject_allowance.mlt
+  traces_reject_allowance.mlt
   ======================================================================
   Typing error: Comparing resource inequality {Heat} <= {1} failed
   ======================================================================
-  timed_traces_reject_bounds.mlt
+  traces_reject_bounds.mlt
   ======================================================================
   Typing error: the runtime bounds of operation Heat must satisfy lo <= hi
   ======================================================================
-  timed_traces_reject_bounds_hi.mlt
+  traces_reject_bounds_hi.mlt
   ======================================================================
   Typing error: the runtime bounds of operation Send, within (2, 5), are inconsistent with its grade {Tx | Tx; Tx}, whose runs take between 2 and 6 time units
   ======================================================================
-  timed_traces_reject_bounds_lo.mlt
+  traces_reject_bounds_lo.mlt
   ======================================================================
   Typing error: the runtime bounds of operation Send, within (3, 6), are inconsistent with its grade {Tx | Tx; Tx}, whose runs take between 2 and 6 time units
   ======================================================================
-  timed_traces_reject_default_bounds.mlt
+  traces_reject_default_bounds.mlt
   ======================================================================
   Typing error: Comparing resource inequality {6} <= {5} failed
   ======================================================================
-  timed_traces_reject_default_nonatomic.mlt
+  traces_reject_default_nonatomic.mlt
   ======================================================================
   Typing error: a default implementation may only be given for an atomic operation, but the grade of PrintModel is {Heat; Extrude; Cool}; handle it with a handler in terms of the operations it names
   ======================================================================
-  timed_traces_reject_missing_within.mlt
+  traces_reject_missing_within.mlt
   ======================================================================
-  Typing error: operation Heat needs runtime bounds `within (lo, hi)` under the 'timed-traces-upper-bound' grading monoid
+  Typing error: operation Heat needs runtime bounds `within (lo, hi)` under the 'traces-upper-bound' grading monoid
   ======================================================================
-  timed_traces_reject_order.mlt
+  traces_reject_order.mlt
   ======================================================================
   Typing error: Comparing resource inequality {Cool; Extrude; Heat} <= {Heat; Extrude; Cool} failed
   ======================================================================
-  timed_traces_reject_self_retry.mlt
+  traces_reject_self_retry.mlt
   ======================================================================
   Typing error: the runtime bounds of operation Send, within (4, 6), are inconsistent with its grade {Send | Send; Send}, whose runs take between 4 and 12 time units
   ======================================================================
-  timed_traces_reject_unknown_event.mlt
+  traces_reject_unknown_event.mlt
   ======================================================================
   Typing error: unknown event 'Extrude' in the grade of operation PrintModel
   ======================================================================
-  timed_traces_upper.mlt
+  traces_upper.mlt
   ======================================================================
   === Run 1 ===
   return (Receipt "telemetry")
@@ -1185,24 +1234,6 @@
   === Run 2 ===
   return h
   State: []
-  
-  ======================================================================
-  upper-bound.mlt
-  ======================================================================
-  === Run 1 ===
-  return 1
-  State: [
-    { resource_0 ↦ 1 # 3 },
-    1,
-    2
-  ]
-  
-  === Run 2 ===
-  return 1
-  State: [
-    { resource_0 ↦ 1 # 3 },
-    2
-  ]
   
   ======================================================================
   use_undefined_type.mlt

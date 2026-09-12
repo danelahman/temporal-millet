@@ -1,4 +1,4 @@
-(* Correctly rejected by the typechecker, under the 'timed-traces-upper-bound'
+(* Correctly rejected by the typechecker, under the 'traces-upper-bound'
    grading monoid: the lower runtime bound of an operation may not overclaim its
    fastest run, and a single transmission takes as little as two ticks. *)
 

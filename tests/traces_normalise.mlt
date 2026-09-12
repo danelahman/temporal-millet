@@ -1,4 +1,4 @@
-(* Correctly accepted by the typechecker, under the 'timed-traces-upper-bound'
+(* Correctly accepted by the typechecker, under the 'traces-upper-bound'
    grading monoid. Trace literals are normalised: zero delays are dropped and
    adjacent delays are merged, and the alternatives of a set are sorted and
    deduplicated. The state printed below therefore shows the grade of the

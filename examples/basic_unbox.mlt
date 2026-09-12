@@ -2,6 +2,12 @@
 
      ./cli.exe --resources time-lower-bound examples/basic_unbox.mlt *)
 
+(* Correctly rejected by the typechecker: unboxing demands the five ticks the
+   box was given, and only four are delayed. The run is left uncommented, so
+   that running the file shows the error:
+
+     Typing error: Comparing resource inequality 4 >= 5 failed
+*)
 run
     let x = (10, 10) in
     box 5 x as boxed in
@@ -9,9 +15,9 @@ run
     unbox boxed as (l, r) in
     l + r
 
-(* Same code as above, but instead using the generic effect versions
-   of box and unbox *)
-
+(* Correctly rejected for the same reason, with the generic-effect forms of
+   'box' and 'unbox'; the file already stops at the run above, so this error is
+   never reached. *)
 run
     let x = (10, 10) in
     let boxed = box 5 x in

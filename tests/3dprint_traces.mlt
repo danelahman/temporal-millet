@@ -1,0 +1,77 @@
+(* Run this example with the 'traces-interval' grading monoid, e.g.
+
+     ./cli.exe --resources traces-interval examples/3dprint_traces.mlt *)
+
+type model = Model of string
+type heated = Heated of model
+type extruded = Extruded of heated
+type cooled = Cooled of extruded
+type fresh = Fresh of cooled
+
+(* Mixed epoxy does not keep: the 'noneternal' annotation means the glue has to
+   be used in the very step in which it is unboxed. *)
+noneternal type epoxy = Epoxy
+
+(* Mounting uses the glue up, so a mounted print holds no epoxy and is
+   structurally eternal again. *)
+type mounted = Mounted of fresh
+
+(* The heater warms a model up, so that it can be extruded. *)
+operation Heat : model ~> heated # ({Heat}, {Heat}) within (1, 2)
+default Heat m = delay 1; Heated m
+
+(* A freshly extruded model is still hot: it may be handed to the cooler, but
+   not touched otherwise until it has rested for two ticks. *)
+operation Extrude : heated ~> [2] extruded
+  # ({Extrude}, {Extrude})
+  within (3, 5)
+default Extrude h = delay 3; box 2 (Extruded h)
+
+(* The cooler takes the hot extruded model, once it has rested, and cools it
+   down to something that can be handled. *)
+operation Cool : [2] extruded ~> cooled # ({Cool}, {Cool}) within (2, 2)
+default Cool p = delay 2; unbox p as e in Cooled e
+
+(* Mounting glues a finished print onto its base; the glue is used up. *)
+operation Mount : fresh * epoxy ~> mounted # ({Mount}, {Mount}) within (1, 1)
+default Mount (p, g) = delay 1; Mounted p
+
+(* A print is the three steps, in that order, on both sides of the pair. The
+   finished print has to set for two ticks and be collected within eight. *)
+operation PrintModel : model ~> [(2, 8)] fresh
+  # ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
+  within (6, 9)
+
+(* Correctly accepted by the typechecker: the clause performs exactly the three
+   steps 'PrintModel' promises, in the promised order, which covers the lower
+   bound and fits inside the upper bound. *)
+let printer =
+  handler
+  | x -> x
+  | PrintModel m k ->
+      let h = perform Heat m in
+      let p = perform Extrude h in
+      let c = perform Cool p in
+      continue k with (box (2, 8) (Fresh c))
+
+(* Correctly accepted by the typechecker: the closing wait collects the print,
+   banking the two ticks its '[(2, 8)]' box demands, well inside the eight it
+   allows. The epoxy needs eight ticks to set, which the print and that rest
+   bank exactly, because 1 + 3 + 2 + 2 = 8, so the glue cannot be reached
+   before the mounting stage; and its pot life of eleven ticks covers the
+   slowest run, because 2 + 5 + 2 + 2 = 11. *)
+let print_sword () =
+  handle
+    box (8, 11) Epoxy as glue in
+    let printed = perform PrintModel (Model "Sword") in
+    delay 2;
+    unbox printed as p in
+    unbox glue as g in
+    perform Mount (p, g)
+  with printer
+
+(* The run handles 'PrintModel' with 'printer', which replaces it by the three
+   steps of a print. Those are atomic, and so is the closing 'Mount', which no
+   handler catches; the defaults given for them above say what they mean, so the
+   run completes and returns the printed sword mounted on its base. *)
+run print_sword ()

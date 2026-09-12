@@ -2,9 +2,14 @@
 
      ./cli.exe --resources time-lower-bound examples/handlers.mlt *)
 
+(* Reading the state takes 71 ticks. *)
 operation Get : unit ~> int # 71
+(* Writing it takes 2. *)
 operation Set : int ~> unit # 2
 
+(* Correctly accepted by the typechecker: the 'Get' clause delays exactly the
+   71 ticks of the operation and the 'Set' clause forwards it at its own cost
+   of 2; the return case performs both itself, so the handler has grade 73. *)
 let h =
   handler
   | x -> 
@@ -18,6 +23,9 @@ let h =
       perform Set x;
       continue k with ()
 
+(* Correctly accepted by the typechecker: a handler whose return case takes no
+   time, so its grade is 0; the 'Get' clause again delays the 71 ticks of the
+   operation. *)
 let h' =
   handler
   | x -> x * x
@@ -25,6 +33,9 @@ let h' =
       delay 71;
       continue k with 42
 
+(* Correctly accepted by the typechecker: the 'Get' clause performs 'Get'
+   itself instead of delaying, which costs exactly the grade of the operation
+   it handles. *)
 let h'' =
   handler
   | x -> x * x
@@ -32,6 +43,9 @@ let h'' =
       perform Get ();
       continue k with 42
 
+(* The run handles a 'Get' with 'h', whose return case then performs a 'Set';
+   the 'Set' clause forwards it and nothing outside catches it, so the run
+   stops at that unhandled operation. *)
 run
   handle 
     let x = perform Get () in

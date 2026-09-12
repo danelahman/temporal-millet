@@ -2,18 +2,28 @@
 
      ./cli.exe --resources time-lower-bound examples/toplevel.mlt *)
 
+(* A polymorphic sum type, with both parameters used. *)
 type ('l, 'r) either = Left of 'l | Right of 'r
 
+(* A top-level value rather than a function. *)
 let n = 5
 
+(* Correctly accepted by the typechecker: exchanging the two sides takes no
+   time, and the definition is generalised in both type variables. *)
 let swap = function
   | Left l  -> Right l
   | Right r -> Left r
 
+(* Correctly accepted by the typechecker: a recursive left fold. The empty case
+   takes no time while the recursive case pays for one call of 'f', and the two
+   grades can only agree if 'f' is pure, so applying 'foldl' to a delaying
+   function is rejected. *)
 let rec foldl f acc = function
   | []      -> acc
   | y :: ys -> foldl f (f acc y) ys
 
+(* The run folds over a list of 'either's and reverses the result with the
+   standard library's 'reverse'. *)
 run
   let lst = (Left 5) :: (Right "test") :: [] in
   let swapped_lst = foldl (fun acc e -> swap e :: acc) [] lst in
