@@ -153,6 +153,58 @@
       display: block;
     }
 
+    html {
+      scroll-behavior: smooth;
+    }
+
+    .editor-error {
+      margin-top: 1rem;
+    }
+
+    /* Under the run button, in the sticky panel: where the error is. */
+    .error-pointer {
+      display: block;
+      margin-top: 0.6rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #f14668;
+    }
+
+    .error-pointer:hover {
+      color: #cc0f35;
+      text-decoration: underline;
+    }
+
+    /* The line a syntax error points at: a soft band with a red edge. */
+    pre.syn-ml .error-line {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+      min-height: 1.5em;
+      background: #feecf0;
+      /* extend the band into the editor's left padding, without moving text */
+      box-shadow: -0.6em 0 0 #feecf0;
+      border-radius: 2px;
+    }
+
+    pre.syn-ml .error-line::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -0.6em;
+      width: 3px;
+      background: #f14668;
+      border-radius: 2px;
+    }
+
+    .editor-error .message-body {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+    }
+
     .code-editor-input::placeholder {
       color: #9aa0a6;
       opacity: 1;
