@@ -6,9 +6,9 @@ type model = Model of string
 type heated = Heated of model
 type extruded = Extruded of heated
 type cooled = Cooled of extruded
-type fresh = Fresh of cooled
+type print = Printed of cooled
 noneternal type epoxy = Epoxy
-type mounted = Mounted of fresh
+type mounted = Mounted of print
 
 (* The heater warms a model up, so that it can be extruded. *)
 operation Heat : model ~> heated # ({Heat}, {Heat}) within (1, 2)
@@ -27,7 +27,7 @@ operation Cool : [2] extruded ~> cooled # ({Cool}, {Cool}) within (2, 2)
 default Cool p = delay 2; unbox p as e in Cooled e
 
 (* Mounting glues a finished print onto its base; the glue is used up. *)
-operation Mount : fresh * epoxy ~> mounted # ({Mount}, {Mount}) within (1, 1)
+operation Mount : print * epoxy ~> mounted # ({Mount}, {Mount}) within (1, 1)
 default Mount (p, g) = delay 1; Mounted p
 
 (* Mixing two-part epoxy takes a tick; the mix then needs eight ticks to set,
@@ -39,7 +39,7 @@ default MixEpoxy () = delay 1; box (8, 11) Epoxy
 
 (* A print is the three steps, in that order, on both sides of the pair. The
    finished print has to set for two ticks and be collected within eight. *)
-operation PrintModel : model ~> [(2, 8)] fresh
+operation PrintModel : model ~> [(2, 8)] print
   # ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
   within (6, 9)
 
@@ -53,7 +53,7 @@ let printer =
       let h = perform Heat m in
       let p = perform Extrude h in
       let c = perform Cool p in
-      continue k with (box (2, 8) (Fresh c))
+      continue k with (box (2, 8) (Printed c))
 
 (* Correctly accepted by the typechecker: the rest banks the two ticks the
    print's '[(2, 8)]' box demands, and the print plus the rest bank exactly

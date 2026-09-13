@@ -210,7 +210,7 @@ Operations without a case are forwarded to the enclosing handler.
 
 An operation case need not have exactly the grade of the operation: it
 suffices that its grade is a sub-grade of the operation's grade composed with
-that of the continuation. So `PrintModel : model ~> fresh # {Heat; Extrude;
+that of the continuation. So `PrintModel : model ~> print # {Heat; Extrude;
 Cool} within (6, 9)` may be handled by performing `Heat`, `Extrude` and `Cool`
 in that order and continuing, while another order is rejected:
 

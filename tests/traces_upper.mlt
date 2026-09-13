@@ -6,14 +6,14 @@ type model = Model of string
 type heated = Heated of model
 type extruded = Extruded of heated
 type cooled = Cooled of extruded
-type fresh = Fresh of cooled | Reheated of heated
+type print = Printed of cooled | Reheated of heated
 (* Mixed epoxy does not keep: 'noneternal' annotation means the glue has to be
    used in the very step in which it is unboxed. *)
 noneternal type epoxy = Epoxy
 
 (* Mounting uses the glue up, so a mounted print holds no epoxy and is
    structurally eternal again. *)
-type mounted = Mounted of fresh
+type mounted = Mounted of print
 type receipt = Receipt of string
 
 (* The heater warms a model up, so that it can be extruded. *)
@@ -31,7 +31,7 @@ operation Cool : [2] extruded ~> cooled # {Cool} within (2, 2)
 default Cool p = delay 2; unbox p as e in Cooled e
 
 (* Mounting glues a finished print onto its base; the glue is used up. *)
-operation Mount : fresh * epoxy ~> mounted # {Mount} within (1, 1)
+operation Mount : print * epoxy ~> mounted # {Mount} within (1, 1)
 default Mount (p, g) = delay 1; Mounted p
 
 (* Mixing two-part epoxy takes a tick; the mix has hardened after eleven. *)
@@ -40,10 +40,10 @@ default MixEpoxy () = delay 1; box 11 Epoxy
 
 (* A print is the three steps, in that order, and the finished print must be
    collected within eight ticks. *)
-operation PrintModel : model ~> [8] fresh # {Heat; Extrude; Cool} within (6, 9)
+operation PrintModel : model ~> [8] print # {Heat; Extrude; Cool} within (6, 9)
 
-(* A print job either extrudes a fresh model or is a quick reheat. *)
-operation Print : model ~> [8] fresh
+(* A print job either prints the model in full or is a quick reheat. *)
+operation Print : model ~> [8] print
   # {Heat; Extrude; Cool | Heat; Cool}
   within (3, 9)
 
@@ -63,7 +63,7 @@ let printer =
       let h = perform Heat m in
       let p = perform Extrude h in
       let c = perform Cool p in
-      continue k with (box 8 (Fresh c))
+      continue k with (box 8 (Printed c))
 
 (* Correctly accepted by the typechecker by sub-effecting: a clause may also
    forward the operation it handles, since '{Heat}' fits inside '{Heat}'
@@ -96,7 +96,7 @@ let print_cog () =
   let c = perform Cool p in
   delay 2;
   unbox glue as g in
-  perform Mount (Fresh c, g)
+  perform Mount (Printed c, g)
 
 (* Correctly accepted by the typechecker: the clause realises the first of the
    two alternatives 'Print' allows. *)
@@ -107,7 +107,7 @@ let full_printer =
       let h = perform Heat m in
       let p = perform Extrude h in
       let c = perform Cool p in
-      continue k with (box 8 (Fresh c))
+      continue k with (box 8 (Printed c))
 
 (* Correctly accepted by the typechecker: the clause realises the other
    alternative, a reheat that skips the extrusion --- the model was extruded in

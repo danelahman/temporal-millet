@@ -22,7 +22,7 @@
   3dprint_traces.mlt
   ======================================================================
   === Run 1 ===
-  return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
+  return (Mounted (Printed (Cooled (Extruded (Heated (Model "Sword"))))))
   State: [
     ({1},{1}),
     { resource_0 ↦ Epoxy # ({8},{11}),
@@ -42,7 +42,7 @@
     { resource_3 ↦ Extruded (Heated (Model "Sword")) # ({2},{2}) },
     ({2},{2}),
     { resource_4 ↦
-        Fresh (Cooled (Extruded (Heated (Model "Sword"))))
+        Printed (Cooled (Extruded (Heated (Model "Sword"))))
         # ({2},{8})
     },
     ({2},{2}),
@@ -1072,7 +1072,7 @@
   traces_intervals.mlt
   ======================================================================
   === Run 1 ===
-  return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
+  return (Mounted (Printed (Cooled (Extruded (Heated (Model "Sword"))))))
   State: [
     ({1},{1}),
     { resource_0 ↦ Epoxy # ({8},{11}),
@@ -1092,7 +1092,7 @@
     { resource_3 ↦ Extruded (Heated (Model "Sword")) # ({2},{2}) },
     ({2},{2}),
     { resource_4 ↦
-        Fresh (Cooled (Extruded (Heated (Model "Sword"))))
+        Printed (Cooled (Extruded (Heated (Model "Sword"))))
         # ({2},{8})
     },
     ({2},{2}),
@@ -1114,7 +1114,7 @@
   traces_lower.mlt
   ======================================================================
   === Run 1 ===
-  return (Mounted (Fresh (Cooled (Extruded (Heated (Model "Sword"))))))
+  return (Mounted (Printed (Cooled (Extruded (Heated (Model "Sword"))))))
   State: [
     {1},
     { resource_0 ↦ Epoxy # {8},
@@ -1133,7 +1133,7 @@
     {3},
     { resource_3 ↦ Extruded (Heated (Model "Sword")) # {2} },
     {2},
-    { resource_4 ↦ Fresh (Cooled (Extruded (Heated (Model "Sword")))) # {2} },
+    { resource_4 ↦ Printed (Cooled (Extruded (Heated (Model "Sword")))) # {2} },
     {2},
     {1}
   ]

@@ -6,14 +6,14 @@ type model = Model of string
 type heated = Heated of model
 type extruded = Extruded of heated
 type cooled = Cooled of extruded
-type fresh = Fresh of cooled | Reheated of heated
+type print = Printed of cooled | Reheated of heated
 (* Mixed epoxy does not keep: 'noneternal' annotation means the glue has to be
    used in the very step in which it is unboxed. *)
 noneternal type epoxy = Epoxy
 
 (* Mounting uses the glue up, so a mounted print holds no epoxy and is
    structurally eternal again. *)
-type mounted = Mounted of fresh
+type mounted = Mounted of print
 type receipt = Receipt of string
 
 (* The heater warms a model up, so that it can be extruded. *)
@@ -33,7 +33,7 @@ operation Cool : [2] extruded ~> cooled # ({Cool}, {Cool}) within (2, 2)
 default Cool p = delay 2; unbox p as e in Cooled e
 
 (* Mounting glues a finished print onto its base; the glue is used up. *)
-operation Mount : fresh * epoxy ~> mounted # ({Mount}, {Mount}) within (1, 1)
+operation Mount : print * epoxy ~> mounted # ({Mount}, {Mount}) within (1, 1)
 default Mount (p, g) = delay 1; Mounted p
 
 (* Mixing two-part epoxy takes a tick; the mix then needs eight ticks to set,
@@ -51,19 +51,19 @@ default MixQuickEpoxy () = delay 1; box (3, 7) Epoxy
 
 (* A print is the three steps, in that order, on both sides of the pair. The
    finished print has to set for two ticks and be collected within eight. *)
-operation PrintModel : model ~> [(2, 8)] fresh
+operation PrintModel : model ~> [(2, 8)] print
   # ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
   within (6, 9)
 
-(* A print job either extrudes a fresh model or is a quick reheat, again on both
-   sides of the pair. *)
-operation Print : model ~> [(2, 8)] fresh
+(* A print job either prints the model in full or is a quick reheat, again on
+   both sides of the pair. *)
+operation Print : model ~> [(2, 8)] print
   # ({Heat; Extrude; Cool | Heat; Cool}, {Heat; Extrude; Cool | Heat; Cool})
   within (3, 9)
 
 (* An asymmetric job: the lower bound guarantees at least a reheat, while the
    upper bound allows a full print. *)
-operation Print2 : model ~> [(2, 8)] fresh
+operation Print2 : model ~> [(2, 8)] print
   # ({Heat; Cool}, {Heat; Extrude; Cool | Heat; Cool})
   within (3, 9)
 
@@ -84,7 +84,7 @@ let printer =
       let h = perform Heat m in
       let p = perform Extrude h in
       let c = perform Cool p in
-      continue k with (box (2, 8) (Fresh c))
+      continue k with (box (2, 8) (Printed c))
 
 (* Correctly accepted by the typechecker: the rest banks the two ticks the
    print's '[(2, 8)]' box demands, and the print plus the rest bank exactly
@@ -111,7 +111,7 @@ let print_cog () =
   let c = perform Cool p in
   delay 2;
   unbox glue as g in
-  perform Mount (Fresh c, g)
+  perform Mount (Printed c, g)
 
 (* Correctly accepted by the typechecker: the clause realises the first of the
    two runs 'Print' allows, covering it on the lower bound and fitting inside
@@ -123,7 +123,7 @@ let full_printer =
       let h = perform Heat m in
       let p = perform Extrude h in
       let c = perform Cool p in
-      continue k with (box (2, 8) (Fresh c))
+      continue k with (box (2, 8) (Printed c))
 
 (* Correctly accepted by the typechecker: the clause realises the other run, a
    reheat that skips the extrusion --- the model was extruded in an earlier
@@ -157,7 +157,7 @@ let deluxe_printer =
       let h = perform Heat m in
       let p = perform Extrude h in
       let c = perform Cool p in
-      continue k with (box (2, 8) (Fresh c))
+      continue k with (box (2, 8) (Printed c))
 
 (* Correctly accepted by the typechecker: transmitting once covers the first
    trace of the lower bound and fits inside the first trace of the upper
@@ -348,7 +348,7 @@ let make_cog_impatient () =
   let p = perform Extrude h in
   unbox glue as g in
   let c = perform Cool p in
-  perform Mount (Fresh c, g)
+  perform Mount (Printed c, g)
 *)
 
 (* Correctly rejected by the typechecker: the quick epoxy is mixed only after
@@ -364,7 +364,7 @@ let make_cog_lazy () =
   let glue = perform MixQuickEpoxy () in
   unbox glue as g in
   let c = perform Cool p in
-  perform Mount (Fresh c, g)
+  perform Mount (Printed c, g)
 *)
 
 (* Correctly rejected by the typechecker: the upper bound of 'Send' allows at

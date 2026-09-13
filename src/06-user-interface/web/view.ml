@@ -250,7 +250,7 @@ let view_steps (run_model : Model.run_model) steps =
         elt "button"
           ~a:
             [
-              class_ "button is-outlined is-fullwidth is-small is-danger";
+              class_ "button is-outlined is-fullwidth is-danger";
               onclick (fun _ -> Model.EditCode);
               attr "title"
                 "Re-editing source code will abort current evaluation";
@@ -263,7 +263,7 @@ let view_steps (run_model : Model.run_model) steps =
         elt "button"
           ~a:
             [
-              class_ "button is-outlined is-fullwidth is-small";
+              class_ "button is-outlined is-fullwidth";
               onclick (fun _ -> Model.RunMsg Model.Back);
               disabled (run_model.history = []);
             ]
@@ -290,10 +290,10 @@ let view_steps (run_model : Model.run_model) steps =
           ~a:[ class_ "field has-addons" ]
           [
             div
-              ~a:[ class_ "control is-expanded" ]
+              ~a:[ class_ "control" ]
               [
                 select
-                  ~a:[ class_ "select is-fullwidth is-info" ]
+                  ~a:[ class_ "select is-info" ]
                   "Step size"
                   (fun step_size ->
                     Model.RunMsg (Model.ChangeRandomStepSize step_size))
@@ -302,24 +302,22 @@ let view_steps (run_model : Model.run_model) steps =
                   [ 1; 2; 4; 8; 16; 32; 64; 128; 256; 512; 1024 ];
               ];
             div
-              ~a:[ class_ "control" ]
+              ~a:[ class_ "control is-expanded" ]
               [
                 elt "button"
                   ~a:
                     [
-                      class_ "button is-info";
+                      class_ "button is-info is-fullwidth";
                       onclick (fun _ -> Model.RunMsg Model.RandomStep);
                       disabled (steps = []);
                     ]
-                  [ text "random steps" ];
+                  [ text "next steps" ];
               ];
           ];
         (if steps = [] then
            elt "p"
-             ~a:[ class_ "help" ]
-             [
-               text "Computation has terminated, no further steps are possible.";
-             ]
+             ~a:[ class_ "terminated-note" ]
+             [ text "Computation has terminated" ]
          else text "");
       ]
   in
