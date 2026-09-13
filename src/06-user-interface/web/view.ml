@@ -107,6 +107,11 @@ let view_editor ?error (model : Model.edit_model) =
             ~a:
               [
                 class_ "code-editor-input";
+                (* bound as a property, so that loading an example replaces
+                   what the user has typed; a text child would only set the
+                   default value, which the browser ignores once the textarea
+                   has been edited *)
+                str_prop "value" model.unparsed_code;
                 oninput (fun input -> Model.ChangeSource input);
                 int_prop "rows" rows;
                 attr "placeholder"
@@ -115,7 +120,7 @@ let view_editor ?error (model : Model.edit_model) =
                 attr "autocapitalize" "off";
                 attr "autocorrect" "off";
               ]
-            [ text model.unparsed_code ];
+            [];
         ];
       (match error with Some error -> view_load_error error | None -> nil);
     ]
@@ -415,8 +420,8 @@ let view_navbar =
                   ~a:[ class_ "brand-tagline" ]
                   [
                     text
-                      "A language for temporal resources, with modal types and \
-                       graded effects";
+                      "A language for programming with temporal resources, \
+                       using modal types and graded effects";
                   ];
               ];
           ];
