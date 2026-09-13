@@ -161,6 +161,56 @@
       margin-top: 1rem;
     }
 
+    /* The side panel gets narrow at intermediate window widths: let its
+       controls shrink and its labels wrap, rather than overflow the panel. */
+    .aside .button {
+      white-space: normal;
+      height: auto;
+      min-height: 2.5em;
+    }
+
+    /* the step-size select gives way first, so that the button beside it keeps
+       its label on one line for as long as there is room */
+    .aside .field.has-addons .control {
+      min-width: 0;
+      flex-shrink: 1;
+    }
+
+    .aside .field.has-addons .control.is-expanded {
+      flex-shrink: 0;
+    }
+
+    .aside .field.has-addons .button {
+      white-space: nowrap;
+      padding-left: 0.6em;
+      padding-right: 0.6em;
+    }
+
+    .aside .field.has-addons .select {
+      width: 100%;
+      /* room for the widest step size and the arrow, and no less */
+      min-width: 4.2em;
+    }
+
+    .aside .field.has-addons .select select {
+      width: 100%;
+      min-width: 0;
+      padding-left: 0.5em;
+      padding-right: 1.7em;
+    }
+
+    .aside .field.has-addons .select:not(.is-multiple):not(.is-loading)::after {
+      right: 0.6em;
+    }
+
+    .terminated-note {
+      width: 100%;
+      margin-top: 0.6rem;
+      text-align: center;
+      color: #7a7a7a;
+      font-size: 0.9rem;
+    }
+
     /* Under the run button, in the sticky panel: where the error is. */
     .error-pointer {
       display: block;
