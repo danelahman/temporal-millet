@@ -35,8 +35,7 @@ default MixEpoxy () = delay 1; box (8, 11) Epoxy
 
 (* A print is the three steps, in that order, on both sides of the pair. The
    finished print has to set for two ticks and be collected within eight. *)
-operation PrintModel : model ~> [(2, 8)] print
-  # ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
+operation PrintModel : model ~> [(2, 8)] print # ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
 
 (* Correctly accepted by the typechecker: the clause performs exactly the three
    steps 'PrintModel' promises, in the promised order, which covers the lower
