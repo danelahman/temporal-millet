@@ -455,7 +455,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                   let op_rho_eqs' = op_rho_eqs in
                   (* The clause need only be a sub-effect of the operation's
                      declared grade extended by the continuation's grade
-                     [rho] (Agda's [coerce]), so that e.g. a clause performing
+                     [rho] (sub-effecting), so that e.g. a clause performing
                      [Send] once realises the grade [{Send | Send; Send}]. *)
                   let op_rho_ineqs' =
                     Ineq (op_case_rho, Ast.RhoAdd (op_rho, rho)) :: op_rho_ineqs
@@ -1293,72 +1293,70 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     List.iter (fun (_, _, ty_def) -> check_ty_def state' ty_def) ty_defs;
     state'
 
-  (* The runtime bounds an operation declares must agree with the runs its grade
-     promises: [lo] may not undercut the fastest run the grade allows and [hi]
-     must cover the slowest one, where a run costs its delays plus, for each of
-     its events, the matching end of the bounds of the operation named. The
-     operation's own bounds are used for its own events, so an operation graded
-     by the single run that is itself is trivially consistent, while a
-     self-referential grade such as [{Send | Send; Send}] never is, its retry
-     run costing twice the upper bound. This is the duration morphism of the
-     Agda [System/Traces/Timed/*] modules, [minSetDuration] for the lower
-     bound and [setDuration] for the upper bound. *)
-  let check_op_bounds op_name (lo, hi) bounds grade =
-    match ResourceGrade.implied_bounds bounds grade with
-    | Some (imp_lo, imp_hi) when lo > imp_lo || hi < imp_hi ->
-        Error.typing
-          "the runtime bounds of operation %s, within (%d, %d), are \
-           inconsistent with its grade %s, whose runs take between %d and %d \
-           time units"
-          op_name lo hi (ResourceGrade.show grade) imp_lo imp_hi
-    | Some _ | None -> ()
-
+  (* Under the timed-trace grading monoids an operation's runtime bounds
+     [within (lo, hi)] are the cost model the orders read. An atomic operation,
+     graded by the single run of itself, has to declare them, since nothing
+     else says how long it takes. A compound operation names the operations it
+     decomposes into, and its bounds follow from theirs: [lo] is the duration
+     of the fastest run of its grade with every event at its lower bound and
+     [hi] that of the slowest run with every event at its upper bound.
+     Declaring them as well would only
+     invite disagreement, so it is rejected. A compound operation may not name
+     itself, since its bounds would then depend on themselves. *)
   let add_operation_signature state (op, ty1, ty2, rho, bounds) =
     let op_name = Ast.OpName.string_of op in
+    let event_bounds ev =
+      match StringMap.find_opt ev state.op_bounds with
+      | Some bounds -> bounds
+      | None ->
+          Error.typing "unknown event '%s' in the grade of operation %s" ev
+            op_name
+    in
     let op_bounds' =
-      match (ResourceGrade.needs_op_bounds, bounds) with
-      | true, None ->
-          Error.typing
-            "operation %s needs runtime bounds `within (lo, hi)` under the \
-             '%s' grading monoid"
-            op_name ResourceGrade.name
-      | false, Some _ ->
+      match (ResourceGrade.needs_op_bounds, rho, bounds) with
+      | false, _, Some _ ->
           Error.typing
             "runtime bounds are only used by the timed-trace grading monoids; \
              under '%s' the operation grade already carries them"
             ResourceGrade.name
-      | false, None -> state.op_bounds
-      | true, Some (lo, hi) ->
-          if lo > hi then
+      | false, _, None -> state.op_bounds
+      | true, (Ast.RhoParam _ | Ast.RhoAdd _), _ ->
+          Error.typing
+            "the grade of operation %s must be a literal under the '%s' \
+             grading monoid"
+            op_name ResourceGrade.name
+      | true, Ast.RhoConst grade, _ when ResourceGrade.is_atomic op_name grade
+        -> (
+          match bounds with
+          | None ->
+              Error.typing
+                "atomic operation %s needs runtime bounds `within (lo, hi)` \
+                 under the '%s' grading monoid"
+                op_name ResourceGrade.name
+          | Some (lo, hi) ->
+              if lo > hi then
+                Error.typing
+                  "the runtime bounds of operation %s must satisfy lo <= hi"
+                  op_name
+              else if hi < 1 then
+                Error.typing
+                  "the upper runtime bound of operation %s must be at least 1"
+                  op_name
+              else StringMap.add op_name (lo, hi) state.op_bounds)
+      | true, Ast.RhoConst grade, Some _ ->
+          Error.typing
+            "operation %s is compound, so its runtime bounds follow from its \
+             grade %s and must not be declared"
+            op_name (ResourceGrade.show grade)
+      | true, Ast.RhoConst grade, None -> (
+          if List.mem op_name (ResourceGrade.events grade) then
             Error.typing
-              "the runtime bounds of operation %s must satisfy lo <= hi" op_name
-          else if hi < 1 then
-            Error.typing
-              "the upper runtime bound of operation %s must be at least 1"
-              op_name
-          else StringMap.add op_name (lo, hi) state.op_bounds
+              "compound operation %s may not name itself in its grade %s"
+              op_name (ResourceGrade.show grade);
+          match ResourceGrade.implied_bounds event_bounds grade with
+          | Some bounds -> StringMap.add op_name bounds state.op_bounds
+          | None -> state.op_bounds)
     in
-    (* The grade of an operation is always a literal, so its events can be
-       validated right away; the operation may name itself, as in
-       [Send : unit ~> unit # {Send | Send; Send}]. *)
-    (match rho with
-    | Ast.RhoConst grade ->
-        List.iter
-          (fun ev ->
-            if not (StringMap.mem ev op_bounds') then
-              Error.typing "unknown event '%s' in the grade of operation %s" ev
-                op_name)
-          (ResourceGrade.events grade)
-    | Ast.RhoParam _ | Ast.RhoAdd _ -> ());
-    (* every event of the grade is now known to be declared, so the lookup in
-       [op_bounds'] --- which already holds the bounds of the operation being
-       declared --- is total *)
-    (match (rho, bounds) with
-    | Ast.RhoConst grade, Some declared ->
-        check_op_bounds op_name declared
-          (fun ev -> StringMap.find ev op_bounds')
-          grade
-    | (Ast.RhoConst _ | Ast.RhoParam _ | Ast.RhoAdd _), _ -> ());
     {
       state with
       op_signatures = Ast.OpNameMap.add op (ty1, ty2, rho) state.op_signatures;

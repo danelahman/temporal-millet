@@ -1,0 +1,6 @@
+(* Correctly rejected by the typechecker, under the 'traces-upper-bound'
+   grading monoid: a compound operation's runtime bounds follow from its grade
+   and the bounds of the operations it names, so they must not be declared. *)
+
+operation Tx : string ~> unit # {Tx} within (2, 3)
+operation Send : string ~> unit # {Tx | Tx; Tx} within (2, 6)

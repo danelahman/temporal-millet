@@ -4,11 +4,9 @@
     A timed trace is one run of a computation as it is observed from outside: an
     alternation of operation events and positive delays. A grade is a set of
     such runs, read disjunctively, multiplied by the language product. The two
-    orders below — allowance (an upper bound: "every run fits inside the bound")
-    and coverage (a lower bound: "the run covers the guarantee") — are direct
-    transcriptions of [Syntax/Grades/Traces/{Allowance,Coverage}/Core.agda] of
-    the [graded-temporal-resources] formalisation, and the set lifts of
-    [Syntax/Grades/Traces/OrderLift.agda].
+    orders below are allowance (an upper bound: "every run fits inside the
+    bound") and coverage (a lower bound: "the run covers the guarantee"), each
+    defined on single runs and then lifted to sets.
 
     {2 Canonical representation}
 
@@ -31,9 +29,9 @@ type traces = trace list
     produced by [List.sort_uniq compare]. *)
 
 (** [normalise evs] is the trace denoted by the raw event sequence [evs]: zero
-    delays are dropped and adjacent delays are merged. This is the [Trace⁻]
-    invariant of the formalisation, and what makes [of_nat (m + n)] equal to the
-    product of [of_nat m] and [of_nat n] on the nose. *)
+    delays are dropped and adjacent delays are merged. This invariant is what
+    makes [of_nat (m + n)] equal to the product of [of_nat m] and [of_nat n] on
+    the nose. *)
 let normalise evs =
   let rec go acc = function
     | [] -> List.rev acc
@@ -72,7 +70,7 @@ let of_nat n = [ normalise [ Wait n ] ]
 
     Each rule shrinks [s] or [t], so the plain backtracking search terminates.
     The [when] guards are the backtracking: a failing guard falls through to the
-    next rule, which is exactly the order the Agda constructors are tried in. *)
+    next rule. *)
 let rec allowance cost k s t =
   match (s, t) with
   | [], _ -> true (* nil *)
@@ -121,20 +119,19 @@ let lower_bound_le cost p q =
 (** [duration cost t] is the time the run [t] takes: every delay counts its
     length and every operation event counts [cost]. Reading [cost] as the lower
     end of the runtime bounds gives the fastest the run can be, and as the upper
-    end the slowest; this is the duration morphism of the timed trace modules of
-    the formalisation. *)
+    end the slowest. *)
 let duration cost =
   List.fold_left (fun d -> function Ev o -> d + cost o | Wait n -> d + n) 0
 
 (** [min_duration cost p] is the duration of the fastest run of the (non-empty)
-    set [p], as [minSetDuration] of the formalisation. *)
+    set [p]. *)
 let min_duration cost = function
   | [] -> invalid_arg "TimedTrace.min_duration: empty set of traces"
   | t :: p ->
       List.fold_left (fun d t -> min d (duration cost t)) (duration cost t) p
 
 (** [max_duration cost p] is the duration of the slowest run of the (non-empty)
-    set [p], as [setDuration] of the formalisation. *)
+    set [p]. *)
 let max_duration cost = function
   | [] -> invalid_arg "TimedTrace.max_duration: empty set of traces"
   | t :: p ->

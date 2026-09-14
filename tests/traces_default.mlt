@@ -17,7 +17,7 @@ default Extrude () = delay 3
 operation Cool : unit ~> unit # {Cool} within (2, 2)
 default Cool () = delay 2
 
-operation PrintModel : model ~> fresh # {Heat; Extrude; Cool} within (6, 9)
+operation PrintModel : model ~> fresh # {Heat; Extrude; Cool}
 
 let printer =
   handler

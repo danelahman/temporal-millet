@@ -1210,13 +1210,9 @@
   ======================================================================
   Typing error: the runtime bounds of operation Heat must satisfy lo <= hi
   ======================================================================
-  traces_reject_bounds_hi.mlt
+  traces_reject_bounds_declared.mlt
   ======================================================================
-  Typing error: the runtime bounds of operation Send, within (2, 5), are inconsistent with its grade {Tx | Tx; Tx}, whose runs take between 2 and 6 time units
-  ======================================================================
-  traces_reject_bounds_lo.mlt
-  ======================================================================
-  Typing error: the runtime bounds of operation Send, within (3, 6), are inconsistent with its grade {Tx | Tx; Tx}, whose runs take between 2 and 6 time units
+  Typing error: operation Send is compound, so its runtime bounds follow from its grade {Tx | Tx; Tx} and must not be declared
   ======================================================================
   traces_reject_default_bounds.mlt
   ======================================================================
@@ -1228,7 +1224,7 @@
   ======================================================================
   traces_reject_missing_within.mlt
   ======================================================================
-  Typing error: operation Heat needs runtime bounds `within (lo, hi)` under the 'traces-upper-bound' grading monoid
+  Typing error: atomic operation Heat needs runtime bounds `within (lo, hi)` under the 'traces-upper-bound' grading monoid
   ======================================================================
   traces_reject_order.mlt
   ======================================================================
@@ -1236,7 +1232,7 @@
   ======================================================================
   traces_reject_self_retry.mlt
   ======================================================================
-  Typing error: the runtime bounds of operation Send, within (4, 6), are inconsistent with its grade {Send | Send; Send}, whose runs take between 4 and 12 time units
+  Typing error: compound operation Send may not name itself in its grade {Send | Send; Send}
   ======================================================================
   traces_reject_unknown_event.mlt
   ======================================================================

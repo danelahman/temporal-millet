@@ -197,9 +197,8 @@ end
 
    Cost model: an operation declares a pair of runtime bounds [within (lo, hi)],
    and the two orders read *different* endpoints — [lo] feeds the coverage
-   (lower-bound) order, [hi] feeds the allowance (upper-bound) order. The
-   formalisation uses a single [cost] for both; reading the pair instead is the
-   [fast]/[slow] generalisation, and it is sound because each order only ever
+   (lower-bound) order, [hi] feeds the allowance (upper-bound) order. Reading
+   a different endpoint in each order is sound because each order only ever
    needs its own direction of the bound. *)
 
 let trace_of_lit_pair_msg =

@@ -82,8 +82,8 @@ A grade is a non-empty finite set of runs, the alternatives a computation may
 exhibit, written `{Read; 3; Send | Send; Send}`; grades multiply by the
 (non-commutative) language product. An integer `n` abbreviates `{n}`, so the
 zero grade is `{0}`. The orders trade time against operations through the
-runtime bounds `within (lo, hi)` every operation declares under these monoids
-(see below).
+runtime bounds `within (lo, hi)` every atomic operation declares under these
+monoids (see below).
 
 - **`traces-lower-bound`** — the runs a computation must *cover*. `rho`
   is a sub-grade of `rho'` when every run of `rho` covers some run of `rho'`:
@@ -167,7 +167,8 @@ operation OperationName : input-type ~> result-type # grade
 ```
 
 The grade records the resource usage of one call. Under the timed-trace
-monoids the declaration must also state the operation's runtime bounds,
+monoids an *atomic* operation, one graded by the single run of itself, must
+also state its runtime bounds,
 
 ```
 operation OperationName : input-type ~> result-type # grade within (lo, hi)
@@ -176,16 +177,16 @@ operation OperationName : input-type ~> result-type # grade within (lo, hi)
 the least and greatest number of ticks a call may take (`within n` is short for
 `within (n, n)`). The bounds are the cost model of the trace orders:
 `traces-lower-bound` reads `lo`, `traces-upper-bound` reads `hi`,
-and `traces-interval` reads both. They must agree with the grade: `lo`
-may not exceed the fastest run the grade allows and `hi` must cover the
-slowest, each event costed at the matching end of its own bounds. An atomic
-operation such as `Heat : unit ~> unit # {Heat} within (1, 2)` is trivially
-consistent; `Send : string ~> unit # {Tx | Tx; Tx} within (2, 6)` is consistent
-given `Tx within (2, 3)`; a self-referential `Send # {Send | Send; Send}` never
-is, since its retry costs twice the bound of `Send` itself, so retries are
-expressed through a smaller operation. The events of a grade must be declared
-operations, or the operation being declared. Under the time monoids no bounds
-are declared, since the grade already is the bound.
+and `traces-interval` reads both. A *compound* operation names other, already
+declared operations in its grade, and its bounds are computed from theirs: `lo`
+is the duration of the fastest run of its grade with every event at its lower
+bound, `hi` that of the slowest run with every event at its upper bound. So
+given `Tx : string ~> unit # {Tx} within (2, 3)`, the operation
+`Send : string ~> unit # {Tx | Tx; Tx}` gets the bounds `(2, 6)`; declaring
+bounds on it is rejected, as is naming itself, since `Send # {Send | Send;
+Send}` would make its bounds depend on themselves. Retries are expressed
+through a smaller operation instead. Under the time monoids no bounds are
+declared, since the grade already is the bound.
 
 An operation is called with
 
@@ -214,7 +215,7 @@ Operations without a case are forwarded to the enclosing handler.
 An operation case need not have exactly the grade of the operation: it
 suffices that its grade is a sub-grade of the operation's grade composed with
 that of the continuation. So `PrintModel : model ~> print # {Heat; Extrude;
-Cool} within (6, 9)` may be handled by performing `Heat`, `Extrude` and `Cool`
+Cool}` may be handled by performing `Heat`, `Extrude` and `Cool`
 in that order and continuing, while another order is rejected:
 
 ```

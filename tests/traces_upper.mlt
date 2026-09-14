@@ -40,19 +40,18 @@ default MixEpoxy () = delay 1; box 11 Epoxy
 
 (* A print is the three steps, in that order, and the finished print must be
    collected within eight ticks. *)
-operation PrintModel : model ~> [8] print # {Heat; Extrude; Cool} within (6, 9)
+operation PrintModel : model ~> [8] print # {Heat; Extrude; Cool}
 
 (* A print job either prints the model in full or is a quick reheat. *)
 operation Print : model ~> [8] print
   # {Heat; Extrude; Cool | Heat; Cool}
-  within (3, 9)
 
 (* A single transmission of a message. *)
 operation Tx : string ~> unit # {Tx} within (2, 3)
 default Tx msg = delay 2
 
 (* A send is one or two transmissions. *)
-operation Send : string ~> unit # {Tx | Tx; Tx} within (2, 6)
+operation Send : string ~> unit # {Tx | Tx; Tx}
 
 (* Correctly accepted by the typechecker: the clause performs exactly the three
    steps 'PrintModel' promises, in the promised order. *)

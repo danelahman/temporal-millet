@@ -44,19 +44,18 @@ default MixQuickEpoxy () = delay 1; box 3 Epoxy
 
 (* A print is the three steps, in that order, and the finished print has to set
    for two ticks before it may be collected. *)
-operation PrintModel : model ~> [2] print # {Heat; Extrude; Cool} within (6, 9)
+operation PrintModel : model ~> [2] print # {Heat; Extrude; Cool}
 
 (* A print job either prints the model in full or is a quick reheat. *)
 operation Print : model ~> [2] print
   # {Heat; Extrude; Cool | Heat; Cool}
-  within (3, 9)
 
 (* A single transmission of a message. *)
 operation Tx : string ~> unit # {Tx} within (2, 3)
 default Tx msg = delay 2
 
 (* A delivery is one or two transmissions. *)
-operation Deliver : string ~> unit # {Tx | Tx; Tx} within (2, 6)
+operation Deliver : string ~> unit # {Tx | Tx; Tx}
 
 (* Correctly accepted by the typechecker: running 'Extrude' banks the lower end
    of its runtime bounds, three ticks, which covers the three ticks the epoxy

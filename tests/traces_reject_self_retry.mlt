@@ -1,6 +1,6 @@
 (* Correctly rejected by the typechecker, under the 'traces-upper-bound'
-   grading monoid: an operation whose grade retries itself is never consistent
-   with its runtime bounds, since the retrying run costs twice the upper bound.
-   A retry has to be expressed through a smaller operation instead. *)
+   grading monoid: a compound operation may not name itself, since its runtime
+   bounds are computed from those of the operations its grade names. A retry
+   has to be expressed through a smaller operation instead. *)
 
-operation Send : string ~> unit # {Send | Send; Send} within (4, 6)
+operation Send : string ~> unit # {Send | Send; Send}
