@@ -318,3 +318,8 @@ It is derived from Matija Pretnar's
 [Millet](https://github.com/matijapretnar/millet) and from Joosep Tavits's
 [original Temporal Millet](https://github.com/joosepgit/temporal-millet), both
 MIT licensed; their copyright notices are retained in `LICENSE`.
+
+## AI usage disclaimer
+
+Agentic AI tools (from the Claude family) have been used to develop parts of
+this prototype implementation.
