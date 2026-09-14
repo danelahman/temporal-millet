@@ -90,6 +90,41 @@ let highlight_source ?error_line code =
       @ highlight ("\n" ^ String.concat "\n" after)
   | _ -> SyntaxHighlight.highlight_text code
 
+(* Tab inside the editor inserts an indentation instead of moving the focus
+   to the next control; Shift+Tab is left alone, so the keyboard can still
+   leave the editor backwards. The browser's own value and selection are read
+   off the event, since the model may lag behind a fast typist. *)
+let oninsert_indent =
+  let open Vdom.Decoder in
+  let target d = field "target" d in
+  on_with_options "keydown"
+    (bind
+       (fun (key, shift) ->
+         if key = "Tab" && not shift then
+           app
+             (app
+                (app
+                   (const (fun source start stop ->
+                        {
+                          Vdom.msg =
+                            Some (Model.InsertIndent (source, start, stop));
+                          prevent_default = true;
+                          stop_propagation = false;
+                        }))
+                   (target (field "value" String)))
+                (target (field "selectionStart" Int)))
+             (target (field "selectionEnd" Int))
+         else
+           const
+             {
+               Vdom.msg = None;
+               prevent_default = false;
+               stop_propagation = false;
+             })
+       (app
+          (app (const (fun k s -> (k, s))) (field "key" String))
+          (field "shiftKey" Bool)))
+
 let view_editor ?error (model : Model.edit_model) =
   let rows =
     max 10 (String.split_on_char '\n' model.unparsed_code |> List.length)
@@ -113,6 +148,7 @@ let view_editor ?error (model : Model.edit_model) =
                    has been edited *)
                 str_prop "value" model.unparsed_code;
                 oninput (fun input -> Model.ChangeSource input);
+                oninsert_indent;
                 int_prop "rows" rows;
                 attr "placeholder"
                   "Type a program, or load an example from the right";

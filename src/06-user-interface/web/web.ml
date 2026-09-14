@@ -1,7 +1,9 @@
 (* Scrolling to an element is a side effect on the page, so it is a command:
    the handler runs it once the view has been redrawn, when the element
    exists. Only errors ask for it, see [update]. *)
-type 'msg Vdom.Cmd.t += Scroll_to of string  (** the id of an element *)
+type 'msg Vdom.Cmd.t +=
+  | Scroll_to of string  (** the id of an element *)
+  | Set_caret of int  (** where the editor's caret goes after a redraw *)
 
 let scroll_to id =
   match Js_browser.Document.get_element_by_id Js_browser.document id with
@@ -19,6 +21,18 @@ let scroll_to id =
            |])
   | None -> ()
 
+(* Setting the editor's value from the model leaves the caret at the end; put
+   it back where the edit happened. *)
+let set_caret position =
+  match
+    Js_browser.Document.query_selector_all Js_browser.document
+      ".code-editor-input"
+  with
+  | [ editor ] ->
+      Js_browser.Element.set_selection_start editor position;
+      Js_browser.Element.set_selection_end editor position
+  | _ -> ()
+
 let scroll_handler =
   {
     Vdom_blit.Cmd.f =
@@ -26,6 +40,9 @@ let scroll_handler =
         match cmd with
         | Scroll_to id ->
             Vdom_blit.Cmd.after_redraw ctx (fun () -> scroll_to id);
+            true
+        | Set_caret position ->
+            Vdom_blit.Cmd.after_redraw ctx (fun () -> set_caret position);
             true
         | _ -> false);
   }
@@ -36,6 +53,8 @@ let update model msg =
     match (msg, model'.Model.run_model) with
     | Model.RunCode, Error (Some error) ->
         Scroll_to (View.load_error_target error)
+    | Model.EditMsg (Model.InsertIndent (_, start, _)), _ ->
+        Set_caret (start + String.length Model.indentation)
     | _ -> Vdom.Cmd.batch []
   in
   (model', cmd)

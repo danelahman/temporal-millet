@@ -34,6 +34,9 @@ and run_model_state = {
 and edit_msg =
   | UseStdlib of bool
   | ChangeSource of string
+  | InsertIndent of string * int * int
+      (** Tab pressed in the editor: the source as the browser has it, and the
+          selection to replace with an indentation. *)
   | LoadExample of string * string * string
       (** Load a bundled example: its title, the name of the resource grade it
           is meant to be run with, and its source. *)
@@ -72,10 +75,21 @@ let edit_init =
     selected_example = None;
   }
 
+(** What a Tab in the editor inserts; the editor's [tab-size] matches. *)
+let indentation = "  "
+
 let edit_update edit_model = function
   | UseStdlib use_stdlib -> { edit_model with use_stdlib }
   | ChangeSource input ->
       { edit_model with unparsed_code = input; selected_example = None }
+  | InsertIndent (source, start, stop) ->
+      let before = String.sub source 0 start
+      and after = String.sub source stop (String.length source - stop) in
+      {
+        edit_model with
+        unparsed_code = before ^ indentation ^ after;
+        selected_example = None;
+      }
   | LoadExample (title, resource_name, source) ->
       (* An example is written for a particular resource grade, so loading one
          switches to that grade. The user remains free to change it afterwards. *)
