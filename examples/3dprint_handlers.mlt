@@ -1,6 +1,6 @@
 (* Run this example with the 'time-lower-bound' grading monoid, e.g.
 
-     ./cli.exe --resources time-lower-bound examples/3dprint_handlers.mlt *)
+     ./temporal-millet --resources time-lower-bound examples/3dprint_handlers.mlt *)
 
 (* The stages a printed model goes through, from the model file to a
    finished print. *)

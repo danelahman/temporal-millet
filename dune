@@ -1,0 +1,9 @@
+;; The command line interface, promoted here under the name of the language: a
+;; dune executable has to carry an OCaml module name and an .exe suffix.
+
+(rule
+ (target temporal-millet)
+ (mode
+  (promote (until-clean)))
+ (action
+  (copy src/06-user-interface/cli/cli.exe temporal-millet)))

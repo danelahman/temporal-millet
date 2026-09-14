@@ -1,6 +1,6 @@
 (* Run this example with the 'time-interval' grading monoid, e.g.
 
-     ./cli.exe --resources time-interval examples/time_intervals.mlt *)
+     ./temporal-millet --resources time-interval examples/time_intervals.mlt *)
 
 (* Correctly accepted by the typechecker: the two delays accumulate (3, 3),
    which lies inside the (1, 4) the box demands. *)

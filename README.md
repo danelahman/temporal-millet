@@ -38,7 +38,7 @@ There are two ways to run programs:
 
 - **Command line**:
 
-      ./cli.exe file1.mlt file2.mlt ...
+      ./temporal-millet file1.mlt file2.mlt ...
 
   loads all listed files and runs every `run` command, printing each run's
   result and final resource state. Non-deterministic choices are made at
@@ -55,7 +55,7 @@ Resource usage is measured in a grading monoid (an ordered monoid with some
 additional structure). The monoid is not part of a source file but chosen when
 the program is run: with `--resources` on the command line, e.g.
 
-    ./cli.exe --resources time-interval examples/time_intervals.mlt
+    ./temporal-millet --resources time-interval examples/time_intervals.mlt
 
 or with the **Resource grade** selector in the web interface, which switches
 automatically when a built-in example is loaded. The default is

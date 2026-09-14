@@ -1,6 +1,6 @@
 (* Run this test with the 'time-upper-bound' grading monoid, e.g.
 
-     ./cli.exe --resources time-upper-bound tests/noneternal_type.mlt
+     ./temporal-millet --resources time-upper-bound tests/noneternal_type.mlt
 
    Zero is the minimal element of that sub-grade order, so the eternality
    constraint on a local variable reference has teeth. *)

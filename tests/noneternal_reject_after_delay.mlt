@@ -1,6 +1,6 @@
 (* Run this test with the 'time-upper-bound' grading monoid, e.g.
 
-     ./cli.exe --resources time-upper-bound tests/noneternal_reject_after_delay.mlt *)
+     ./temporal-millet --resources time-upper-bound tests/noneternal_reject_after_delay.mlt *)
 
 noneternal type token = Token
 

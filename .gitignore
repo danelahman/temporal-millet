@@ -1,6 +1,6 @@
 .DS_Store
 _build
-cli.exe
+temporal-millet
 .devcontainer
 .vscode
 .merlin

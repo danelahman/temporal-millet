@@ -1,6 +1,6 @@
 (* Run this example with the 'time-lower-bound' grading monoid, e.g.
 
-     ./cli.exe --resources time-lower-bound examples/fold_over_boxes.mlt *)
+     ./temporal-millet --resources time-lower-bound examples/fold_over_boxes.mlt *)
 
 (* Correctly accepted by the typechecker: building the list takes no time, so
    the function has grade 0, and each element is boxed with a demand of three

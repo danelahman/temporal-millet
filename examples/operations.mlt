@@ -1,6 +1,6 @@
 (* Run this example with the 'time-lower-bound' grading monoid, e.g.
 
-     ./cli.exe --resources time-lower-bound examples/operations.mlt *)
+     ./temporal-millet --resources time-lower-bound examples/operations.mlt *)
 
 (* Reading the state takes 3 ticks. *)
 operation Get : unit ~> int # 3

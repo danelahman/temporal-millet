@@ -4,18 +4,18 @@
   >   echo $f
   >   echo "======================================================================"
   >   case $f in
-  >     time_intervals.mlt) ../cli.exe --resources time-interval $f;;
-  >     time_upper.mlt) ../cli.exe --resources time-upper-bound $f;;
-  >     comp_type_annotation_upper*.mlt) ../cli.exe --resources time-upper-bound $f;;
-  >     noneternal_lower.mlt) ../cli.exe $f;;
-  >     noneternal*.mlt) ../cli.exe --resources time-upper-bound $f;;
-  >     traces_lower.mlt) ../cli.exe --resources traces-lower-bound $f;;
-  >     3dprint_traces.mlt) ../cli.exe --resources traces-interval $f;;
-  >     traces_intervals.mlt) ../cli.exe --resources traces-interval $f;;
-  >     traces_intervals_bounds.mlt) ../cli.exe --resources traces-interval $f;;
-  >     traces_intervals_default_bounds.mlt) ../cli.exe --resources traces-interval $f;;
-  >     traces_*.mlt) ../cli.exe --resources traces-upper-bound $f;;
-  >     *) ../cli.exe $f;;
+  >     time_intervals.mlt) ../temporal-millet --resources time-interval $f;;
+  >     time_upper.mlt) ../temporal-millet --resources time-upper-bound $f;;
+  >     comp_type_annotation_upper*.mlt) ../temporal-millet --resources time-upper-bound $f;;
+  >     noneternal_lower.mlt) ../temporal-millet $f;;
+  >     noneternal*.mlt) ../temporal-millet --resources time-upper-bound $f;;
+  >     traces_lower.mlt) ../temporal-millet --resources traces-lower-bound $f;;
+  >     3dprint_traces.mlt) ../temporal-millet --resources traces-interval $f;;
+  >     traces_intervals.mlt) ../temporal-millet --resources traces-interval $f;;
+  >     traces_intervals_bounds.mlt) ../temporal-millet --resources traces-interval $f;;
+  >     traces_intervals_default_bounds.mlt) ../temporal-millet --resources traces-interval $f;;
+  >     traces_*.mlt) ../temporal-millet --resources traces-upper-bound $f;;
+  >     *) ../temporal-millet $f;;
   >   esac
   >   :  # this command is here to suppress potential non-zero exit codes in the output
   > done

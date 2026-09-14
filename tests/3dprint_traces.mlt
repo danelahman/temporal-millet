@@ -1,6 +1,6 @@
 (* Run this example with the 'traces-interval' grading monoid, e.g.
 
-     ./cli.exe --resources traces-interval examples/3dprint_traces.mlt *)
+     ./temporal-millet --resources traces-interval examples/3dprint_traces.mlt *)
 
 type model = Model of string
 type heated = Heated of model
