@@ -226,6 +226,8 @@ lambdas0(SEP):
     { {it= Lambda (p, t); at= Location.of_lexeme $startpos} }
   | COLON ty = ty SEP t = term
     { {it= Annotated (t, ty); at= Location.of_lexeme $startpos} }
+  | COLON ty = ty HASH grade = rho_grade SEP t = term
+    { {it= AnnotatedComp (t, ty, grade); at= Location.of_lexeme $startpos} }
 
 lambdas1(SEP):
   | p = simple_pattern t = lambdas0(SEP)
@@ -238,6 +240,8 @@ pure_lambdas(SEP):
     { {it= PureLambda (p, t); at= Location.of_lexeme $startpos} }
   | COLON ty = ty SEP t = term
     { {it= Annotated (t, ty); at= Location.of_lexeme $startpos} }
+  | COLON ty = ty HASH grade = rho_grade SEP t = term
+    { {it= AnnotatedComp (t, ty, grade); at= Location.of_lexeme $startpos} }
 
 let_def:
   | p = pattern EQUAL t = term

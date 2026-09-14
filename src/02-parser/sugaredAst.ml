@@ -71,6 +71,9 @@ and 'rho plain_term =
   | Perform of operation * 'rho term  (** [perform op expr] *)
   | Handler of 'rho abstraction * (operation * 'rho abstraction) list
   | Continue of 'rho term * 'rho term
+  | AnnotatedComp of 'rho term * 'rho ty * 'rho
+      (** [fun p -> t : ty # rho]: the body of a function annotated with its
+          computation type, result type and grade *)
   | Handle of 'rho term * 'rho term
 
 and 'rho abstraction = 'rho pattern * 'rho term

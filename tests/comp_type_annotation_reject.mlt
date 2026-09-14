@@ -1,0 +1,5 @@
+(* Correctly rejected by the typechecker: under 'time-lower-bound' the body
+   banks 3 ticks, which is not a sub-grade of the 5 the annotation promises. *)
+let f () : int # 5 = delay 3; 1
+
+run f ()

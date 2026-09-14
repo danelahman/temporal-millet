@@ -1,0 +1,22 @@
+(* Correctly accepted by the typechecker: the body of a function may be
+   annotated with its computation type, result type and grade. The grade the
+   body accumulates has to be a sub-grade of the stated one; here it is equal. *)
+let f () : int # 3 = delay 3; 1
+
+(* Correctly accepted by the typechecker: the same, as an annotation on the
+   whole function with an arrow type carrying the grade. *)
+let g : unit -> int # 2 = fun () -> delay 2; 4
+
+(* Correctly accepted by the typechecker: parameters keep their own
+   annotations, and the grade is that of the body. *)
+let h (x : int) : int # 1 = delay 1; x + 1
+
+(* Correctly accepted by the typechecker: the annotation is a sub-effecting
+   coercion, so under 'time-lower-bound' a body that delays three ticks may be
+   given the weaker promise of two, since 3 >= 2. *)
+let k () : int # 2 = delay 3; 1
+
+run f ()
+run g ()
+run h 41
+run k ()

@@ -344,11 +344,23 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         (* type, type constraints, rho constraints, 
            rho inequational constraints, rho abstractness constraints *)
     | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [], [], [], [])
-    | Ast.Annotated (expr, ty) ->
+    | Ast.Annotated (expr, ty) -> (
         let ty', ty_eqs, rho_eqs, rho_ineqs, rho_abs =
           infer_expression state expr
         in
-        (ty, (ty, ty') :: ty_eqs, rho_eqs, rho_ineqs, rho_abs)
+        match (ty, ty') with
+        | ( Ast.TyArrow (arg_ty, CompTy (res_ty, rho)),
+            Ast.TyArrow (arg_ty', CompTy (res_ty', rho')) ) ->
+            (* An annotation on a function is a sub-effecting coercion, as an
+               operation case or a default implementation is: the grade the
+               body accumulates need only be a sub-grade of the stated one,
+               while the argument and result types must agree exactly. *)
+            ( ty,
+              (arg_ty, arg_ty') :: (res_ty, res_ty') :: ty_eqs,
+              rho_eqs,
+              Ineq (rho', rho) :: rho_ineqs,
+              rho_abs )
+        | _ -> (ty, (ty, ty') :: ty_eqs, rho_eqs, rho_ineqs, rho_abs))
     | Ast.Tuple exprs ->
         let fold expr (tys, ty_eqs, rho_eqs, rho_ineqs, rho_abs) =
           let ty', ty_eqs', rho_eqs', rho_ineqs', rho_abs' =

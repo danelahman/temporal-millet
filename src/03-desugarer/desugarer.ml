@@ -177,7 +177,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | ( Sugared.Apply _ | Sugared.Match _ | Sugared.Let _ | Sugared.LetRec _
       | Sugared.Delay _ | Sugared.Box _ | Sugared.GenBox _ | Sugared.Unbox _
       | Sugared.GenUnbox _ | Sugared.Conditional _ | Sugared.Perform _
-      | Sugared.Handle _ | Sugared.Continue _ ) as term ->
+      | Sugared.Handle _ | Sugared.Continue _ | Sugared.AnnotatedComp _ ) as
+      term ->
         let x = Untyped.Variable.fresh "b" in
         let comp = desugar_computation state { Sugared.it = term; at = loc } in
         let hoist = (Untyped.PVar x, comp) in
@@ -273,6 +274,20 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         ( binds @ binds',
           Untyped.Unbox
             (k', (Untyped.PVar var, Untyped.Apply (Untyped.Var var, e'))) )
+    (* A computation annotated with its type has no node of its own: it is the
+       immediate application of a thunk annotated with the arrow type
+       [unit -> ty # rho], which the typechecker already knows how to check
+       and which the interpreter reduces in one step. *)
+    | Sugared.AnnotatedComp (term, ty, rho) ->
+        let comp = desugar_computation state term in
+        let thunk_ty =
+          Untyped.TyArrow
+            (Untyped.TyTuple [], CompTy (desugar_ty state ty, RhoConst rho))
+        in
+        let thunk =
+          Untyped.Annotated (Untyped.Lambda (Untyped.PTuple [], comp), thunk_ty)
+        in
+        ([], Untyped.Apply (thunk, Untyped.Tuple []))
     (* The remaining cases are expressions, which we list explicitly to catch any
      future changeSugared. *)
     | ( Sugared.Var _ | Sugared.Const _ | Sugared.Annotated _ | Sugared.Tuple _

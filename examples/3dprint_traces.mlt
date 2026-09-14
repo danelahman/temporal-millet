@@ -16,9 +16,7 @@ default Heat m = delay 1; Heated m
 
 (* A freshly extruded model is still hot: it may be handed to the cooler, but
    not touched otherwise until it has rested for two ticks. *)
-operation Extrude : heated ~> [2] extruded
-  # ({Extrude}, {Extrude})
-  within (3, 5)
+operation Extrude : heated ~> [2] extruded # ({Extrude}, {Extrude}) within (3, 5)
 default Extrude h = delay 3; box 2 (Extruded h)
 
 (* The cooler takes the hot extruded model, once it has rested, and cools it
@@ -32,9 +30,7 @@ default Mount (p, g) = delay 1; Mounted p
 
 (* Mixing two-part epoxy takes a tick; the mix then needs eight ticks to set,
    and it has hardened after eleven. *)
-operation MixEpoxy : unit ~> [(8, 11)] epoxy
-  # ({MixEpoxy}, {MixEpoxy})
-  within (1, 1)
+operation MixEpoxy : unit ~> [(8, 11)] epoxy # ({MixEpoxy}, {MixEpoxy}) within (1, 1)
 default MixEpoxy () = delay 1; box (8, 11) Epoxy
 
 (* A print is the three steps, in that order, on both sides of the pair. The

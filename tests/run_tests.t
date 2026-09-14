@@ -6,6 +6,7 @@
   >   case $f in
   >     time_intervals.mlt) ../cli.exe --resources time-interval $f;;
   >     time_upper.mlt) ../cli.exe --resources time-upper-bound $f;;
+  >     comp_type_annotation_upper*.mlt) ../cli.exe --resources time-upper-bound $f;;
   >     noneternal_lower.mlt) ../cli.exe $f;;
   >     noneternal*.mlt) ../cli.exe --resources time-upper-bound $f;;
   >     traces_lower.mlt) ../cli.exe --resources traces-lower-bound $f;;
@@ -49,6 +50,50 @@
     ({1},{1})
   ]
   
+  ======================================================================
+  comp_type_annotation.mlt
+  ======================================================================
+  === Run 1 ===
+  return 1
+  State: [
+    3
+  ]
+  
+  === Run 2 ===
+  return 4
+  State: [
+    2
+  ]
+  
+  === Run 3 ===
+  return 42
+  State: [
+    1
+  ]
+  
+  === Run 4 ===
+  return 1
+  State: [
+    3
+  ]
+  
+  ======================================================================
+  comp_type_annotation_reject.mlt
+  ======================================================================
+  Typing error: Comparing resource inequality 3 >= 5 failed
+  ======================================================================
+  comp_type_annotation_upper.mlt
+  ======================================================================
+  === Run 1 ===
+  return 1
+  State: [
+    3
+  ]
+  
+  ======================================================================
+  comp_type_annotation_upper_reject.mlt
+  ======================================================================
+  Typing error: Comparing resource inequality 3 <= 2 failed
   ======================================================================
   default_ops.mlt
   ======================================================================
@@ -1049,6 +1094,15 @@
   State: [
     { resource_0 ↦ 1 # 3 },
     2
+  ]
+  
+  ======================================================================
+  traces_annotation.mlt
+  ======================================================================
+  === Run 1 ===
+  return ()
+  State: [
+    {2}
   ]
   
   ======================================================================

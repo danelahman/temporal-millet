@@ -60,6 +60,7 @@ module Make (T : Language.ResourceGrade.Grade) = struct
   exception PatternMismatch
 
   let rec eval_tuple (env : evaluation_environment) = function
+    | Ast.Annotated (expr, _) -> eval_tuple env expr
     | Ast.Tuple exprs -> exprs
     | Ast.Var x ->
         eval_tuple env (ContextHolderModule.find_variable x env.variables)
@@ -68,6 +69,7 @@ module Make (T : Language.ResourceGrade.Grade) = struct
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
   let rec eval_variant (env : evaluation_environment) = function
+    | Ast.Annotated (expr, _) -> eval_variant env expr
     | Ast.Variant (lbl, expr) -> (lbl, expr)
     | Ast.Var x ->
         eval_variant env (ContextHolderModule.find_variable x env.variables)
@@ -76,6 +78,7 @@ module Make (T : Language.ResourceGrade.Grade) = struct
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
   let rec eval_const (env : evaluation_environment) = function
+    | Ast.Annotated (expr, _) -> eval_const env expr
     | Ast.Const c -> c
     | Ast.Var x ->
         eval_const env (ContextHolderModule.find_variable x env.variables)
@@ -259,6 +262,7 @@ module Make (T : Language.ResourceGrade.Grade) = struct
     substitute_computation subst comp
 
   let rec eval_function env = function
+    | Ast.Annotated (expr, _) -> eval_function env expr
     | Ast.Lambda (pat, comp) ->
         fun arg ->
           let subst = match_pattern_with_expression env pat arg in
@@ -283,6 +287,7 @@ module Make (T : Language.ResourceGrade.Grade) = struct
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
   let rec eval_handler env = function
+    | Ast.Annotated (expr, _) -> eval_handler env expr
     | Ast.Handler (ret_case, op_cases) -> (ret_case, op_cases)
     | Ast.Var x -> (
         match ContextHolderModule.find_variable_opt x env.variables with

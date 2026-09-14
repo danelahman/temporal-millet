@@ -75,16 +75,15 @@ pairs such as `(1, 4)`:
   `l >= m` (interval containment); `(0, 0)` is the minimum. See
   [`examples/time_intervals.mlt`](examples/time_intervals.mlt).
 
-Three grade computations by the *timed traces* they may exhibit. These are the
-timed-trace grades of the Agda formalisation `graded-temporal-resources`
-(modules `Syntax/Grades/Example/Traces/Timed/*`). A timed trace is one run of a
-computation, an alternation of operation events and positive delays:
-`Read; 3; Send` performs `Read`, waits three ticks, and performs `Send`. A grade
-is a non-empty finite set of runs, the alternatives a computation may exhibit,
-written `{Read; 3; Send | Send; Send}`; grades multiply by the (non-commutative)
-language product. An integer `n` abbreviates `{n}`, so the zero grade is `{0}`.
-The orders trade time against operations through the runtime bounds
-`within (lo, hi)` every operation declares under these monoids (see below).
+Three grade computations by the *timed traces* they may exhibit. A timed trace
+is one run of a computation, an alternation of operation events and positive
+delays: `Read; 3; Send` performs `Read`, waits three ticks, and performs `Send`.
+A grade is a non-empty finite set of runs, the alternatives a computation may
+exhibit, written `{Read; 3; Send | Send; Send}`; grades multiply by the
+(non-commutative) language product. An integer `n` abbreviates `{n}`, so the
+zero grade is `{0}`. The orders trade time against operations through the
+runtime bounds `within (lo, hi)` every operation declares under these monoids
+(see below).
 
 - **`traces-lower-bound`** — the runs a computation must *cover*. `rho`
   is a sub-grade of `rho'` when every run of `rho` covers some run of `rho'`:
@@ -123,6 +122,12 @@ of time, a sequence of operations, or whatever the chosen monoid measures.
 
 See [`examples/delay.mlt`](examples/delay.mlt).
 
+The computation type of a function can be stated explicitly, either on its body,
+`let f () : mounted # rho = ...`, or on the function as a whole, `let f : unit
+-> mounted # rho = fun () -> ...`. The annotation is a sub-effecting coercion,
+analogously to handlers' operation case: the grade the body accumulates must be
+a sub-grade of the one stated in the type annotation.
+
 ## Eternal types
 
 A type is *eternal* if its values stay valid however much grade accumulates
@@ -147,13 +152,11 @@ noneternal type epoxy = Epoxy
 
 This makes `epoxy`, and every type containing it, non-eternal. The keyword
 prefixes a whole `type ... and ...` group. It is allowed on algebraic types
-only, since type aliases are unfolded before eternality is checked. In the
-timed-trace examples, mixed epoxy is such a resource: once unboxed it has to be
-used at once.
+only, since type aliases are unfolded before eternality is checked.
 
-Eternality constraints are not propagated out of top-level definitions onto
-the type variables of their generalised types; a top-level definition
-typechecks only if all its constraints are satisfied.
+Currently, eternality constraints are not propagated out of top-level
+definitions onto the type variables of their generalised types; a top-level
+definition typechecks only if all its constraints are satisfied.
 
 ## Algebraic effects and effect handlers
 
@@ -263,6 +266,29 @@ such as `PrintModel # {Heat; Extrude; Cool}` is meant to be handled in terms
 of the operations it names. A default may itself perform operations, which are
 handled or defaulted in turn; a default that performs its own operation
 typechecks but never terminates.
+
+## Sub-effecting and its limits
+
+Currently, a grade may be replaced by a super-grade in the sub-grade order in
+exactly three places: an operation case of a handler, a default implementation
+of an algebraic operation, and a function annotation. Everywhere else the
+prototype compares grades by unification, that is, for equality:
+
+- the branches of a `match` or `if` currently must have the same grade;
+- the grade of a box type is not coerced: a `[3]int` is not accepted where a
+  `[2]int` is expected, regardless of the given resource monoid;
+- function and handler types are compared for equality when a value is passed
+  as an argument or a computation is handled, so a function of type
+  `unit -> int # 1` is not accepted where `unit -> int # 2` is expected;
+- a sub-effecting constraint is only checked once unification has made both of
+  its grades ground. One that still mentions an unresolved grade parameter is
+  rejected ("Cannot compare non-ground resource values"), except that `rho <= 0`
+  with `rho` unknown is solved by `rho := 0` (the only solution when zero is the
+  minimum of the order, and a sound but incomplete guess under
+  `traces-interval`). Inequalities are currently also not carried into the
+  generalised types of top-level definitions.
+
+The workaround, where a grade has to be widened, is an explicit type annotation.
 
 ## Editor support
 
