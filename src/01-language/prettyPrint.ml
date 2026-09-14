@@ -334,7 +334,7 @@ let print_vars_and_exprs rho_module print_var_and_expr
 let print_variable_context rho_module ctx =
   let print_var_and_ty ty_pp rho_pp (variable, (ty_params, rho_params, ty, _))
       ppf =
-    Format.fprintf ppf "@[<h>%t -> %t, %t %t@]@." (Variable.print variable)
+    Format.fprintf ppf "@[<h>%t : %t, %t %t@]@." (Variable.print variable)
       (print_ty_params ty_pp ty_params)
       (print_rho_params rho_pp rho_params)
       (print_ty rho_module ty_pp rho_pp ty)

@@ -54,6 +54,10 @@ let printer =
    print's '[(2, 8)]' box demands, and the print plus the rest bank exactly
    the eight the epoxy needs to set (1 + 3 + 2 + 2) while staying within its
    pot life of eleven (2 + 5 + 2 + 2). *)
+
+(* Inferred type of 'print_sword'
+     print_sword :  
+       unit → mounted # ({MixEpoxy; Heat; Extrude; Cool; 2; Mount},{MixEpoxy; Heat; Extrude; Cool; 2; Mount}) *)
 let print_sword () =
   handle
     let glue = perform MixEpoxy () in
