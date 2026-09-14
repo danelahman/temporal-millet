@@ -1293,3 +1293,20 @@
   ======================================================================
   Syntax error (file "use_undefined_type.mlt", line 1, char 19):
   Unknown name --bar--
+
+The options: typechecking only reports errors and runs nothing, and the
+single-dash form of the help option is not accepted.
+
+  $ ../temporal-millet --typecheck-only nat.mlt
+  $ ../temporal-millet --typecheck-only comp_type_annotation_reject.mlt
+  Typing error: Comparing resource inequality 3 >= 5 failed
+  [1]
+  $ ../temporal-millet -help
+  ../temporal-millet: unknown option '-help'.
+  Run Temporal Millet as '../temporal-millet [filename.mlt] ...'
+    --debug           Show final internal state and top level typing results after execution
+    --help            Display this list of options
+    --no-stdlib       Do not load the standard library
+    --resources       Type of resource grades to use (default: time-lower-bound). Accepted: 'time-lower-bound', 'time-upper-bound', 'time-interval', 'traces-lower-bound', 'traces-upper-bound', 'traces-interval'
+    --typecheck-only  Typecheck the files without running them
+  [2]

@@ -20,6 +20,7 @@ type config = {
   filenames : string list;
   use_stdlib : bool;
   debug : bool;
+  typecheck_only : bool;
   resource_type : string;
 }
 
@@ -32,19 +33,28 @@ let parse_args_to_config () =
   let filenames = ref []
   and use_stdlib = ref true
   and debug = ref false
+  and typecheck_only = ref false
   and resource_type = ref default_resource_name in
   let usage = "Run Temporal Millet as '" ^ Sys.argv.(0) ^ " [filename.mlt] ...'"
   and anonymous filename = filenames := filename :: !filenames
-  and options =
+  (* The options, in alphabetical order. [--help] is listed rather than left
+     to [Arg] to add, which would put it last; it refers back to the list to
+     print it, hence the reference. *)
+  and options = ref [] in
+  options :=
     Arg.align
       [
-        ( "--no-stdlib",
-          Arg.Clear use_stdlib,
-          " Do not load the standard library" );
         ( "--debug",
           Arg.Set debug,
           " Show final internal state and top level typing results after \
            execution" );
+        ( "--help",
+          Arg.Unit
+            (fun () -> raise (Arg.Help (Arg.usage_string !options usage))),
+          " Display this list of options" );
+        ( "--no-stdlib",
+          Arg.Clear use_stdlib,
+          " Do not load the standard library" );
         ( "--resources",
           Arg.Set_string resource_type,
           Printf.sprintf
@@ -52,13 +62,22 @@ let parse_args_to_config () =
             default_resource_name
             (String.concat ", "
                (List.map (fun s -> "'" ^ s ^ "'") accepted_resource_names)) );
-      ]
-  in
-  Arg.parse options anonymous usage;
+        ( "--typecheck-only",
+          Arg.Set typecheck_only,
+          " Typecheck the files without running them" );
+        (* [Arg] would otherwise add a single-dash "-help" alongside "--help";
+           listing it here with an empty doc string keeps it out of the help
+           text and makes it fail like any other unknown option. *)
+        ( "-help",
+          Arg.Unit (fun () -> raise (Arg.Bad "unknown option '-help'")),
+          "" );
+      ];
+  Arg.parse !options anonymous usage;
   {
     filenames = List.rev !filenames;
     use_stdlib = !use_stdlib;
     debug = !debug;
+    typecheck_only = !typecheck_only;
     resource_type = !resource_type;
   }
 
@@ -109,7 +128,8 @@ let run_with (type t)
            user_vars);
       print_newline ()
     end;
-    run run_state 1
+    (* loading the files has typechecked every command, the [run]s included *)
+    if not config.typecheck_only then run run_state 1
   with Error.Error error ->
     Error.print error;
     exit 1

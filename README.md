@@ -43,8 +43,9 @@ There are two ways to run programs:
   loads all listed files and runs every `run` command, printing each run's
   result and final resource state. Non-deterministic choices are made at
   random. Options: `--resources <monoid>` selects the grading monoid (see
-  below), `--no-stdlib` skips the standard library, and `--debug` also prints
-  the typing context.
+  below), `--typecheck-only` typechecks the files without running them,
+  `--no-stdlib` skips the standard library, and `--debug` also prints the
+  typing context.
 
 The [`examples/`](examples/) directory contains the programs available in the
 web interface; each starts with the command that runs it.
