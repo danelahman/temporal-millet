@@ -28,7 +28,10 @@ type operation = OpName.t
 
 type 'a rho =
   | RhoConst of 'a
-  | RhoParam of rho_param
+  | RhoParam of rho_param  (** an unknown grade, solved by unification *)
+  | RhoRigid of rho_param
+      (** the grade of a handler continuation: universally quantified, so it is
+          never substituted and may not occur in the type of a definition *)
   | RhoAdd of 'a rho * 'a rho
 
 type 'a ty =
@@ -127,7 +130,7 @@ type ('var, 'map, 'rho) context_elem_ty = VarMap of 'map | Rho of 'rho
 type ('var, 'map, 'rho) context = ('var, 'map, 'rho) context_elem_ty list
 
 let rec substitute_rho subst = function
-  | RhoConst _ as rho -> rho
+  | (RhoConst _ | RhoRigid _) as rho -> rho
   | RhoParam tp as rho -> (
       match RhoParamMap.find_opt tp subst with None -> rho | Some rho' -> rho')
   | RhoAdd (rho, rho') ->
@@ -216,9 +219,35 @@ let rec free_vars = function
 
 and free_rhos rho =
   match rho with
-  | RhoConst _ -> RhoParamSet.empty
+  | RhoConst _ | RhoRigid _ -> RhoParamSet.empty
   | RhoParam a -> RhoParamSet.singleton a
   | RhoAdd (l, r) -> RhoParamSet.union (free_rhos l) (free_rhos r)
+
+(** The rigid grades of a grade or a type. They are never substituted or
+    generalised, so [free_vars] leaves them out. *)
+let rec rigid_rhos = function
+  | RhoConst _ | RhoParam _ -> RhoParamSet.empty
+  | RhoRigid a -> RhoParamSet.singleton a
+  | RhoAdd (l, r) -> RhoParamSet.union (rigid_rhos l) (rigid_rhos r)
+
+let rec rigid_rhos_ty = function
+  | TyConst _ | TyParam _ -> RhoParamSet.empty
+  | TyApply (_, tys) | TyTuple tys ->
+      List.fold_left
+        (fun acc ty -> RhoParamSet.union acc (rigid_rhos_ty ty))
+        RhoParamSet.empty tys
+  | TyArrow (ty1, CompTy (ty2, rho)) ->
+      RhoParamSet.union
+        (RhoParamSet.union (rigid_rhos_ty ty1) (rigid_rhos_ty ty2))
+        (rigid_rhos rho)
+  | TyBox (rho, ty) -> RhoParamSet.union (rigid_rhos rho) (rigid_rhos_ty ty)
+  | TyHandler (CompTy (ty1, rho1), CompTy (ty2, rho2)) ->
+      RhoParamSet.union
+        (RhoParamSet.union (rigid_rhos_ty ty1) (rigid_rhos_ty ty2))
+        (RhoParamSet.union (rigid_rhos rho1) (rigid_rhos rho2))
+
+let rigid_rhos_comp_ty = function
+  | CompTy (ty, rho) -> RhoParamSet.union (rigid_rhos_ty ty) (rigid_rhos rho)
 
 let free_vars_constr = function
   | Ineq (rho1, rho2) ->

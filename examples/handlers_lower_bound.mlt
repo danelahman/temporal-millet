@@ -1,0 +1,148 @@
+(* Run this example with the 'time-lower-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-lower-bound examples/handlers_lower_bound.mlt *)
+
+(* Reading the state takes 71 ticks. *)
+operation Get : unit ~> int # 71
+(* Writing it takes 2. *)
+operation Set : int ~> unit # 2
+
+(* Correctly accepted by the typechecker: the 'Get' clause delays exactly the
+   71 ticks of the operation and the 'Set' clause forwards it at its own cost
+   of 2; the return case performs both itself, so the handler has grade 73. *)
+let h =
+  handler
+  | x ->
+      perform Set 42;
+      let y = perform Get () in
+      x + y
+  | Get () k ->
+      delay 71;
+      continue k with 42
+  | Set x k ->
+      perform Set x;
+      continue k with ()
+
+(* Correctly accepted by the typechecker: a handler whose return case takes no
+   time, so its grade is 0; the 'Get' clause again delays the 71 ticks of the
+   operation. *)
+let h' =
+  handler
+  | x -> x * x
+  | Get x k ->
+      delay 71;
+      continue k with 42
+
+(* Correctly accepted by the typechecker: the 'Get' clause performs 'Get'
+   itself instead of delaying, which costs exactly the grade of the operation
+   it handles. *)
+let h'' =
+  handler
+  | x -> x * x
+  | Get x k ->
+      perform Get ();
+      continue k with 42
+
+(* Correctly accepted by the typechecker: resuming twice gives the case grade
+   71 + rho + rho, a sub-grade of 71 + rho, i.e. rho >= 0, which holds for
+   every rho since zero is the top of the order; the second resumption also
+   happens 71 + rho ticks after the call, and 71 + rho >= 71. *)
+let h_twice =
+  handler
+  | x -> x
+  | Get () k ->
+      delay 71;
+      let y = continue k with 42 in
+      continue k with y
+
+(* Correctly rejected by the typechecker: the continuation may be resumed
+   only once 71 ticks have passed since the call, but this clause delays
+   only 70:
+
+     Typing error: Comparing resource inequality 70 >= 71 failed
+*)
+(*
+let h_short =
+  handler
+  | x -> x
+  | Get () k ->
+      delay 70;
+      continue k with 42
+*)
+
+(* Correctly rejected by the typechecker: performing 'Set' costs only 2
+   ticks, short of the 71 the continuation demands:
+
+     Typing error: Comparing resource inequality 2 >= 71 failed
+*)
+(*
+let h_swap =
+  handler
+  | x -> x
+  | Get () k ->
+      perform Set 0;
+      continue k with 42
+*)
+
+(* Correctly rejected by the typechecker: the case must be a sub-grade of
+   71 + rho for every rho, but never resuming gives it grade 0, which already
+   fails for rho = 0:
+
+     Typing error: Comparing resource inequality 0 >= ρ₀ + 71 failed, already
+       when the continuation grade is 0
+*)
+(*
+let h_abandon =
+  handler
+  | x -> x
+  | Get () k -> 0
+*)
+
+(* Correctly rejected by the typechecker: the return case makes the
+   handler's result type 'unit -> α # 0', so the 'Get' clause's function must
+   also have grade 0, forcing the continuation's arbitrary grade to equal 0:
+
+     Typing error: The grade ρ₀ of a handler continuation may be any grade,
+       but here it is required to equal 0
+*)
+(*
+let h_fixed =
+  handler
+  | x -> (fun () -> x)
+  | Get () k -> (fun () -> let f = continue k with 42 in f ())
+*)
+
+(* Correctly rejected by the typechecker: the continuation's arbitrary grade
+   would escape into the type of h_leak through g, where a caller could pick
+   it:
+
+     Typing error: The grade ρ₀ of a handler continuation may be any grade
+       and cannot occur in the type ([71](int → α # ρ₀) → β # ρ₁) → α # ρ₂ ⇒
+       α # 0 of h_leak
+*)
+(*
+let h_leak g =
+  handler
+  | x -> x
+  | Get () k ->
+      g k;
+      delay 71;
+      continue k with 42
+*)
+
+(* The run handles a 'Get' with 'h_twice': the first resumption returns 45,
+   which the second resumption then continues with, so the run returns 48. *)
+run
+  handle
+    let x = perform Get () in
+    return x + 3
+  with h_twice
+
+(* The run handles a 'Get' with 'h', whose return case then performs a 'Set';
+   the 'Set' clause forwards it and nothing outside catches it, so the run
+   stops at that unhandled operation. *)
+run
+  handle
+    let x = perform Get () in
+    return x + 3
+  with h

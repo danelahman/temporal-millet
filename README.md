@@ -246,7 +246,24 @@ Under the time monoids the same rule lets a case delay longer than the
 operation's grade under `time-lower-bound`, and shorter under
 `time-upper-bound`.
 
-See [`examples/handlers.mlt`](examples/handlers.mlt) and
+The grade of the continuation `k` is not known when the handler is
+typechecked, so an operation case must be well-typed for *every* grade `rho`
+of `k`. The typechecker makes `rho` a rigid grade variable: unification never
+solves it, and it may not occur in the type of a top-level definition, so it
+can be neither fixed by the case nor instantiated at a use site. Inequalities
+mentioning `rho` are still decided where the order allows. A case that does
+not resume, `Op p k -> 5`, has grade `0`, a sub-grade of `1 + rho` for every
+`rho` under an upper bound, where zero is the minimum, but for no `rho` under
+a lower bound, where the failing instance is reported:
+
+    Comparing resource inequality 0 >= ρ₀ + 1 failed, already when the continuation grade is 0
+
+Resuming twice under `Op # 1` fails likewise under an upper bound, since
+`rho + rho <= 1 + rho` fails already for `rho = 2`; under a lower bound it is
+accepted, as `rho >= 0` always holds.
+
+See [`examples/handlers_lower_bound.mlt`](examples/handlers_lower_bound.mlt),
+[`examples/handlers_upper_bound.mlt`](examples/handlers_upper_bound.mlt) and
 [`examples/3dprint_handlers.mlt`](examples/3dprint_handlers.mlt).
 
 ### Default implementations
@@ -306,7 +323,9 @@ prototype compares grades by unification, that is, for equality:
   rejected ("Cannot compare non-ground resource values"), except that `rho <= 0`
   with `rho` unknown is solved by `rho := 0` (the only solution when zero is the
   minimum of the order, and a sound but incomplete guess under
-  `traces-interval`). Inequalities are currently also not carried into the
+  `traces-interval`). A rigid continuation grade is never guessed at; an
+  inequality mentioning one that the rules above leave open is rejected as
+  non-ground. Inequalities are currently also not carried into the
   generalised types of top-level definitions.
 
 The workaround, where a grade has to be widened, is an explicit type annotation.

@@ -1,0 +1,18 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/continuation_escape_reject.mlt *)
+
+operation Op : unit ~> unit # 1
+
+(* The grade of k would escape into the type of h through g, and a use of h
+   could then instantiate it. *)
+let h g = handler | x -> x | Op p k -> g k; delay 1; continue k with ()
+
+(* Correctly rejected by the typechecker:
+
+     Typing error: The grade ρ₀ of a handler continuation may be any grade
+       and cannot occur in the type ([1](unit → α # ρ₀) → β) → α # ρ₁ ⇒ α # 0
+       of h
+*)
+run handle (perform Op (); delay 5; 3) with h
+      (fun k -> let f = (fun () -> ()) in continue k with (); f ())

@@ -1,0 +1,12 @@
+(* Run this test with the default 'time-lower-bound' grading monoid, e.g.
+
+     ./temporal-millet tests/continuation_twice_lower.mlt *)
+
+operation Op : unit ~> unit # 0
+
+(* Resuming twice gives the case grade rho + rho; under a lower bound this
+   reduces to rho >= 0, which holds for every rho. *)
+let h = handler | x -> x | Op p k -> let a = continue k with () in continue k with ()
+
+(* Correctly accepted by the typechecker: the run returns 3. *)
+run handle (perform Op (); 3) with h

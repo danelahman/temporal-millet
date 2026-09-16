@@ -1,0 +1,16 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/continuation_fixed_reject.mlt *)
+
+operation Op : unit ~> unit # 1
+
+(* The case returns a function graded by the continuation, so the handler's
+   return type would fix that grade to 0. *)
+let h = handler | x -> (fun () -> x) | Op p k -> (fun () -> let f = continue k with () in f ())
+
+(* Correctly rejected by the typechecker:
+
+     Typing error: The grade ρ₀ of a handler continuation may be any grade,
+       but here it is required to equal 0
+*)
+run handle (perform Op (); 3) with h

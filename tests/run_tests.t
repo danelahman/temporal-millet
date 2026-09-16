@@ -11,6 +11,9 @@
   >     eternal_*.mlt) ../temporal-millet --resources time-upper-bound $f;;
   >     noneternal_lower.mlt) ../temporal-millet $f;;
   >     noneternal*.mlt) ../temporal-millet --resources time-upper-bound $f;;
+  >     continuation_discard_reject_lower.mlt) ../temporal-millet $f;;
+  >     continuation_twice_lower.mlt) ../temporal-millet $f;;
+  >     continuation_*.mlt) ../temporal-millet --resources time-upper-bound $f;;
   >     traces_lower.mlt) ../temporal-millet --resources traces-lower-bound $f;;
   >     3dprint_traces.mlt) ../temporal-millet --resources traces-interval $f;;
   >     traces_intervals.mlt) ../temporal-millet --resources traces-interval $f;;
@@ -130,6 +133,50 @@
   comp_type_annotation_upper_reject.mlt
   ======================================================================
   Typing error: Comparing resource inequality 3 <= 2 failed
+  ======================================================================
+  continuation_discard_reject_lower.mlt
+  ======================================================================
+  Typing error: Comparing resource inequality 0 >= ρ₀ + 1 failed, already when the continuation grade is 0
+  ======================================================================
+  continuation_discard_upper.mlt
+  ======================================================================
+  === Run 1 ===
+  return 5
+  State: [
+    { resource_1 ↦
+        fun op_var ↦ handle
+                       return op_var;
+                       delay 5 (return ());
+                       return 3
+                     with h
+        # 1
+    }
+  ]
+  
+  ======================================================================
+  continuation_escape_reject.mlt
+  ======================================================================
+  Typing error: The grade ρ₀ of a handler continuation may be any grade and cannot occur in the type ([1](unit → α # ρ₀) → β) → α # ρ₁ ⇒ α # 0 of h
+  ======================================================================
+  continuation_fixed_reject.mlt
+  ======================================================================
+  Typing error: The grade ρ₀ of a handler continuation may be any grade, but here it is required to equal 0
+  ======================================================================
+  continuation_twice_lower.mlt
+  ======================================================================
+  === Run 1 ===
+  return 3
+  State: [
+    { resource_1 ↦ fun op_var ↦ handle
+                                  return op_var;
+                                  return 3
+                                with h # 0 }
+  ]
+  
+  ======================================================================
+  continuation_twice_reject_upper.mlt
+  ======================================================================
+  Typing error: Comparing resource inequality ρ₀ <= 1 failed, already when the continuation grade is 2
   ======================================================================
   default_ops.mlt
   ======================================================================

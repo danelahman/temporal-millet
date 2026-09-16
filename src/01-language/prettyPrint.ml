@@ -117,7 +117,7 @@ let print_rho (type a)
   let rec aux (rho : a rho) ppf =
     match rho with
     | RhoConst i -> Format.fprintf ppf "%s" (ResourceGrade.show i)
-    | RhoParam p -> rho_pp p ppf
+    | RhoParam p | RhoRigid p -> rho_pp p ppf
     | RhoAdd (t1, t2) ->
         Format.fprintf ppf "@[%t + %t@]"
           (fun ppf -> aux t1 ppf)

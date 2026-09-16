@@ -98,6 +98,7 @@ struct
   let rec eval_rho (t : base_rho) : base =
     match t with
     | RhoConst c -> c
-    | RhoParam _ -> raise (RhoParamInEval "RhoParam not supported in eval_rho")
+    | RhoParam _ | RhoRigid _ ->
+        raise (RhoParamInEval "RhoParam not supported in eval_rho")
     | RhoAdd (t1, t2) -> Base.add (eval_rho t1) (eval_rho t2)
 end

@@ -1,0 +1,12 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/continuation_discard_upper.mlt *)
+
+operation Op : unit ~> unit # 1
+
+(* A case that does not resume has grade 0, a sub-grade of 1 + rho for every
+   rho, since under an upper bound 0 is the minimum. *)
+let h = handler | x -> x | Op p k -> 5
+
+(* Correctly accepted by the typechecker: the run returns 5. *)
+run handle (perform Op (); delay 5; 3) with h
