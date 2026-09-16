@@ -93,6 +93,24 @@ and 'a abstraction = 'a pattern * 'a computation
 
 type 'a ty_def = TySum of (label * 'a ty option) list | TyInline of 'a ty
 
+(** Where a typing constraint comes from, for error messages. *)
+type origin =
+  | UseOf of variable
+      (** A reference to the local variable, after some grade has accumulated
+          since it was bound. *)
+  | InstanceOf of variable
+      (** The qualifier of the variable's type scheme, instantiated at a use of
+          the variable. *)
+
+(** The constraints of a typing derivation, besides the equations solved by
+    unification. Those that cannot be discharged inside a top-level definition
+    qualify its generalised type scheme. *)
+type 'a constr =
+  | Ineq of 'a rho * 'a rho  (** [rho1] is a sub-grade of [rho2] *)
+  | Eternal of 'a ty * origin  (** the type is eternal *)
+  | EternalOrIneq of 'a ty * 'a rho * 'a rho * origin
+      (** the type is eternal, or [rho1] is a sub-grade of [rho2] *)
+
 (* Whether the eternality of a type definition is computed from its structure,
    as usual ([Derived]), or fixed to non-eternal by a [noneternal type ...]
    declaration ([Noneternal]). *)
@@ -142,6 +160,22 @@ let substitute_comp_ty ty_subst rho_subst = function
   | CompTy (ty, rho) ->
       CompTy (substitute_ty ty_subst rho_subst ty, substitute_rho rho_subst rho)
 
+let substitute_constr ty_subst rho_subst = function
+  | Ineq (rho1, rho2) ->
+      Ineq (substitute_rho rho_subst rho1, substitute_rho rho_subst rho2)
+  | Eternal (ty, origin) -> Eternal (substitute_ty ty_subst rho_subst ty, origin)
+  | EternalOrIneq (ty, rho1, rho2, origin) ->
+      EternalOrIneq
+        ( substitute_ty ty_subst rho_subst ty,
+          substitute_rho rho_subst rho1,
+          substitute_rho rho_subst rho2,
+          origin )
+
+let with_origin origin = function
+  | Ineq _ as c -> c
+  | Eternal (ty, _) -> Eternal (ty, origin)
+  | EternalOrIneq (ty, rho1, rho2, _) -> EternalOrIneq (ty, rho1, rho2, origin)
+
 let rec free_vars = function
   | TyConst _ -> (TyParamSet.empty, RhoParamSet.empty)
   | TyParam a -> (TyParamSet.singleton a, RhoParamSet.empty)
@@ -185,3 +219,13 @@ and free_rhos rho =
   | RhoConst _ -> RhoParamSet.empty
   | RhoParam a -> RhoParamSet.singleton a
   | RhoAdd (l, r) -> RhoParamSet.union (free_rhos l) (free_rhos r)
+
+let free_vars_constr = function
+  | Ineq (rho1, rho2) ->
+      (TyParamSet.empty, RhoParamSet.union (free_rhos rho1) (free_rhos rho2))
+  | Eternal (ty, _) -> free_vars ty
+  | EternalOrIneq (ty, rho1, rho2, _) ->
+      let fv_ty, fv_rho = free_vars ty in
+      ( fv_ty,
+        RhoParamSet.union fv_rho
+          (RhoParamSet.union (free_rhos rho1) (free_rhos rho2)) )

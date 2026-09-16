@@ -18,9 +18,13 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     variables :
       (Ast.ty_param list
       * Ast.rho_param list
+      * ResourceGrade.t Ast.constr list
       * ResourceGrade.t Ast.ty
       * var_type)
       ContextHolderModule.t;
+        (** Each variable's generalised type scheme: the quantified type and
+            grade parameters, the constraints qualifying them, and the type.
+            Local variables are monomorphic and unqualified. *)
     type_definitions :
       (Ast.ty_param list * ResourceGrade.t Ast.ty_def) Ast.TyNameMap.t;
     noneternal_types : Ast.TyNameSet.t;
@@ -142,27 +146,15 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     let rho_pp = PrettyPrint.RhoPrintParam.create () in
     print_rho_eq_constraints_pp rho_pp constraints
 
-  type ineq_constraint =
-    | Ineq of ContextHolderModule.base_rho * ResourceGrade.t Ast.rho
-    | EternalOrIneq of
-        ResourceGrade.t Ast.ty
-        * ContextHolderModule.base_rho
-        * ResourceGrade.t Ast.rho
-
   let print_rho_ineq_constraints_pp rho_pp constraints =
+    let ty_pp = PrettyPrint.TyPrintParam.create () in
     Format.fprintf Format.std_formatter "[%a]"
       (Format.pp_print_list
          ~pp_sep:(fun ppf () -> Format.fprintf ppf "; ")
-         (fun _ppf constraint_ ->
-           match constraint_ with
-           | Ineq (rho1, rho2) -> print_rho_geq rho1 rho2 rho_pp
-           | EternalOrIneq (ty, rho1, rho2) ->
-               let ty_pp = PrettyPrint.TyPrintParam.create () in
-               Format.printf "%t ∨ (%t %s %t)"
-                 (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
-                 (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho1)
-                 ResourceGrade.is_sub_rho_symbol
-                 (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho2)))
+         (fun ppf constraint_ ->
+           PrettyPrint.print_constr
+             (module ResourceGrade)
+             ty_pp rho_pp constraint_ ppf))
       constraints
 
   let print_rho_ineq_constraints constraints =
@@ -224,7 +216,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     List.fold_left
       (fun state (x, ty) ->
         let updated_variables =
-          ContextHolderModule.add_variable x ([], [], ty, Local) state.variables
+          ContextHolderModule.add_variable x ([], [], [], ty, Local)
+            state.variables
         in
         { state with variables = updated_variables })
       state vars
@@ -233,7 +226,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     List.fold_left
       (fun state (x, ty) ->
         let updated_variables =
-          ContextHolderModule.add_variable x ([], [], ty, Global)
+          ContextHolderModule.add_variable x ([], [], [], ty, Global)
             state.variables
         in
         { state with variables = updated_variables })
@@ -256,6 +249,12 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         let rho = fresh_rho () in
         Ast.RhoParamMap.add param rho subst)
       Ast.RhoParamMap.empty params
+
+  let instantiate_constrs ty_subst rho_subst origin constrs =
+    List.map
+      (fun c ->
+        Ast.substitute_constr ty_subst rho_subst (Ast.with_origin origin c))
+      constrs
 
   let infer_variant state lbl =
     let rec find = function
@@ -315,17 +314,18 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         handlers) *)
   let rec infer_expression state = function
     | Ast.Var x ->
-        let ty_params, rho_params, ty, var_type =
+        let ty_params, rho_params, constrs, ty, var_type =
           ContextHolderModule.find_variable x state.variables
         in
         let rho_ineq =
           match var_type with
           | Local ->
               [
-                EternalOrIneq
+                Ast.EternalOrIneq
                   ( ty,
                     ContextHolderModule.sum_rhos_added_after x state.variables,
-                    Ast.RhoConst ResourceGrade.zero );
+                    Ast.RhoConst ResourceGrade.zero,
+                    Ast.UseOf x );
               ]
           | Global -> []
         in
@@ -340,8 +340,17 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         Format.fprintf Format.std_formatter "\n"; *)
         let ty_subst = refreshing_ty_subst ty_params in
         let rho_subst = refreshing_rho_subst rho_params in
-        (Ast.substitute_ty ty_subst rho_subst ty, [], [], rho_ineq, [])
-        (* type, type constraints, rho constraints, 
+        (* The qualifier of the scheme is instantiated along with the type,
+           and its constraints are then owed by this use of [x]. *)
+        let constrs' =
+          instantiate_constrs ty_subst rho_subst (Ast.InstanceOf x) constrs
+        in
+        ( Ast.substitute_ty ty_subst rho_subst ty,
+          [],
+          [],
+          rho_ineq @ constrs',
+          [] )
+        (* type, type constraints, rho constraints,
            rho inequational constraints, rho abstractness constraints *)
     | Ast.Const c -> (Ast.TyConst (Const.infer_ty c), [], [], [], [])
     | Ast.Annotated (expr, ty) -> (
@@ -358,7 +367,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             ( ty,
               (arg_ty, arg_ty') :: (res_ty, res_ty') :: ty_eqs,
               rho_eqs,
-              Ineq (rho', rho) :: rho_ineqs,
+              Ast.Ineq (rho', rho) :: rho_ineqs,
               rho_abs )
         | _ -> (ty, (ty, ty') :: ty_eqs, rho_eqs, rho_ineqs, rho_abs))
     | Ast.Tuple exprs ->
@@ -458,7 +467,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                      [rho] (sub-effecting), so that e.g. a clause performing
                      [Send] once realises the grade [{Send | Send; Send}]. *)
                   let op_rho_ineqs' =
-                    Ineq (op_case_rho, Ast.RhoAdd (op_rho, rho)) :: op_rho_ineqs
+                    Ast.Ineq (op_case_rho, Ast.RhoAdd (op_rho, rho))
+                    :: op_rho_ineqs
                   in
                   let op_rho_abs' = rho :: op_rho_abs in
                   ( op_ty_eqs' @ ty_eqs'',
@@ -574,12 +584,15 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           | _ -> Error.typing "Unboxing requires a variable."
         in
         let x = findVar e in
-        let ty_params, rho_params, ty, _var_type =
+        let ty_params, rho_params, constrs, ty, _var_type =
           ContextHolderModule.find_variable x state.variables
         in
         let ty_subst = refreshing_ty_subst ty_params in
         let rho_subst = refreshing_rho_subst rho_params in
         let boxed_ty = Ast.substitute_ty ty_subst rho_subst ty in
+        let constrs' =
+          instantiate_constrs ty_subst rho_subst (Ast.InstanceOf x) constrs
+        in
         let value_ty, comp_ty, ty_eqs, rho_eqs, rho_ineqs, rho_abs =
           infer_abstraction state abs
         in
@@ -590,7 +603,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         ( comp_ty,
           [ (Ast.TyBox (rho, value_ty), boxed_ty) ] @ ty_eqs,
           rho_eqs,
-          [ Ineq (sum_rhos_added_after, rho) ] @ rho_ineqs,
+          (Ast.Ineq (sum_rhos_added_after, rho) :: constrs') @ rho_ineqs,
           rho_abs )
     | Ast.Perform (op, e, abs) -> (
         let op_sig = Ast.OpNameMap.find_opt op state.op_signatures in
@@ -656,18 +669,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     List.map subst_rho_equation
 
   let subst_rho_inequations ty_subst rho_subst =
-    let subst_inequation = function
-      | Ineq (rho1, rho2) ->
-          Ineq
-            ( Ast.substitute_rho rho_subst rho1,
-              Ast.substitute_rho rho_subst rho2 )
-      | EternalOrIneq (ty, rho1, rho2) ->
-          EternalOrIneq
-            ( Ast.substitute_ty ty_subst rho_subst ty,
-              Ast.substitute_rho rho_subst rho1,
-              Ast.substitute_rho rho_subst rho2 )
-    in
-    List.map subst_inequation
+    List.map (Ast.substitute_constr ty_subst rho_subst)
 
   let subst_rho_abstract_constraints rho_subst =
     let subst_abstract_constraint = function
@@ -983,8 +985,63 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             unify_rho_constraints state prev_unsolved_size
               ((u1, u2) :: unsolved) eqs)
 
+  (** [reduce_eternal state ty] reduces the obligation that [ty] be eternal to
+      the type variables it depends on: [None] when [ty] is not eternal whatever
+      its variables are instantiated with, and [Some vars] when it is eternal
+      exactly if every variable in [vars] is, so [Some empty] when it is eternal
+      outright.
+
+      A type application is reduced by unfolding its definition with the
+      arguments substituted in, so that only the parameters that actually occur
+      in a constructor argument, and occur there outside of a function, handler
+      or box type, impose an obligation. [visited] tracks the type names
+      currently being unfolded to stop the recursion on recursive types (e.g.
+      list): a recursive occurrence is assumed eternal coinductively, since it
+      is guarded and its non-recursive parts are checked by the outer call. A
+      [noneternal] declaration overrides the structural check, and does so
+      before [visited] is consulted, so that a noneternal type occurring inside
+      a recursive type poisons it too. *)
+  let reduce_eternal state ty =
+    let ( let* ) = Option.bind in
+    let rec all visited tys =
+      List.fold_left
+        (fun acc ty ->
+          let* acc = acc in
+          let* vars = check visited ty in
+          Some (Ast.TyParamSet.union acc vars))
+        (Some Ast.TyParamSet.empty) tys
+    and check visited = function
+      | Ast.TyConst c ->
+          if Const.is_eternal_ty c then Some Ast.TyParamSet.empty else None
+      | Ast.TyParam a -> Some (Ast.TyParamSet.singleton a)
+      | Ast.TyArrow _ | Ast.TyBox _ | Ast.TyHandler _ -> None
+      | Ast.TyTuple tys -> all visited tys
+      | Ast.TyApply (ty_name, args) -> (
+          if Ast.TyNameSet.mem ty_name state.noneternal_types then None
+          else if List.mem ty_name visited then Some Ast.TyParamSet.empty
+          else
+            match Ast.TyNameMap.find_opt ty_name state.type_definitions with
+            | None -> None
+            | Some (params, ty_def) -> (
+                let ty_subst =
+                  List.fold_left2
+                    (fun subst param arg -> Ast.TyParamMap.add param arg subst)
+                    Ast.TyParamMap.empty params args
+                in
+                let subst = Ast.substitute_ty ty_subst Ast.RhoParamMap.empty in
+                let visited' = ty_name :: visited in
+                match ty_def with
+                | Ast.TyInline ty -> check visited' (subst ty)
+                | Ast.TySum variants ->
+                    all visited'
+                      (List.filter_map
+                         (fun (_, arg_ty) -> Option.map subst arg_ty)
+                         variants)))
+    in
+    check [] ty
+
   let rec unify_rho_ineq_constraints state prev_unsolved_size unsolved =
-    let process wrap rho1 rho2 ineqs =
+    let process ~may_default wrap rho1 rho2 ineqs =
       let rho1' = simplify_rho rho1 in
       let rho2' = simplify_rho rho2 in
       match (rho1', rho2') with
@@ -992,13 +1049,17 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           unify_rho_ineq_constraints state prev_unsolved_size unsolved ineqs
       (* [ρ ≾ 0] with [ρ] still unknown: when the unit is the top of the
          sub-grade order the constraint holds outright and is discharged by
-         [check_ineq], so leave it alone; otherwise take [ρ := 0], which
-         satisfies the constraint by reflexivity. That is the unique solution
-         when the unit is minimal, and a sound — if possibly incomplete —
-         default when it is neither minimal nor top, as for the two-sided
-         timed-trace grade. *)
+         [simplify_constraints], so leave it alone; otherwise take [ρ := 0],
+         which satisfies the constraint by reflexivity. That is the unique
+         solution when the unit is minimal, and a sound — if possibly
+         incomplete — default when it is neither minimal nor top, as for the
+         two-sided timed-trace grade. A disjunction [eternal τ ∨ ρ ≾ 0] is
+         defaulted only when [τ] cannot be eternal; otherwise it is left for
+         the eternality of [τ] to decide, possibly in the scheme of the
+         definition. *)
       | Ast.RhoParam tp, rho
-        when (not (occurs_rho tp rho))
+        when may_default
+             && (not (occurs_rho tp rho))
              && rho = Ast.RhoConst ResourceGrade.zero
              && not ResourceGrade.is_zero_top_sub_rho ->
           let singleton = Ast.RhoParamMap.singleton tp rho in
@@ -1039,60 +1100,18 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         else
           (* Retry with deferred constraints *)
           unify_rho_ineq_constraints state current_unsolved_size [] unsolved
-    | EternalOrIneq (ty, rho1, rho2) :: ineqs ->
-        process (fun r1 r2 -> EternalOrIneq (ty, r1, r2)) rho1 rho2 ineqs
-    | Ineq (rho1, rho2) :: ineqs ->
-        process (fun r1 r2 -> Ineq (r1, r2)) rho1 rho2 ineqs
-
-  let is_eternal state ty =
-    (* [visited] tracks type names currently being unfolded to prevent infinite
-       recursion on recursive types (e.g. list). When a type name is encountered
-       again in [visited], we return true as a coinductive assumption: the
-       recursive occurrence is guarded and the non-recursive parts were already
-       checked in the outer call. *)
-    let rec check visited = function
-      | Ast.TyConst c -> Const.is_eternal_ty c
-      | Ast.TyApply (ty_name, args) -> (
-          (* A [noneternal] declaration overrides the structural check, and
-             does so before [visited] is consulted, so that a noneternal type
-             occurring inside a recursive type poisons it too. *)
-          (not (Ast.TyNameSet.mem ty_name state.noneternal_types))
-          && List.for_all (check visited) args
-          &&
-          if List.mem ty_name visited then true
-          else
-            let visited' = ty_name :: visited in
-            match Ast.TyNameMap.find_opt ty_name state.type_definitions with
-            | None -> false
-            | Some (params, Ast.TyInline ty) ->
-                let ty_subst =
-                  List.fold_left2
-                    (fun subst param arg -> Ast.TyParamMap.add param arg subst)
-                    Ast.TyParamMap.empty params args
-                in
-                check visited'
-                  (Ast.substitute_ty ty_subst Ast.RhoParamMap.empty ty)
-            | Some (params, Ast.TySum variants) ->
-                let ty_subst =
-                  List.fold_left2
-                    (fun subst param arg -> Ast.TyParamMap.add param arg subst)
-                    Ast.TyParamMap.empty params args
-                in
-                List.for_all
-                  (fun (_, arg_ty) ->
-                    match arg_ty with
-                    | None -> true
-                    | Some ty ->
-                        check visited'
-                          (Ast.substitute_ty ty_subst Ast.RhoParamMap.empty ty))
-                  variants)
-      | Ast.TyParam _ -> false
-      | Ast.TyArrow _ -> false
-      | Ast.TyTuple tys -> List.for_all (check visited) tys
-      | Ast.TyBox _ -> false
-      | Ast.TyHandler _ -> false
-    in
-    check [] ty
+    | Ast.EternalOrIneq (ty, rho1, rho2, origin) :: ineqs ->
+        process
+          ~may_default:(reduce_eternal state ty = None)
+          (fun r1 r2 -> Ast.EternalOrIneq (ty, r1, r2, origin))
+          rho1 rho2 ineqs
+    | Ast.Ineq (rho1, rho2) :: ineqs ->
+        process ~may_default:true
+          (fun r1 r2 -> Ast.Ineq (r1, r2))
+          rho1 rho2 ineqs
+    | (Ast.Eternal _ as c) :: ineqs ->
+        unify_rho_ineq_constraints state prev_unsolved_size (c :: unsolved)
+          ineqs
 
   (** The cost model the sub-grade order of the timed-trace grades reads: the
       runtime bounds declared by the operation named by a trace event. Only the
@@ -1109,75 +1128,193 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
            operations"
           ev
 
-  let rec check_rho_ineq_constraints state =
-    let check_ineq ?eternal_ty rho_smaller rho_greater_or_equal =
-      let rho_smaller_simplified = simplify_rho rho_smaller in
-      let rho_greater_or_equal_simplified = simplify_rho rho_greater_or_equal in
-      let rho_pp = PrettyPrint.RhoPrintParam.create () in
-      let print_rho rho ppf =
-        PrettyPrint.print_rho (module ResourceGrade) rho_pp rho ppf
-      in
-      try
-        let rho_greater_or_equal_val =
-          ContextHolderModule.eval_rho rho_greater_or_equal_simplified
-        in
-        if
-          rho_greater_or_equal_val = ResourceGrade.zero
-          && ResourceGrade.is_zero_top_sub_rho
-        then ()
-        else
-          let rho_smaller_val =
-            ContextHolderModule.eval_rho rho_smaller_simplified
-          in
-          if
-            not
-              (ResourceGrade.is_sub_rho (op_bounds state) rho_smaller_val
-                 rho_greater_or_equal_val)
-          then
-            raise
-              (Exception.InequalityCheckFailed
-                 "ResourceGrade inequality check failed")
-      with
-      | Exception.InequalityCheckFailed _ -> (
-          match eternal_ty with
-          | Some ty when is_eternal state ty -> ()
-          | Some ty ->
-              let ty_pp = PrettyPrint.TyPrintParam.create () in
-              Error.typing
-                "Type %t is not eternal and resource inequality %t %s %t failed"
-                (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
-                (print_rho rho_smaller_simplified)
-                ResourceGrade.is_sub_rho_symbol
-                (print_rho rho_greater_or_equal_simplified)
-          | None ->
-              Error.typing "Comparing resource inequality %t %s %t failed"
-                (print_rho rho_smaller_simplified)
-                ResourceGrade.is_sub_rho_symbol
-                (print_rho rho_greater_or_equal_simplified))
-      | Exception.RhoParamInEval _ -> (
-          match eternal_ty with
-          | Some ty when is_eternal state ty -> ()
-          | Some ty ->
-              let ty_pp = PrettyPrint.TyPrintParam.create () in
-              Error.typing
-                "Type %t is not eternal and cannot compare non-ground resource \
-                 values %t and %t"
-                (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
-                (print_rho rho_smaller_simplified)
-                (print_rho rho_greater_or_equal_simplified)
-          | None ->
-              Error.typing "Cannot compare non-ground resource values %t and %t"
-                (print_rho rho_smaller_simplified)
-                (print_rho rho_greater_or_equal_simplified))
+  let origin_subject = function
+    | Ast.UseOf x -> Format.asprintf " of variable %t" (Ast.Variable.print x)
+    | Ast.InstanceOf _ -> ""
+
+  let origin_reason = function
+    | Ast.UseOf _ -> ""
+    | Ast.InstanceOf x ->
+        Format.asprintf ", as required by the type of %t" (Ast.Variable.print x)
+
+  (** [simplify_constraints state ~rigid constrs] discharges the constraints of
+      [constrs] that hold, fails on those that cannot hold, and returns the
+      residue that the still unknown type and grade parameters leave open.
+
+      An inequality is decided once both sides are ground; otherwise it is kept.
+      An eternality obligation is reduced to the type variables it depends on by
+      {!reduce_eternal}; when there are none it is discharged, and when the type
+      cannot be eternal it fails. A disjunction [eternal τ ∨ ρ₁ ≾ ρ₂] is
+      discharged as soon as either side holds; when the inequality fails it
+      leaves [eternal τ], and when the inequality mentions one of the [rigid]
+      grade parameters, the universally quantified grades of handler
+      continuations, it cannot be assumed either and leaves [eternal τ] as well.
+  *)
+  let simplify_constraints state ~rigid constrs =
+    let rho_pp = PrettyPrint.RhoPrintParam.create () in
+    let ty_pp = PrettyPrint.TyPrintParam.create () in
+    let print_rho rho ppf =
+      PrettyPrint.print_rho (module ResourceGrade) rho_pp rho ppf
     in
-    function
-    | [] -> ()
-    | EternalOrIneq (ty, rho_smaller, rho_greater_or_equal) :: rho_ineqs ->
-        check_ineq ~eternal_ty:ty rho_smaller rho_greater_or_equal;
-        check_rho_ineq_constraints state rho_ineqs
-    | Ineq (rho_smaller, rho_greater_or_equal) :: rho_ineqs ->
-        check_ineq rho_smaller rho_greater_or_equal;
-        check_rho_ineq_constraints state rho_ineqs
+    let print_ty ty ppf =
+      PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty ppf
+    in
+    (* Whether [rho1 ≾ rho2] holds, or [None] when a side is not ground. The
+       greater side is evaluated first: when it is the unit and the unit is the
+       top of the order, the constraint holds whatever the smaller side is. *)
+    let decide_ineq rho1 rho2 =
+      if rho1 = rho2 then Some true
+      else
+        try
+          let v2 = ContextHolderModule.eval_rho rho2 in
+          if v2 = ResourceGrade.zero && ResourceGrade.is_zero_top_sub_rho then
+            Some true
+          else
+            let v1 = ContextHolderModule.eval_rho rho1 in
+            Some (ResourceGrade.is_sub_rho (op_bounds state) v1 v2)
+        with Exception.RhoParamInEval _ -> None
+    in
+    let mentions_rigid rho =
+      not (Ast.RhoParamSet.disjoint (Ast.free_rhos rho) rigid)
+    in
+    let simplify acc = function
+      | Ast.Ineq (rho1, rho2) -> (
+          let rho1 = simplify_rho rho1 and rho2 = simplify_rho rho2 in
+          match decide_ineq rho1 rho2 with
+          | Some true -> acc
+          | Some false ->
+              Error.typing "Comparing resource inequality %t %s %t failed"
+                (print_rho rho1) ResourceGrade.is_sub_rho_symbol
+                (print_rho rho2)
+          | None -> Ast.Ineq (rho1, rho2) :: acc)
+      | Ast.Eternal (ty, origin) as c -> (
+          match reduce_eternal state ty with
+          | None ->
+              Error.typing "Type %t%s is not eternal%s" (print_ty ty)
+                (origin_subject origin) (origin_reason origin)
+          | Some vars when Ast.TyParamSet.is_empty vars -> acc
+          | Some _ -> c :: acc)
+      | Ast.EternalOrIneq (ty, rho1, rho2, origin) -> (
+          let rho1 = simplify_rho rho1 and rho2 = simplify_rho rho2 in
+          let ineq = decide_ineq rho1 rho2 in
+          if ineq = Some true then acc
+          else
+            match reduce_eternal state ty with
+            | Some vars when Ast.TyParamSet.is_empty vars -> acc
+            | None -> (
+                match ineq with
+                | Some false ->
+                    Error.typing
+                      "Type %t%s is not eternal and resource inequality %t %s \
+                       %t failed%s"
+                      (print_ty ty) (origin_subject origin) (print_rho rho1)
+                      ResourceGrade.is_sub_rho_symbol (print_rho rho2)
+                      (origin_reason origin)
+                | _ ->
+                    Error.typing
+                      "Type %t%s is not eternal and cannot compare non-ground \
+                       resource values %t and %t%s"
+                      (print_ty ty) (origin_subject origin) (print_rho rho1)
+                      (print_rho rho2) (origin_reason origin))
+            | Some _ ->
+                if
+                  ineq = Some false || mentions_rigid rho1
+                  || mentions_rigid rho2
+                then Ast.Eternal (ty, origin) :: acc
+                else Ast.EternalOrIneq (ty, rho1, rho2, origin) :: acc)
+    in
+    List.rev (List.fold_left simplify [] constrs)
+
+  (** [solve_residuals state ~rigid ~generalisable constrs] turns the residue
+      left by {!simplify_constraints} into the qualifier of a type scheme whose
+      quantified parameters are [generalisable]. A parameter of the residue that
+      is not generalisable, so that it occurs in no type the definition exports,
+      is ambiguous and may be instantiated freely: the type variables are taken
+      to be [unit] and the grade parameters zero, which satisfies every
+      eternality obligation on them and every [ρ ≾ 0]. What remains is then
+      either an inequality that still is not ground, which is rejected as
+      inequalities are not carried into schemes, or an eternality constraint on
+      generalisable variables, which is put into canonical form: a conjunction
+      of obligations on single variables, a disjunction over the tuple of the
+      variables its type reduces to, and no constraint implied by another. *)
+  let solve_residuals state ~rigid ~generalisable:(gen_tys, gen_rhos) constrs =
+    let fv_tys, fv_rhos =
+      List.fold_left
+        (fun (tys, rhos) c ->
+          let tys', rhos' = Ast.free_vars_constr c in
+          (Ast.TyParamSet.union tys tys', Ast.RhoParamSet.union rhos rhos'))
+        (Ast.TyParamSet.empty, Ast.RhoParamSet.empty)
+        constrs
+    in
+    let ty_subst =
+      Ast.TyParamSet.fold
+        (fun a subst -> Ast.TyParamMap.add a (Ast.TyTuple []) subst)
+        (Ast.TyParamSet.diff fv_tys gen_tys)
+        Ast.TyParamMap.empty
+    in
+    let rho_subst =
+      Ast.RhoParamSet.fold
+        (fun r subst ->
+          Ast.RhoParamMap.add r (Ast.RhoConst ResourceGrade.zero) subst)
+        (Ast.RhoParamSet.diff (Ast.RhoParamSet.diff fv_rhos gen_rhos) rigid)
+        Ast.RhoParamMap.empty
+    in
+    let constrs' =
+      simplify_constraints state ~rigid
+        (List.map (Ast.substitute_constr ty_subst rho_subst) constrs)
+    in
+    let vars_of ty =
+      match reduce_eternal state ty with
+      | Some vars -> Ast.TyParamSet.elements vars
+      | None -> assert false (* [simplify_constraints] has rejected it *)
+    in
+    let canonical_ty = function
+      | [ a ] -> Ast.TyParam a
+      | vars -> Ast.TyTuple (List.map (fun a -> Ast.TyParam a) vars)
+    in
+    let eternal_atoms, disjunctions =
+      List.fold_left
+        (fun (atoms, disjs) c ->
+          match c with
+          | Ast.Ineq (rho1, rho2) ->
+              let rho_pp = PrettyPrint.RhoPrintParam.create () in
+              Error.typing "Cannot compare non-ground resource values %t and %t"
+                (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho1)
+                (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho2)
+          | Ast.Eternal (ty, origin) ->
+              ( List.fold_left
+                  (fun atoms a ->
+                    if List.mem_assoc a atoms then atoms
+                    else atoms @ [ (a, origin) ])
+                  atoms (vars_of ty),
+                disjs )
+          | Ast.EternalOrIneq (ty, rho1, rho2, origin) ->
+              let vars = vars_of ty in
+              if
+                List.exists
+                  (function
+                    | Ast.EternalOrIneq (ty', rho1', rho2', _) ->
+                        ty' = canonical_ty vars && rho1' = rho1 && rho2' = rho2
+                    | _ -> false)
+                  disjs
+              then (atoms, disjs)
+              else
+                ( atoms,
+                  disjs
+                  @ [
+                      Ast.EternalOrIneq (canonical_ty vars, rho1, rho2, origin);
+                    ] ))
+        ([], []) constrs'
+    in
+    let implied = function
+      | Ast.EternalOrIneq (ty, _, _, _) ->
+          List.for_all (fun a -> List.mem_assoc a eternal_atoms) (vars_of ty)
+      | _ -> false
+    in
+    List.map
+      (fun (a, origin) -> Ast.Eternal (Ast.TyParam a, origin))
+      eternal_atoms
+    @ List.filter (fun c -> not (implied c)) disjunctions
 
   let rec check_rho_abs_constraints = function
     | [] -> ()
@@ -1215,22 +1352,40 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     in
     (* print_rho_ineq_constraints_pp rho_pp
       (subst_rho_inequations ty_subst rho_subst'' rho_ineqs'')); *)
-    check_rho_ineq_constraints state
-      (subst_rho_inequations ty_subst rho_subst'' rho_ineqs'');
-    check_rho_abs_constraints
-      (subst_rho_abstract_constraints rho_subst'' rho_abs);
+    let rho_abs' = subst_rho_abstract_constraints rho_subst'' rho_abs in
+    (* The grades of handler continuations are universally quantified, so no
+       constraint may assume anything about them. *)
+    let rigid =
+      List.fold_left
+        (fun rigid rho -> Ast.RhoParamSet.union rigid (Ast.free_rhos rho))
+        Ast.RhoParamSet.empty rho_abs'
+    in
+    let residual =
+      simplify_constraints state ~rigid
+        (subst_rho_inequations ty_subst rho_subst'' rho_ineqs'')
+    in
+    check_rho_abs_constraints rho_abs';
     let ty_subst' =
       Ast.TyParamMap.map
         (fun ty -> Ast.substitute_ty ty_subst rho_subst'' ty)
         ty_subst
     in
-    (ty_subst', rho_subst'')
+    (ty_subst', rho_subst'', rigid, residual)
 
   let infer state e =
     let comp_ty, ty_eqs, rho_eqs, rho_ineqs, rho_abs =
       infer_computation state e
     in
-    let ty_subst, rho_subst = unify state ty_eqs rho_eqs rho_ineqs rho_abs in
+    let ty_subst, rho_subst, rigid, residual =
+      unify state ty_eqs rho_eqs rho_ineqs rho_abs
+    in
+    (* A top-level computation exports no type, so every parameter of its
+       residual constraints may be instantiated as the constraints need. *)
+    let _ =
+      solve_residuals state ~rigid
+        ~generalisable:(Ast.TyParamSet.empty, Ast.RhoParamSet.empty)
+        residual
+    in
     let comp_ty' = Ast.substitute_comp_ty ty_subst rho_subst comp_ty in
     simplify_comp_ty comp_ty'
 
@@ -1245,13 +1400,22 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     PrettyPrint.print_expression (module ResourceGrade) e Format.std_formatter;
     Format.fprintf Format.std_formatter "\n"; *)
     let ty, ty_eqs, rho_eqs, rho_ineqs, rho_abs = infer_expression state e in
-    let ty_subst, rho_subst = unify state ty_eqs rho_eqs rho_ineqs rho_abs in
+    let ty_subst, rho_subst, rigid, residual =
+      unify state ty_eqs rho_eqs rho_ineqs rho_abs
+    in
     let ty' = Ast.substitute_ty ty_subst rho_subst ty in
     let ty'' = simplify_ty ty' in
     let free_vars, free_rhos = Ast.free_vars ty'' in
+    (* The constraints the definition could not discharge qualify its scheme,
+       to be owed again at each use. *)
+    let constrs =
+      solve_residuals state ~rigid ~generalisable:(free_vars, free_rhos)
+        residual
+    in
     let ty_sch =
       ( free_vars |> Ast.TyParamSet.elements,
         free_rhos |> Ast.RhoParamSet.elements,
+        constrs,
         ty'',
         Global )
     in
@@ -1403,16 +1567,21 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               rho_abs ) =
           infer_abstraction state abs
         in
-        let _ =
+        let _, _, rigid, residual =
           unify state
             ((arg_ty, param_ty) :: (res_ty, arity_ty) :: ty_eqs)
             rho_eqs
-            (Ineq (impl_rho, bound_rho) :: rho_ineqs)
+            (Ast.Ineq (impl_rho, bound_rho) :: rho_ineqs)
             rho_abs
+        in
+        let _ =
+          solve_residuals state ~rigid
+            ~generalisable:(Ast.TyParamSet.empty, Ast.RhoParamSet.empty)
+            residual
         in
         { state with op_defaults = Ast.OpNameSet.add op state.op_defaults }
 
   let load_primitive state x prim =
     let ty_params, rho_params, ty = P.primitive_type_scheme prim in
-    add_external_function x (ty_params, rho_params, ty, Global) state
+    add_external_function x (ty_params, rho_params, [], ty, Global) state
 end

@@ -1,0 +1,82 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/eternal_tyvars.mlt
+
+   Zero is the minimal element of that sub-grade order, so using a local
+   variable after some grade has accumulated requires its type to be eternal.
+   When that type is a type variable, the requirement is not decided at the
+   definition but carried into its generalised type as a constraint, to be
+   checked at each use. *)
+
+noneternal type token = Token
+
+(* A phantom parameter: a tag holds nothing, whatever it is tagged with. *)
+type 'a tag = Tag
+
+(* Correctly accepted by the typechecker: x is used after a tick of waiting,
+   so keep gets the qualified type {eternal α} α → α # 1. *)
+let keep x = delay 1; x
+
+(* Correctly accepted by the typechecker: x is used after g has run, whose
+   grade ρ is unknown here, so after gets the type
+   {eternal α ∨ ρ <= 0} (unit → β # ρ) → α → α # ρ, and either side of the
+   disjunction may discharge the constraint at a use. *)
+let after g x = g (); x
+
+(* Correctly accepted by the typechecker: two constraints, one per variable. *)
+let keep_pair x y = delay 1; (x, y)
+
+(* Correctly accepted by the typechecker: the constraint of keep is owed by
+   twice_keep in turn, which passes it on in its own type. *)
+let twice_keep x = keep (keep x)
+
+(* Correctly accepted by the typechecker: a local variable of eternal type
+   survives the grade accumulated by continuing the handled computation. *)
+operation Op : unit ~> unit # 1
+let h x = handler | y -> y | Op p k -> let r = continue k with () in x
+
+(* Correctly accepted by the typechecker: int is eternal. *)
+run keep 5
+
+(* Correctly accepted by the typechecker: a tag imposes nothing on its
+   parameter, so even a function-tagged one is eternal. *)
+run keep (Tag : (unit -> unit) tag)
+
+(* Correctly accepted by the typechecker: the argument 5 is eternal, so the
+   grade of g may be anything. *)
+run after (fun () -> delay 2) 5
+
+(* Correctly accepted by the typechecker: the argument is not eternal, but g
+   accumulates no grade. *)
+run after (fun () -> ()) (fun () -> ())
+
+run keep_pair 1 "two"
+run twice_keep true
+run handle (perform Op (); 5) with h 6
+
+(* Correctly rejected by the typechecker: a function is never eternal,
+
+     Typing error: Type unit → unit is not eternal, as required by the type
+       of keep
+*)
+(*
+run keep (fun () -> ())
+*)
+
+(* Correctly rejected by the typechecker: neither is a noneternal type,
+
+     Typing error: Type token is not eternal, as required by the type of keep
+*)
+(*
+run keep Token
+*)
+
+(* Correctly rejected by the typechecker: neither side of the disjunction
+   holds,
+
+     Typing error: Type unit → unit is not eternal and resource inequality
+       2 <= 0 failed, as required by the type of after
+*)
+(*
+run after (fun () -> delay 2) (fun () -> ())
+*)

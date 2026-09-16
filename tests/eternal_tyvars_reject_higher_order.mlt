@@ -1,0 +1,9 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/eternal_tyvars_reject_higher_order.mlt *)
+
+let after g x = g (); x
+
+(* Correctly rejected by the typechecker: the argument is not eternal and g
+   accumulates a grade, so neither side of the constraint of after holds. *)
+run after (fun () -> delay 2) (fun () -> ())

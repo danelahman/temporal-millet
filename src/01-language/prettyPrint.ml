@@ -164,6 +164,38 @@ let print_ty (type a) ?max_level rho_module ty_print_param rho_print_param =
   in
   aux ?max_level
 
+let print_constr (type a) rho_module ty_pp rho_pp =
+  let module ResourceGrade =
+    (val rho_module : ResourceGrade.Grade with type t = a)
+  in
+  let print_ineq rho1 rho2 ppf =
+    Format.fprintf ppf "%t %s %t"
+      (print_rho rho_module rho_pp rho1)
+      ResourceGrade.is_sub_rho_symbol
+      (print_rho rho_module rho_pp rho2)
+  in
+  let print_eternal ty ppf =
+    Format.fprintf ppf "eternal %t"
+      (print_ty ~max_level:0 rho_module ty_pp rho_pp ty)
+  in
+  fun (c : a constr) ppf ->
+    match c with
+    | Ineq (rho1, rho2) -> print_ineq rho1 rho2 ppf
+    | Eternal (ty, _) -> print_eternal ty ppf
+    | EternalOrIneq (ty, rho1, rho2, _) ->
+        Format.fprintf ppf "%t ∨ %t" (print_eternal ty) (print_ineq rho1 rho2)
+
+(** The qualifier of a type scheme, [{c1, ..., cn}], or nothing when there are
+    no constraints. *)
+let print_constrs rho_module ty_pp rho_pp constrs ppf =
+  match constrs with
+  | [] -> ()
+  | _ ->
+      Format.fprintf ppf "{%t} "
+        (Print.print_sequence ", "
+           (print_constr rho_module ty_pp rho_pp)
+           constrs)
+
 let rec print_pattern ?max_level p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
   match p with
@@ -332,11 +364,12 @@ let print_vars_and_exprs rho_module print_var_and_expr
       Format.fprintf ppf "@;<0 -2>]@]@\n"
 
 let print_variable_context rho_module ctx =
-  let print_var_and_ty ty_pp rho_pp (variable, (ty_params, rho_params, ty, _))
-      ppf =
-    Format.fprintf ppf "@[<h>%t : %t, %t %t@]@." (Variable.print variable)
+  let print_var_and_ty ty_pp rho_pp
+      (variable, (ty_params, rho_params, constrs, ty, _)) ppf =
+    Format.fprintf ppf "@[<h>%t : %t, %t %t%t@]@." (Variable.print variable)
       (print_ty_params ty_pp ty_params)
       (print_rho_params rho_pp rho_params)
+      (print_constrs rho_module ty_pp rho_pp constrs)
       (print_ty rho_module ty_pp rho_pp ty)
   in
   print_vars_and_tys rho_module print_var_and_ty ctx

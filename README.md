@@ -135,8 +135,10 @@ A type is *eternal* if its values stay valid however much grade accumulates
 after they are bound. Eternal are the base types (integers, strings, booleans,
 floats, unit), tuples of eternal types, and algebraic types all of whose
 constructor arguments are eternal. Function types, handler types, and box types
-`[rho]a` are never eternal, and type variables are currently not eternal
-either.
+`[rho]a` are never eternal. A type variable is eternal exactly when it is
+instantiated with an eternal type, so a parameterised type is eternal
+depending on how its parameters are used: `'a list` is eternal when `'a` is,
+while a phantom parameter, as in `type 'a tag = Tag`, imposes nothing.
 
 Referencing a local variable `x : a` generates the constraint "`a` is eternal,
 or the grade accumulated since `x` was bound is a sub-grade of zero". Under
@@ -144,6 +146,27 @@ or the grade accumulated since `x` was bound is a sub-grade of zero". Under
 so the constraint always holds and any local variable may be used at any later
 point. Under the other monoids a local variable of a non-eternal type must be
 used before any `delay` or operation call has happened since it was bound.
+
+When the constraint depends on a type variable of a top-level definition, it
+is not decided at the definition but becomes a qualifier of its generalised
+type, checked at every use. Under `time-upper-bound`,
+
+```
+let keep x = delay 1; x
+let after g x = g (); x
+```
+
+get the types `{eternal α} α → α # 1` and
+`{eternal α ∨ ρ <= 0} (unit → β # ρ) → α → α # ρ`, shown by `--debug`. So
+`keep 5` is accepted, `keep (fun () -> ())` is rejected, and
+`after (fun () -> delay 2) 5` is accepted because `5` is eternal, while
+`after (fun () -> ()) (fun () -> ())` is accepted because the grade of `g` is
+zero. Only a constraint on a variable of the definition's type is kept: a
+grade of a handler continuation is arbitrary, so a local variable used after
+`continue` must be eternal outright, and a variable occurring in no exported
+type is instantiated as the constraint needs. See
+[`examples/eternal_types.mlt`](examples/eternal_types.mlt) and the end of
+[`examples/3dprint_traces.mlt`](examples/3dprint_traces.mlt).
 
 A type definition can be declared non-eternal regardless of its structure:
 
@@ -154,10 +177,6 @@ noneternal type epoxy = Epoxy
 This makes `epoxy`, and every type containing it, non-eternal. The keyword
 prefixes a whole `type ... and ...` group. It is allowed on algebraic types
 only, since type aliases are unfolded before eternality is checked.
-
-Currently, eternality constraints are not propagated out of top-level
-definitions onto the type variables of their generalised types; a top-level
-definition typechecks only if all its constraints are satisfied.
 
 ## Algebraic effects and effect handlers
 

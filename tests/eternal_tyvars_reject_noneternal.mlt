@@ -1,0 +1,11 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/eternal_tyvars_reject_noneternal.mlt *)
+
+noneternal type token = Token
+
+let keep x = delay 1; x
+
+(* Correctly rejected by the typechecker: keep requires an eternal argument
+   and a token is declared not to be one. *)
+run keep Token

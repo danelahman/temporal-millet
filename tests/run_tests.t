@@ -7,6 +7,8 @@
   >     time_intervals.mlt) ../temporal-millet --resources time-interval $f;;
   >     time_upper.mlt) ../temporal-millet --resources time-upper-bound $f;;
   >     comp_type_annotation_upper*.mlt) ../temporal-millet --resources time-upper-bound $f;;
+  >     eternal_lower.mlt) ../temporal-millet $f;;
+  >     eternal_*.mlt) ../temporal-millet --resources time-upper-bound $f;;
   >     noneternal_lower.mlt) ../temporal-millet $f;;
   >     noneternal*.mlt) ../temporal-millet --resources time-upper-bound $f;;
   >     traces_lower.mlt) ../temporal-millet --resources traces-lower-bound $f;;
@@ -49,6 +51,40 @@
     ({2},{2}),
     ({1},{1})
   ]
+  
+  === Run 2 ===
+  return ("Sword #1", Printed (Cooled (Extruded (Heated (Model "Sword")))))
+  State: [
+    { resource_1 ↦
+        fun op_var ↦
+          handle
+            let printed = return op_var in
+            delay 2 (return ());
+            unbox printed as p in
+            return ("Sword #1", p)
+          with printer
+        # ({Heat; Extrude; Cool},{Heat; Extrude; Cool})
+    },
+    ({1},{1}),
+    ({3},{3}),
+    { resource_2 ↦ Extruded (Heated (Model "Sword")) # ({2},{2}) },
+    ({2},{2}),
+    { resource_3 ↦
+        Printed (Cooled (Extruded (Heated (Model "Sword"))))
+        # ({2},{8})
+    },
+    ({2},{2})
+  ]
+  
+  === Run 3 ===
+  return (Model "Sword")
+  State: [
+    ({1},{1})
+  ]
+  
+  === Run 4 ===
+  return Epoxy
+  State: []
   
   ======================================================================
   comp_type_annotation.mlt
@@ -145,6 +181,152 @@
   ======================================================================
   Syntax error (file "duplicate_variant_tydef_sum.mlt", line 3, char 1):
   Label Horn defined multiple times.
+  ======================================================================
+  eternal_lower.mlt
+  ======================================================================
+  === Run 1 ===
+  return (fun () ↦ return ())
+  State: [
+    1
+  ]
+  
+  === Run 2 ===
+  return (fun () ↦ return ())
+  State: [
+    2
+  ]
+  
+  ======================================================================
+  eternal_types.mlt
+  ======================================================================
+  === Run 1 ===
+  return 5
+  State: [
+    1
+  ]
+  
+  === Run 2 ===
+  return (Stamp 1)
+  State: [
+    1
+  ]
+  
+  === Run 3 ===
+  return Tag
+  State: [
+    1
+  ]
+  
+  === Run 4 ===
+  return 5
+  State: [
+    2
+  ]
+  
+  === Run 5 ===
+  return (fun () ↦ return ())
+  State: []
+  
+  === Run 6 ===
+  return 2
+  State: [
+    { resource_1 ↦
+        fun op_var ↦
+          handle
+            return op_var;
+            return 1
+          with handler
+               | return y ↦ return y
+               | Tick (p, k) ↦
+                        let r = (unbox k as unbox_var in
+                                 unbox_var ()) in
+                        return 2
+        # 1
+    }
+  ]
+  
+  === Run 7 ===
+  return (Stamp 42)
+  State: [
+    3
+  ]
+  
+  === Run 8 ===
+  return (Ticket Token)
+  State: []
+  
+  ======================================================================
+  eternal_tyvars.mlt
+  ======================================================================
+  === Run 1 ===
+  return 5
+  State: [
+    1
+  ]
+  
+  === Run 2 ===
+  return Tag
+  State: [
+    1
+  ]
+  
+  === Run 3 ===
+  return 5
+  State: [
+    2
+  ]
+  
+  === Run 4 ===
+  return (fun () ↦ return ())
+  State: []
+  
+  === Run 5 ===
+  return (1, "two")
+  State: [
+    1
+  ]
+  
+  === Run 6 ===
+  return true
+  State: [
+    1,
+    1
+  ]
+  
+  === Run 7 ===
+  return 6
+  State: [
+    { resource_1 ↦
+        fun op_var ↦
+          handle
+            return op_var;
+            return 5
+          with handler
+               | return y ↦ return y
+               | Op (p, k) ↦
+                      let r = (unbox k as unbox_var in
+                               unbox_var ()) in
+                      return 6
+        # 1
+    }
+  ]
+  
+  ======================================================================
+  eternal_tyvars_reject_function.mlt
+  ======================================================================
+  Typing error: Type unit → unit is not eternal, as required by the type of keep
+  ======================================================================
+  eternal_tyvars_reject_handler.mlt
+  ======================================================================
+  Typing error: Type unit → unit is not eternal, as required by the type of h
+  ======================================================================
+  eternal_tyvars_reject_higher_order.mlt
+  ======================================================================
+  Typing error: Type unit → unit is not eternal and resource inequality 2 <= 0 failed, as required by the type of after
+  ======================================================================
+  eternal_tyvars_reject_noneternal.mlt
+  ======================================================================
+  Typing error: Type token is not eternal, as required by the type of keep
   ======================================================================
   invalid_match_type.mlt
   ======================================================================
@@ -260,7 +442,7 @@
   ======================================================================
   noneternal_reject_after_delay.mlt
   ======================================================================
-  Typing error: Type token is not eternal and resource inequality 1 <= 0 failed
+  Typing error: Type token of variable t is not eternal and resource inequality 1 <= 0 failed
   ======================================================================
   noneternal_reject_alias.mlt
   ======================================================================

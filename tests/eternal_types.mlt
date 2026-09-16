@@ -1,0 +1,123 @@
+(* Run this example with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound examples/eternal_types.mlt
+
+   Under this monoid zero is the least grade, so a local variable may be used
+   after a delay or an operation call only if its type is eternal, meaning its
+   values stay valid however much grade accumulates. *)
+
+(* Base types, tuples of eternal types, and algebraic types built from them
+   are eternal. *)
+type stamp = Stamp of int
+
+(* Correctly accepted by the typechecker: a stamp survives the wait. *)
+let stamp_later () =
+  let s = Stamp 42 in
+  delay 3;
+  s
+
+(* Correctly rejected by the typechecker: a function is never eternal, and f
+   is used a tick after it was bound:
+
+     Typing error: Type unit → int of variable f is not eternal and resource
+       inequality 1 <= 0 failed
+*)
+(*
+let function_later () =
+  let f = fun () -> 42 in
+  delay 1;
+  f ()
+*)
+
+(* A type can be declared non-eternal whatever its structure; a type holding
+   it is then non-eternal too. *)
+noneternal type token = Token
+type ticket = Ticket of token
+
+(* Correctly accepted by the typechecker: the token is used at once. *)
+let use_now () =
+  let t = Token in
+  Ticket t
+
+(* Correctly rejected by the typechecker:
+
+     Typing error: Type ticket of variable c is not eternal and resource
+       inequality 1 <= 0 failed
+*)
+(*
+let use_late () =
+  let c = Ticket Token in
+  delay 1;
+  c
+*)
+
+(* A type variable is eternal when it is instantiated with an eternal type. A
+   constraint on one is not decided in the definition but becomes part of its
+   type, checked at each use: x is kept across a tick, so keep gets the type
+   {eternal α} α → α # 1. *)
+let keep x = delay 1; x
+
+(* Correctly accepted by the typechecker: int and stamp are eternal. *)
+run keep 5
+run keep (Stamp 1)
+
+(* Correctly rejected by the typechecker:
+
+     Typing error: Type unit → unit is not eternal, as required by the type
+       of keep
+
+     Typing error: Type token is not eternal, as required by the type of keep
+*)
+(*
+run keep (fun () -> ())
+run keep Token
+*)
+
+(* A phantom parameter imposes nothing, since 'a tag holds no 'a. *)
+type 'a tag = Tag
+
+(* Correctly accepted by the typechecker. *)
+run keep (Tag : (unit -> unit) tag)
+
+(* When the grade is unknown as well, both ways to satisfy the constraint are
+   kept: x is used after g has run, so after gets the type
+   {eternal α ∨ ρ <= 0} (unit → β # ρ) → α → α # ρ. *)
+let after g x = g (); x
+
+(* Correctly accepted by the typechecker: 5 is eternal, whatever g takes. *)
+run after (fun () -> delay 2) 5
+
+(* Correctly accepted by the typechecker: g takes no time. *)
+run after (fun () -> ()) (fun () -> ())
+
+(* Correctly rejected by the typechecker: neither holds,
+
+     Typing error: Type unit → unit is not eternal and resource inequality
+       2 <= 0 failed, as required by the type of after
+*)
+(*
+run after (fun () -> delay 2) (fun () -> ())
+*)
+
+(* The grade of a handler's continuation is arbitrary, so a variable used
+   after continuing must be eternal outright: h gets the type
+   {eternal α} α → α # ρ ⇒ α # 0. *)
+operation Tick : unit ~> unit # 1
+
+let h x = handler | y -> y | Tick p k -> let r = continue k with () in x
+
+(* Correctly accepted by the typechecker: an int is eternal. *)
+run handle (perform Tick (); 1) with h 2
+
+(* Correctly rejected by the typechecker: a function is not, and the grade of
+   the continuation does not decide it, whatever it is:
+
+     Typing error: Type unit → unit is not eternal, as required by the type
+       of h
+*)
+(*
+run handle (perform Tick (); (fun () -> ())) with h (fun () -> ())
+*)
+
+run stamp_later ()
+run use_now ()

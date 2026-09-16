@@ -68,3 +68,48 @@ let print_sword () =
    'Cool' and 'Mount' reach the top level and run their defaults, so the run
    completes with the sword mounted on its base. *)
 run print_sword ()
+
+(* Eternality constraints on type variables: a value kept across an operation
+   call or a delay must have an eternal type, and 'epoxy' is the one type here
+   that is not. *)
+
+(* The tag is kept across the print, so it must be eternal. Inferred type:
+   {eternal α} α → model → α × print # ... *)
+let label_print tag m =
+  let printed = perform PrintModel m in
+  delay 2;
+  unbox printed as p in
+  (tag, p)
+
+(* Correctly accepted by the typechecker: a string is eternal. *)
+run handle label_print "Sword #1" (Model "Sword") with printer
+
+(* Correctly rejected by the typechecker: epoxy is not,
+
+     Typing error: Type epoxy is not eternal, as required by the type of
+       label_print
+*)
+(*
+run handle label_print Epoxy (Model "Sword") with printer
+*)
+
+(* The item is kept across a step of unknown grade ρ, so either its type is
+   eternal or ρ is zero. Inferred type:
+   {eternal α ∨ ρ <= ({0},{0})} (unit → β # ρ) → α → α # ρ *)
+let after_preparing prepare item = prepare (); item
+
+(* Correctly accepted by the typechecker: a model is eternal. *)
+run after_preparing (fun () -> perform Heat (Model "Base")) (Model "Sword")
+
+(* Correctly accepted by the typechecker: the step accumulates no grade. *)
+run after_preparing (fun () -> ()) Epoxy
+
+(* Correctly rejected by the typechecker: neither holds,
+
+     Typing error: Type epoxy is not eternal and resource inequality
+       ({Heat},{Heat}) <= ({0},{0}) failed, as required by the type of
+       after_preparing
+*)
+(*
+run after_preparing (fun () -> perform Heat (Model "Base")) Epoxy
+*)

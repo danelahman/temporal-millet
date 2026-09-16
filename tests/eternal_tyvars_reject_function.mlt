@@ -1,0 +1,9 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/eternal_tyvars_reject_function.mlt *)
+
+let keep x = delay 1; x
+
+(* Correctly rejected by the typechecker: keep requires an eternal argument
+   and a function is never eternal. *)
+run keep (fun () -> ())
