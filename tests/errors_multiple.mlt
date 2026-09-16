@@ -1,0 +1,18 @@
+(* Correctly rejected by the typechecker three times over, and all three are
+   reported at once: a command the typechecker rejects does not stop the ones
+   after it from being checked.
+
+   The three mistakes are independent: an ill-typed definition, a function
+   whose body banks less time than its annotation promises, and a second
+   ill-typed definition. The last one uses 'first', whose own type could never
+   be inferred, and is nonetheless reported for its own mistake --- a string
+   where an int is expected --- rather than for a cascade about a variable the
+   typechecker never got to bind. *)
+
+let first (n : string) = n + 1
+
+run
+  let slow () : int # 5 = delay 3; 1 in
+  slow ()
+
+let second n = first n + "two"

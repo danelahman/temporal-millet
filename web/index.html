@@ -225,27 +225,59 @@
       text-decoration: underline;
     }
 
-    /* The line a syntax error points at: a soft band with a red edge. */
-    pre.syn-ml .error-line {
-      position: relative;
-      display: inline-block;
-      width: 100%;
-      min-height: 1.5em;
+    /* The span an error points at: a soft band under a wavy red underline.
+       The decoration is cloned onto every visual line so that a span wrapping
+       or crossing a newline stays marked throughout. */
+    pre.syn-ml .error-primary {
       background: #feecf0;
-      /* extend the band into the editor's left padding, without moving text */
-      box-shadow: -0.6em 0 0 #feecf0;
+      text-decoration: underline wavy #f14668;
+      text-underline-offset: 3px;
       border-radius: 2px;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
     }
 
-    pre.syn-ml .error-line::before {
-      content: "";
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: -0.6em;
-      width: 3px;
-      background: #f14668;
+    /* The span of a label: a place the message refers to, marked more
+       quietly than the error itself. */
+    pre.syn-ml .error-related {
+      background: #fff8e1;
+      text-decoration: underline dotted #b8860b;
+      text-underline-offset: 3px;
       border-radius: 2px;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+
+    /* ... and the same span while the pointer is on its label. */
+    pre.syn-ml .error-hover {
+      background: #ffe9a8;
+      text-decoration-style: solid;
+    }
+
+    .error-labels,
+    .error-notes {
+      margin-top: 0.6em;
+      list-style: disc outside;
+      padding-left: 1.2em;
+    }
+
+    .error-labels li,
+    .error-notes li {
+      margin-top: 0.2em;
+    }
+
+    .error-labels a {
+      color: inherit;
+      text-decoration: underline dotted;
+    }
+
+    .error-labels a:hover {
+      color: #cc0f35;
+    }
+
+    .error-labels .error-line-ref,
+    .error-notes {
+      color: #7a7a7a;
     }
 
     .editor-error .message-body {

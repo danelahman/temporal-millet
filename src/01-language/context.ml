@@ -6,33 +6,50 @@ module Symbol = Utils.Symbol
 module type S = sig
   type var
   type base
+  type elapsed
   type 'a map_or_rho
   type 'a t
 
   val empty : 'a t
-  val add_temp : base rho -> 'a t -> 'a t
+  val add_temp : elapsed -> 'a t -> 'a t
   val add_variable : var -> 'a -> 'a t -> 'a t
   val find_variable : var -> 'a t -> 'a
   val find_variable_opt : var -> 'a t -> 'a option
+  val sum_rhos_added_after : var -> 'a t -> base rho
+  val elapsed_after : var -> 'a t -> elapsed list
   val abstract_rho_sum : 'a t -> base rho
   val eval_rho : base rho -> base
 end
 
+(** A context is a stack of variable bindings interleaved with the resource
+    grades accumulated between them. [Elapsed] is a payload the context stores
+    as it is and only ever reads a grade out of: the interpreter needs the grade
+    alone, while the typechecker also remembers where it came from, so that an
+    error can point at the [delay], [perform] or sequenced computation that
+    spent it. *)
 module Make
     (Variable : Symbol.S)
     (VariableMap : Map.S with type key = Variable.t)
-    (Base : ResourceGrade.Grade) =
+    (Base : ResourceGrade.Grade)
+    (Elapsed : sig
+      type t
+
+      val rho : t -> Base.t rho
+    end) =
 struct
   type var = Variable.t
   type base = Base.t
   type base_rho = base rho
-  type 'a map_or_rho = (var, 'a VariableMap.t, base_rho) context_elem_ty
-  type 'a t = (var, 'a VariableMap.t, base_rho) context
+  type elapsed = Elapsed.t
+  type 'a map_or_rho = (var, 'a VariableMap.t, elapsed) context_elem_ty
+  type 'a t = (var, 'a VariableMap.t, elapsed) context
 
   let empty : 'a t = []
 
-  let add_temp (n : base_rho) (lst : 'a t) : 'a t =
-    match n with RhoConst z when z = Base.zero -> lst | _ -> Rho n :: lst
+  let add_temp (n : elapsed) (lst : 'a t) : 'a t =
+    match Elapsed.rho n with
+    | RhoConst z when z = Base.zero -> lst
+    | _ -> Rho n :: lst
 
   let add_variable (key : var) (value : 'a) (lst : 'a t) : 'a t =
     match lst with
@@ -77,7 +94,7 @@ struct
     let rec go acc = function
       | [] ->
           raise (VariableNotFound (Format.asprintf "%t" (Variable.print key)))
-      | Rho t :: rest -> go (Ast.RhoAdd (t, acc)) rest
+      | Rho t :: rest -> go (Ast.RhoAdd (Elapsed.rho t, acc)) rest
       | VarMap map :: rest -> (
           match VariableMap.find_opt key map with
           | Some _ -> acc
@@ -85,12 +102,27 @@ struct
     in
     go (Ast.RhoConst Base.zero) lst
 
+  (** [elapsed_after key lst] are the entries recorded in [lst] since [key] was
+      bound, oldest first: the summands of {!sum_rhos_added_after} with whatever
+      else the client stored alongside them still attached. *)
+  let elapsed_after (key : var) (lst : 'a t) : elapsed list =
+    let rec go acc = function
+      | [] ->
+          raise (VariableNotFound (Format.asprintf "%t" (Variable.print key)))
+      | Rho t :: rest -> go (t :: acc) rest
+      | VarMap map :: rest -> (
+          match VariableMap.find_opt key map with
+          | Some _ -> acc
+          | None -> go acc rest)
+    in
+    go [] lst
+
   (** [abstract_rho_sum lst] is the sum of all the resource grades recorded in
       [lst], oldest first, for the same reason as in {!sum_rhos_added_after}. *)
   let abstract_rho_sum (lst : 'a t) : base_rho =
     let rec sum acc = function
       | [] -> acc
-      | Rho t :: rest -> sum (RhoAdd (t, acc)) rest
+      | Rho t :: rest -> sum (RhoAdd (Elapsed.rho t, acc)) rest
       | VarMap _ :: rest -> sum acc rest
     in
     sum (RhoConst Base.zero) lst

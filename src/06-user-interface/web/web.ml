@@ -51,8 +51,8 @@ let update model msg =
   let model' = Model.update model msg in
   let cmd =
     match (msg, model'.Model.run_model) with
-    | Model.RunCode, Error (Some error) ->
-        Scroll_to (View.load_error_target error)
+    | Model.RunCode, Error (error :: _) ->
+        Scroll_to (View.load_error_target 0 error)
     | Model.EditMsg (Model.InsertIndent (_, start, _)), _ ->
         Set_caret (start + String.length Model.indentation)
     | _ -> Vdom.Cmd.batch []

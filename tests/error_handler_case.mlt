@@ -1,0 +1,11 @@
+(* Correctly rejected by the typechecker: the return clause of the handler
+   returns an int, so the case for 'Op' must return one too, and it returns a
+   string instead. *)
+
+operation Op : unit ~> unit # 1
+
+let h = handler
+  | x -> 0
+  | Op p k -> "done"
+
+run handle (perform Op (); 7) with h

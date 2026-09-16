@@ -1,6 +1,21 @@
 module Error = Utils.Error
+module Diagnostic = Utils.Diagnostic
 module Ast = Language.Ast
 module PrettyPrint = Language.PrettyPrint
+
+(* [Loader] is shadowed inside [run_with] by the backend's instance of the
+   functor, so the name is bound here while the library module is in scope. *)
+let stdlib_filename = Loader.stdlib_filename
+
+(* What [Diagnostic.print] quotes the source from. The standard library is
+   loaded from a string and has no file to read; a location with no file name
+   at all comes from a source only the caller knows, so it is left unquoted. *)
+let source filename =
+  if filename = stdlib_filename then Some Loader.stdlib_source
+  else if filename = "" then None
+  else
+    try Some (In_channel.with_open_text filename In_channel.input_all)
+    with Sys_error _ -> None
 
 let user_defined_variables ~stdlib_vars ~final_vars =
   let in_stdlib var =
@@ -101,12 +116,29 @@ let run_with (type t)
     Random.self_init ();
     let stdlib_state =
       if config.use_stdlib then
-        Loader.load_source Loader.initial_state Loader.stdlib_source
+        Loader.load_source ~filename:stdlib_filename Loader.initial_state
+          Loader.stdlib_source
       else Loader.initial_state
     in
-    let state' =
-      List.fold_left Loader.load_file stdlib_state config.filenames
+    (* Every file is loaded even when an earlier one had errors, so that all
+       of them are reported at once; a fatal failure still stops everything. *)
+    let state', diagnostics =
+      List.fold_left
+        (fun (state, diagnostics) filename ->
+          let state', diagnostics' = Loader.load_file_all state filename in
+          (state', diagnostics @ diagnostics'))
+        (stdlib_state, []) config.filenames
     in
+    (* A blank line between diagnostics, so that a reader can tell where one
+       ends. A rejected program is not run, whatever [--typecheck-only] says. *)
+    if diagnostics <> [] then begin
+      List.iteri
+        (fun i d ->
+          if i > 0 then Format.pp_print_newline Format.err_formatter ();
+          Diagnostic.print ~source d Format.err_formatter)
+        diagnostics;
+      exit 1
+    end;
     let run_state = Backend.run state'.backend in
     if config.debug then begin
       if config.use_stdlib then begin
@@ -114,6 +146,7 @@ let run_with (type t)
         print_string
           (PrettyPrint.string_of_variable_context
              (module ResourceGrade)
+             Loader.TC.Elapsed.rho Loader.TC.scheme_of
              stdlib_state.typechecker.variables);
         print_newline ()
       end;
@@ -125,13 +158,13 @@ let run_with (type t)
       print_string
         (PrettyPrint.string_of_variable_context
            (module ResourceGrade)
-           user_vars);
+           Loader.TC.Elapsed.rho Loader.TC.scheme_of user_vars);
       print_newline ()
     end;
     (* loading the files has typechecked every command, the [run]s included *)
     if not config.typecheck_only then run run_state 1
-  with Error.Error error ->
-    Error.print error;
+  with Error.Error d ->
+    Diagnostic.print ~source d Format.err_formatter;
     exit 1
 
 let main () =

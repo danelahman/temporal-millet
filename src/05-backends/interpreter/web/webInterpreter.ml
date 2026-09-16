@@ -44,10 +44,10 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   (* If the redex at the head of [red] is an [Unbox] applied to a variable,
      return that variable so we can highlight the corresponding state entry. *)
   let rec active_unbox_var red c =
-    match (red, c) with
+    match (red, c.Ast.it) with
     | DoCtx red, Ast.Do (c1, _) -> active_unbox_var red c1
-    | HandleCtx red, Ast.Handle (c, _) -> active_unbox_var red c
-    | ComputationRedex Unbox, Ast.Unbox (Ast.Var v, _) -> Some v
+    | HandleCtx red, Ast.Handle (c', _) -> active_unbox_var red c'
+    | ComputationRedex Unbox, Ast.Unbox ({ it = Ast.Var v; _ }, _) -> Some v
     | _ -> None
 
   let view_computation_redex = function

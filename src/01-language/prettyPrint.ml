@@ -178,9 +178,11 @@ let print_constr (type a) rho_module ty_pp rho_pp =
     Format.fprintf ppf "eternal %t"
       (print_ty ~max_level:0 rho_module ty_pp rho_pp ty)
   in
+  (* A constraint's reason is provenance for diagnostics, not part of what the
+     constraint says, so a scheme's qualifier prints without it. *)
   fun (c : a constr) ppf ->
     match c with
-    | Ineq (rho1, rho2) -> print_ineq rho1 rho2 ppf
+    | Ineq (rho1, rho2, _) -> print_ineq rho1 rho2 ppf
     | Eternal (ty, _) -> print_eternal ty ppf
     | EternalOrIneq (ty, rho1, rho2, _) ->
         Format.fprintf ppf "%t ∨ %t" (print_eternal ty) (print_ineq rho1 rho2)
@@ -198,7 +200,7 @@ let print_constrs rho_module ty_pp rho_pp constrs ppf =
 
 let rec print_pattern ?max_level p ppf =
   let print ?at_level = Print.print ?max_level ?at_level ppf in
-  match p with
+  match p.it with
   | PVar x -> print "%t" (Variable.print x)
   | PAs (p, x) -> print "%t as %t" (print_pattern p) (Variable.print x)
   | PAnnotated (p, _ty) -> print_pattern ?max_level p ppf
@@ -206,7 +208,7 @@ let rec print_pattern ?max_level p ppf =
   | PTuple lst -> Print.print_tuple print_pattern lst ppf
   | PVariant (lbl, None) when lbl = nil_label -> print "[]"
   | PVariant (lbl, None) -> print "%t" (Label.print lbl)
-  | PVariant (lbl, Some (PTuple [ v1; v2 ])) when lbl = cons_label ->
+  | PVariant (lbl, Some { it = PTuple [ v1; v2 ]; _ }) when lbl = cons_label ->
       print "%t::%t" (print_pattern v1) (print_pattern v2)
   | PVariant (lbl, Some p) ->
       print ~at_level:1 "%t @[<hov>%t@]" (Label.print lbl) (print_pattern p)
@@ -215,7 +217,7 @@ let rec print_pattern ?max_level p ppf =
 and print_expression rho_module =
   let rec aux ?max_level e ppf =
     let print ?at_level = Print.print ?max_level ?at_level ppf in
-    match e with
+    match e.it with
     | Var x -> print "%t" (Variable.print x)
     | Const c -> print "%t" (Const.print c)
     | Annotated (t, _ty) -> aux ?max_level t ppf
@@ -223,7 +225,7 @@ and print_expression rho_module =
         Print.print_tuple (fun ?max_level e ppf -> aux ?max_level e ppf) lst ppf
     | Variant (lbl, None) when lbl = nil_label -> print "[]"
     | Variant (lbl, None) -> print "%t" (Label.print lbl)
-    | Variant (lbl, Some (Tuple [ v1; v2 ])) when lbl = cons_label ->
+    | Variant (lbl, Some { it = Tuple [ v1; v2 ]; _ }) when lbl = cons_label ->
         print ~at_level:1 "%t::%t" (aux ~max_level:0 v1) (aux ~max_level:1 v2)
     | Variant (lbl, Some arg) ->
         print ~at_level:1 "%t %t" (Label.print lbl) (aux ~max_level:0 arg)
@@ -250,11 +252,11 @@ and print_expression rho_module =
 and print_computation rho_module =
   let rec aux ?max_level c ppf =
     let print ?at_level = Print.print ?max_level ?at_level ppf in
-    match c with
+    match c.it with
     | Return e ->
         print ~at_level:1 "return %t"
           (print_expression rho_module ~max_level:0 e)
-    | Do (c1, (PNonbinding, c2)) ->
+    | Do (c1, ({ it = PNonbinding; _ }, c2)) ->
         print ~at_level:2 "@[<v 0>%t;@,%t@]" (aux ~max_level:1 c1) (aux c2)
     | Do (c1, (pat, c2)) ->
         print ~at_level:2 "@[<v 0>@[<hov 2>let %t =@ %t@] in@,%t@]"
@@ -306,7 +308,9 @@ and print_case rho_module a ppf =
 and print_op_case rho_module (op, a) ppf =
   Format.fprintf ppf "%t %t" (OpName.print op) (print_abstraction rho_module a)
 
-let print_vars_and_tys rho_module print_var_and_ty lst ppf =
+(** [rho_of] reads the grade out of a context entry, which the typechecker wraps
+    in what else it remembers about where the grade was accumulated. *)
+let print_vars_and_tys rho_module rho_of print_var_and_ty lst ppf =
   let rec print_list = function
     | [] -> ()
     | VarMap map :: rest ->
@@ -319,7 +323,7 @@ let print_vars_and_tys rho_module print_var_and_ty lst ppf =
         print_list rest
     | Rho n :: rest ->
         let rho_pp = RhoPrintParam.create () in
-        print_rho rho_module rho_pp n ppf;
+        print_rho rho_module rho_pp (rho_of n) ppf;
         Print.print ppf "\n";
         print_list rest
   in
@@ -363,16 +367,18 @@ let print_vars_and_exprs rho_module print_var_and_expr
       print_list elems;
       Format.fprintf ppf "@;<0 -2>]@]@\n"
 
-let print_variable_context rho_module ctx =
-  let print_var_and_ty ty_pp rho_pp
-      (variable, (ty_params, rho_params, constrs, ty, _)) ppf =
+(** [scheme_of] reads the type scheme out of a context entry, which the
+    typechecker wraps in what else it remembers, such as where it was bound. *)
+let print_variable_context rho_module rho_of scheme_of ctx =
+  let print_var_and_ty ty_pp rho_pp (variable, entry) ppf =
+    let { ty_params; rho_params; constrs; ty } = scheme_of entry in
     Format.fprintf ppf "@[<h>%t : %t, %t %t%t@]@." (Variable.print variable)
       (print_ty_params ty_pp ty_params)
       (print_rho_params rho_pp rho_params)
       (print_constrs rho_module ty_pp rho_pp constrs)
       (print_ty rho_module ty_pp rho_pp ty)
   in
-  print_vars_and_tys rho_module print_var_and_ty ctx
+  print_vars_and_tys rho_module rho_of print_var_and_ty ctx
 
 let print_interpreter_state rho_module ctx ppf =
   let print_var_and_expr (variable, (rho, expr)) ppf =
@@ -383,8 +389,9 @@ let print_interpreter_state rho_module ctx ppf =
   in
   print_vars_and_exprs rho_module print_var_and_expr ctx ppf
 
-let string_of_variable_context rho_module context =
-  print_variable_context rho_module context Format.str_formatter;
+let string_of_variable_context rho_module rho_of scheme_of context =
+  print_variable_context rho_module rho_of scheme_of context
+    Format.str_formatter;
   Format.flush_str_formatter ()
 
 let string_of_interpreter_state rho_module context =

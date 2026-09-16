@@ -1,0 +1,11 @@
+(* Correctly rejected by the typechecker: the type of 'apply_twice' is fixed to
+   'int -> int' by the first application, so the second one is given a string
+   where an int is expected. The error points at the argument, at the function
+   whose type it disagrees with, and at the place that type was decided. *)
+
+let id x = x
+
+run
+  let f = id (fun n -> n + 1) in
+  let a = f 1 in
+  f "one"

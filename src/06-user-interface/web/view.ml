@@ -1,5 +1,7 @@
 open Vdom
 module Ast = Language.Ast
+module Diagnostic = Utils.Diagnostic
+module Location = Utils.Location
 module SyntaxHighlight = WebInterpreter.SyntaxHighlight
 
 (* Auxiliary definitions *)
@@ -47,48 +49,122 @@ let view_contents main aside =
 
 (* Edit view *)
 
-(* An error that stopped the program from being loaded, shown under the editor
-   in the colour of a Bulma "danger" message: the kind of error (and, for
-   syntax errors, where it is) as the header, the message itself as the body. *)
+(* An error that stopped the program from being loaded is highlighted in the
+   editor and explained under it, in the colour of a Bulma "danger" message. *)
+
+(* The standard library is loaded as a source of its own, under a file name,
+   and is neither shown nor editable; only editor spans can be marked. *)
+let in_editor (loc : Location.t) = loc.filename = ""
+
+(* The ids the error's spans are given in the editor, so that the message
+   under it can link to them and the page can scroll to them. *)
+let primary_id i = Printf.sprintf "error-primary-%d" i
+let label_id i j = Printf.sprintf "error-label-%d-%d" i j
+let error_id i = Printf.sprintf "editor-error-%d" i
+
+(* What the [i]th error marks in the editor: its primary span and each of its
+   labels, the hovered one brightened. Standard-library spans mark nothing. *)
+let marks_of_error i (error : Model.load_error) =
+  let mark mark_cls id (loc : Location.t) =
+    if in_editor loc then
+      [
+        {
+          SyntaxHighlight.from = loc.start.offset;
+          until = loc.stop.offset;
+          mark_cls;
+          id = Some id;
+        };
+      ]
+    else []
+  in
+  (match error.diagnostic.primary with
+    | Some loc -> mark "error-primary" (primary_id i) loc
+    | None -> [])
+  @ List.concat
+      (List.mapi
+         (fun j ({ span; _ } : Diagnostic.label) ->
+           let mark_cls =
+             if error.hovered_label = Some j then "error-related error-hover"
+             else "error-related"
+           in
+           mark mark_cls (label_id i j) span)
+         error.diagnostic.labels)
+
+(* The kind of error and where it points: an editor span by its line and
+   characters, a standard-library span by its file as well. *)
 let load_error_header (error : Model.load_error) =
-  match error.location with
-  | Some location -> error.kind ^ " at " ^ location
-  | None -> error.kind
+  let kind = Diagnostic.kind_to_string error.diagnostic.kind in
+  match error.diagnostic.primary with
+  | None -> kind
+  | Some loc when in_editor loc ->
+      Format.asprintf "%s at %t" kind (Location.print_short loc)
+  | Some loc ->
+      Format.asprintf "%s in the standard library (%t)" kind
+        (Location.print loc)
 
-(* The id of the element to bring into view for an error: the highlighted line
-   when the error has one, otherwise the message block under the editor. *)
-let load_error_target (error : Model.load_error) =
-  match error.line with Some _ -> "error-line" | None -> "editor-error"
+(* What to scroll to for an error: its highlighted primary span when it has
+   one in the editor, otherwise the message block under the editor. *)
+let load_error_target i (error : Model.load_error) =
+  match error.diagnostic.primary with
+  | Some loc when in_editor loc -> primary_id i
+  | _ -> error_id i
 
-let view_load_error (error : Model.load_error) =
-  let header = load_error_header error in
-  elt "article"
-    ~a:[ class_ "message is-danger editor-error"; attr "id" "editor-error" ]
-    [
-      div ~a:[ class_ "message-header" ] [ elt "p" [ text header ] ];
-      div ~a:[ class_ "message-body" ] [ text error.message ];
-    ]
-
-(* The highlighted source, with the line an error points at, if any, wrapped so
-   that the stylesheet can mark it. The three parts are highlighted separately,
-   which only goes wrong for a construct spanning the error line, such as a
-   comment, and then only in colour. *)
-let highlight_source ?error_line code =
-  let lines = String.split_on_char '\n' code in
-  match error_line with
-  | Some l when l >= 1 && l <= List.length lines ->
-      let before = List.filteri (fun i _ -> i < l - 1) lines
-      and line = List.nth lines (l - 1)
-      and after = List.filteri (fun i _ -> i >= l) lines in
-      let highlight = SyntaxHighlight.highlight_text in
-      (if before = [] then [] else highlight (String.concat "\n" before ^ "\n"))
-      @ [
-          elt "span"
-            ~a:[ class_ "error-line"; attr "id" "error-line" ]
-            (highlight line);
+let view_load_error i (error : Model.load_error) =
+  (* In the editor a label links to its span, which lights up while the
+     pointer is on it; a standard-library span can only be named. *)
+  let view_label j ({ span; text = label_text } : Diagnostic.label) =
+    let where =
+      elt "span"
+        ~a:[ class_ "error-line-ref" ]
+        [
+          text
+            (if in_editor span then Printf.sprintf " (line %d)" span.start.line
+             else Printf.sprintf " (standard library, line %d)" span.start.line);
         ]
-      @ highlight ("\n" ^ String.concat "\n" after)
-  | _ -> SyntaxHighlight.highlight_text code
+    in
+    if in_editor span then
+      elt "li"
+        ~a:[ onmouseenter (fun _ -> Model.HoverLabel (Some j)) ]
+        [
+          elt "a"
+            ~a:[ attr "href" ("#" ^ label_id i j) ]
+            [ text label_text; where ];
+        ]
+    else elt "li" [ text label_text; where ]
+  in
+  let labels =
+    match error.diagnostic.labels with
+    | [] -> []
+    | labels ->
+        [
+          elt "ul"
+            ~a:
+              [
+                class_ "error-labels";
+                onmouseleave (fun _ -> Model.HoverLabel None);
+              ]
+            (List.mapi view_label labels);
+        ]
+  and notes =
+    match error.diagnostic.notes with
+    | [] -> []
+    | notes ->
+        [
+          elt "ul"
+            ~a:[ class_ "error-notes" ]
+            (List.map (fun note -> elt "li" [ text note ]) notes);
+        ]
+  in
+  elt "article"
+    ~a:[ class_ "message is-danger editor-error"; attr "id" (error_id i) ]
+    [
+      div
+        ~a:[ class_ "message-header" ]
+        [ elt "p" [ text (load_error_header error) ] ];
+      div
+        ~a:[ class_ "message-body" ]
+        ((elt "p" [ text error.diagnostic.message ] :: labels) @ notes);
+    ]
 
 (* Tab inside the editor inserts an indentation instead of moving the focus
    to the next control; Shift+Tab is left alone, so the keyboard can still
@@ -125,40 +201,38 @@ let oninsert_indent =
           (app (const (fun k s -> (k, s))) (field "key" String))
           (field "shiftKey" Bool)))
 
-let view_editor ?error (model : Model.edit_model) =
+(* The editor proper: the highlighted text, with the errors' spans marked, and
+   the transparent textarea stretched over it. *)
+let view_editor ~marks (model : Model.edit_model) =
   let rows =
     max 10 (String.split_on_char '\n' model.unparsed_code |> List.length)
   in
-  let error_line = Option.bind error (fun (e : Model.load_error) -> e.line) in
-  let highlighted = highlight_source ?error_line (model.unparsed_code ^ "\n") in
+  let highlighted =
+    SyntaxHighlight.highlight_with_marks ~marks (model.unparsed_code ^ "\n")
+  in
   div
-    ~a:[ class_ "box editor-box" ]
+    ~a:[ class_ "code-editor" ]
     [
-      div
-        ~a:[ class_ "code-editor" ]
-        [
-          elt "pre" ~a:[ class_ "code-editor-display syn-ml" ] highlighted;
-          elt "textarea"
-            ~a:
-              [
-                class_ "code-editor-input";
-                (* bound as a property, so that loading an example replaces
-                   what the user has typed; a text child would only set the
-                   default value, which the browser ignores once the textarea
-                   has been edited *)
-                str_prop "value" model.unparsed_code;
-                oninput (fun input -> Model.ChangeSource input);
-                oninsert_indent;
-                int_prop "rows" rows;
-                attr "placeholder"
-                  "Type a program, or load an example from the right";
-                attr "spellcheck" "false";
-                attr "autocapitalize" "off";
-                attr "autocorrect" "off";
-              ]
-            [];
-        ];
-      (match error with Some error -> view_load_error error | None -> nil);
+      elt "pre" ~a:[ class_ "code-editor-display syn-ml" ] highlighted;
+      elt "textarea"
+        ~a:
+          [
+            class_ "code-editor-input";
+            (* bound as a property, so that loading an example replaces
+               what the user has typed; a text child would only set the
+               default value, which the browser ignores once the textarea
+               has been edited *)
+            str_prop "value" model.unparsed_code;
+            oninput (fun input -> Model.ChangeSource input);
+            oninsert_indent;
+            int_prop "rows" rows;
+            attr "placeholder"
+              "Type a program, or load an example from the right";
+            attr "spellcheck" "false";
+            attr "autocapitalize" "off";
+            attr "autocorrect" "off";
+          ]
+        [];
     ]
 
 (* let _view (model : Model.model) =
@@ -251,18 +325,20 @@ let view_compiler (model : Model.model) =
         (* a pointer to the error shown under the editor, which may be far
            below when the program is long *)
         (match model.run_model with
-        | Error (Some error) ->
+        | Error (error :: _) ->
+            let kind = Diagnostic.kind_to_string error.diagnostic.kind in
             elt "a"
               ~a:
                 [
                   class_ "error-pointer";
-                  attr "href" ("#" ^ load_error_target error);
+                  attr "href" ("#" ^ load_error_target 0 error);
                 ]
               [
                 text
-                  (match error.location with
-                  | Some _ -> load_error_header error
-                  | None -> error.kind ^ ", see below");
+                  (match error.diagnostic.primary with
+                  | Some loc when in_editor loc ->
+                      Printf.sprintf "%s at line %d" kind loc.start.line
+                  | _ -> kind ^ ", see below");
               ]
         | _ -> nil);
       ]
@@ -271,14 +347,18 @@ let view_compiler (model : Model.model) =
     [ use_stdlib; load_example; select_resource; run_process ]
 
 let edit_view (model : Model.model) =
-  let error =
-    match model.run_model with Error error -> error | Ok _ -> None
+  let errors =
+    match model.run_model with Error errors -> errors | Ok _ -> []
   in
+  let marks = List.concat (List.mapi marks_of_error errors) in
   view_contents
     [
-      map
-        (fun edit_msg -> Model.EditMsg edit_msg)
-        (view_editor ?error model.edit_model);
+      div
+        ~a:[ class_ "box editor-box" ]
+        (map
+           (fun edit_msg -> Model.EditMsg edit_msg)
+           (view_editor ~marks model.edit_model)
+        :: List.mapi view_load_error errors);
     ]
     [ view_compiler model ]
 

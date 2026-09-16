@@ -28,8 +28,17 @@ end
 module Make (T : Language.ResourceGrade.Grade) = struct
   module ResourceGrade = T
 
+  (* The interpreter has no use for anything but the accumulated grade itself,
+     so its contexts record just that. *)
+  module Elapsed = struct
+    type t = ResourceGrade.t Ast.rho
+
+    let rho r = r
+  end
+
   module ContextHolderModule =
     Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (ResourceGrade)
+      (Elapsed)
 
   module P = Primitives.Make (ResourceGrade)
   include Types
@@ -59,35 +68,39 @@ module Make (T : Language.ResourceGrade.Grade) = struct
 
   exception PatternMismatch
 
-  let rec eval_tuple (env : evaluation_environment) = function
-    | Ast.Annotated (expr, _) -> eval_tuple env expr
+  let rec eval_tuple (env : evaluation_environment) (expr : _ Ast.expression) =
+    match expr.it with
+    | Ast.Annotated (expr', _) -> eval_tuple env expr'
     | Ast.Tuple exprs -> exprs
     | Ast.Var x ->
         eval_tuple env (ContextHolderModule.find_variable x env.variables)
-    | expr ->
+    | _ ->
         Error.runtime "Tuple expected but got %t"
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
-  let rec eval_variant (env : evaluation_environment) = function
-    | Ast.Annotated (expr, _) -> eval_variant env expr
-    | Ast.Variant (lbl, expr) -> (lbl, expr)
+  let rec eval_variant (env : evaluation_environment) (expr : _ Ast.expression)
+      =
+    match expr.it with
+    | Ast.Annotated (expr', _) -> eval_variant env expr'
+    | Ast.Variant (lbl, arg) -> (lbl, arg)
     | Ast.Var x ->
         eval_variant env (ContextHolderModule.find_variable x env.variables)
-    | expr ->
+    | _ ->
         Error.runtime "Variant expected but got %t"
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
-  let rec eval_const (env : evaluation_environment) = function
-    | Ast.Annotated (expr, _) -> eval_const env expr
+  let rec eval_const (env : evaluation_environment) (expr : _ Ast.expression) =
+    match expr.it with
+    | Ast.Annotated (expr', _) -> eval_const env expr'
     | Ast.Const c -> c
     | Ast.Var x ->
         eval_const env (ContextHolderModule.find_variable x env.variables)
-    | expr ->
+    | _ ->
         Error.runtime "Const expected but got %t"
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
-  let rec match_pattern_with_expression env pat expr =
-    match pat with
+  let rec match_pattern_with_expression env (pat : _ Ast.pattern) expr =
+    match pat.it with
     | Ast.PVar x -> Ast.VariableMap.singleton x expr
     | Ast.PAnnotated (pat, _) -> match_pattern_with_expression env pat expr
     | Ast.PAs (pat, x) ->
@@ -111,7 +124,8 @@ module Make (T : Language.ResourceGrade.Grade) = struct
     | Ast.PNonbinding -> Ast.VariableMap.empty
     | _ -> raise PatternMismatch
 
-  let rec remove_pattern_bound_variables subst = function
+  let rec remove_pattern_bound_variables subst (pat : _ Ast.pattern) =
+    match pat.it with
     | Ast.PVar x -> Ast.VariableMap.remove x subst
     | Ast.PAnnotated (pat, _) -> remove_pattern_bound_variables subst pat
     | Ast.PAs (pat, x) ->
@@ -124,26 +138,29 @@ module Make (T : Language.ResourceGrade.Grade) = struct
     | Ast.PConst _ -> subst
     | Ast.PNonbinding -> subst
 
-  let rec refresh_pattern = function
+  (* Refreshing rebuilds the pattern, but every node keeps the span it was
+     written at: the variables change, the source they came from does not. *)
+  let rec refresh_pattern (pat : _ Ast.pattern) =
+    match pat.it with
     | Ast.PVar x ->
         let x' = Ast.Variable.refresh x in
-        (Ast.PVar x', [ (x, x') ])
-    | Ast.PAnnotated (pat, _) -> refresh_pattern pat
-    | Ast.PAs (pat, x) ->
-        let pat', vars = refresh_pattern pat in
+        ({ pat with it = Ast.PVar x' }, [ (x, x') ])
+    | Ast.PAnnotated (pat', _) -> refresh_pattern pat'
+    | Ast.PAs (pat', x) ->
+        let pat'', vars = refresh_pattern pat' in
         let x' = Ast.Variable.refresh x in
-        (Ast.PAs (pat', x'), (x, x') :: vars)
+        ({ pat with it = Ast.PAs (pat'', x') }, (x, x') :: vars)
     | Ast.PTuple pats ->
-        let fold pat (pats', vars) =
-          let pat', vars' = refresh_pattern pat in
-          (pat' :: pats', vars' @ vars)
+        let fold pat' (pats', vars) =
+          let pat'', vars' = refresh_pattern pat' in
+          (pat'' :: pats', vars' @ vars)
         in
         let pats', vars = List.fold_right fold pats ([], []) in
-        (Ast.PTuple pats', vars)
-    | Ast.PVariant (lbl, Some pat) ->
-        let pat', vars = refresh_pattern pat in
-        (PVariant (lbl, Some pat'), vars)
-    | (PVariant (_, None) | PConst _ | PNonbinding) as pat -> (pat, [])
+        ({ pat with it = Ast.PTuple pats' }, vars)
+    | Ast.PVariant (lbl, Some pat') ->
+        let pat'', vars = refresh_pattern pat' in
+        ({ pat with it = Ast.PVariant (lbl, Some pat'') }, vars)
+    | Ast.PVariant (_, None) | Ast.PConst _ | Ast.PNonbinding -> (pat, [])
 
   (** | Ast.Handler ((y, ret_case), op_cases) -> let y' = Ast.Variable.refresh y
       in let ret_case' = refresh_computation ((y, y') :: vars) ret_case in let
@@ -151,20 +168,32 @@ module Make (T : Language.ResourceGrade.Grade) = struct
       Ast.Variable.refresh x in let k' = Ast.Variable.refresh k in let op_case'
       = refresh_computation ((x, x') :: (k, k') :: vars) op_case in (x', k',
       op_case')) op_cases in Ast.Handler ((y', ret_case'), op_cases') *)
-  let rec refresh_expression vars = function
-    | Ast.Var x as expr -> (
-        match List.assoc_opt x vars with None -> expr | Some x' -> Var x')
-    | Ast.Const _ as expr -> expr
-    | Ast.Annotated (expr, ty) ->
-        Ast.Annotated (refresh_expression vars expr, ty)
-    | Ast.Tuple exprs -> Ast.Tuple (List.map (refresh_expression vars) exprs)
-    | Ast.Variant (label, expr) ->
-        Ast.Variant (label, Option.map (refresh_expression vars) expr)
-    | Ast.Lambda abs -> Ast.Lambda (refresh_abstraction vars abs)
-    | Ast.PureLambda abs -> Ast.PureLambda (refresh_abstraction vars abs)
+  let rec refresh_expression vars (expr : _ Ast.expression) =
+    match expr.it with
+    | Ast.Var x -> (
+        match List.assoc_opt x vars with
+        | None -> expr
+        | Some x' -> { expr with it = Ast.Var x' })
+    | Ast.Const _ -> expr
+    | Ast.Annotated (e, ty) ->
+        { expr with it = Ast.Annotated (refresh_expression vars e, ty) }
+    | Ast.Tuple exprs ->
+        { expr with it = Ast.Tuple (List.map (refresh_expression vars) exprs) }
+    | Ast.Variant (label, arg) ->
+        {
+          expr with
+          it = Ast.Variant (label, Option.map (refresh_expression vars) arg);
+        }
+    | Ast.Lambda abs ->
+        { expr with it = Ast.Lambda (refresh_abstraction vars abs) }
+    | Ast.PureLambda abs ->
+        { expr with it = Ast.PureLambda (refresh_abstraction vars abs) }
     | Ast.RecLambda (x, abs) ->
         let x' = Ast.Variable.refresh x in
-        Ast.RecLambda (x', refresh_abstraction ((x, x') :: vars) abs)
+        {
+          expr with
+          it = Ast.RecLambda (x', refresh_abstraction ((x, x') :: vars) abs);
+        }
     | Ast.Handler (ret_case, op_cases) ->
         let ret_case' = refresh_abstraction vars ret_case in
         let op_cases' =
@@ -172,86 +201,154 @@ module Make (T : Language.ResourceGrade.Grade) = struct
             (fun op_case -> refresh_abstraction vars op_case)
             op_cases
         in
-        Ast.Handler (ret_case', op_cases')
+        { expr with it = Ast.Handler (ret_case', op_cases') }
 
-  and refresh_computation vars = function
-    | Ast.Return expr -> Ast.Return (refresh_expression vars expr)
-    | Ast.Do (comp, abs) ->
-        Ast.Do (refresh_computation vars comp, refresh_abstraction vars abs)
+  and refresh_computation vars (comp : _ Ast.computation) =
+    match comp.it with
+    | Ast.Return expr ->
+        { comp with it = Ast.Return (refresh_expression vars expr) }
+    | Ast.Do (c, abs) ->
+        {
+          comp with
+          it = Ast.Do (refresh_computation vars c, refresh_abstraction vars abs);
+        }
     | Ast.Match (expr, cases) ->
-        Ast.Match
-          ( refresh_expression vars expr,
-            List.map (refresh_abstraction vars) cases )
+        {
+          comp with
+          it =
+            Ast.Match
+              ( refresh_expression vars expr,
+                List.map (refresh_abstraction vars) cases );
+        }
     | Ast.Apply (expr1, expr2) ->
-        Ast.Apply (refresh_expression vars expr1, refresh_expression vars expr2)
-    | Ast.Delay (n, c) -> Ast.Delay (n, refresh_computation vars c)
+        {
+          comp with
+          it =
+            Ast.Apply
+              (refresh_expression vars expr1, refresh_expression vars expr2);
+        }
+    | Ast.Delay (n, c) ->
+        { comp with it = Ast.Delay (n, refresh_computation vars c) }
     | Ast.Box (rho, e, abs) ->
         let e' = refresh_expression vars e in
         let abs' = refresh_abstraction vars abs in
-        Ast.Box (rho, e', abs')
+        { comp with it = Ast.Box (rho, e', abs') }
     | Ast.Unbox (e, abs) ->
         let e' = refresh_expression vars e in
         let abs' = refresh_abstraction vars abs in
-        Ast.Unbox (e', abs')
+        { comp with it = Ast.Unbox (e', abs') }
     | Ast.Perform (op, e, abs) ->
         let e' = refresh_expression vars e in
         let abs' = refresh_abstraction vars abs in
-        Ast.Perform (op, e', abs')
+        { comp with it = Ast.Perform (op, e', abs') }
     | Ast.Handle (c, h) ->
         let c' = refresh_computation vars c in
         let h' = refresh_expression vars h in
-        Ast.Handle (c', h')
+        { comp with it = Ast.Handle (c', h') }
 
   and refresh_abstraction vars (pat, comp) =
     let pat', vars' = refresh_pattern pat in
     (pat', refresh_computation (vars @ vars') comp)
 
-  let rec substitute_expression subst = function
-    | Ast.Var x as expr -> (
+  (* A substituted variable takes the span of the value bound to it; every
+     other node keeps its own. *)
+  let rec substitute_expression subst (expr : _ Ast.expression) =
+    match expr.it with
+    | Ast.Var x -> (
         match Ast.VariableMap.find_opt x subst with
         | None -> expr
-        | Some expr -> expr)
-    | Ast.Const _ as expr -> expr
-    | Ast.Annotated (expr, ty) ->
-        Annotated (substitute_expression subst expr, ty)
-    | Ast.Tuple exprs -> Tuple (List.map (substitute_expression subst) exprs)
-    | Ast.Variant (label, expr) ->
-        Variant (label, Option.map (substitute_expression subst) expr)
-    | Ast.Lambda abs -> Lambda (substitute_abstraction subst abs)
-    | Ast.PureLambda abs -> PureLambda (substitute_abstraction subst abs)
-    | Ast.RecLambda (x, abs) -> RecLambda (x, substitute_abstraction subst abs)
+        | Some expr' -> expr')
+    | Ast.Const _ -> expr
+    | Ast.Annotated (e, ty) ->
+        { expr with it = Ast.Annotated (substitute_expression subst e, ty) }
+    | Ast.Tuple exprs ->
+        {
+          expr with
+          it = Ast.Tuple (List.map (substitute_expression subst) exprs);
+        }
+    | Ast.Variant (label, arg) ->
+        {
+          expr with
+          it = Ast.Variant (label, Option.map (substitute_expression subst) arg);
+        }
+    | Ast.Lambda abs ->
+        { expr with it = Ast.Lambda (substitute_abstraction subst abs) }
+    | Ast.PureLambda abs ->
+        { expr with it = Ast.PureLambda (substitute_abstraction subst abs) }
+    | Ast.RecLambda (x, abs) ->
+        { expr with it = Ast.RecLambda (x, substitute_abstraction subst abs) }
     | Ast.Handler (ret_case, op_cases) ->
-        Ast.Handler
-          ( substitute_abstraction subst ret_case,
-            Ast.OpNameMap.map
-              (fun op_case -> substitute_abstraction subst op_case)
-              op_cases )
+        {
+          expr with
+          it =
+            Ast.Handler
+              ( substitute_abstraction subst ret_case,
+                Ast.OpNameMap.map
+                  (fun op_case -> substitute_abstraction subst op_case)
+                  op_cases );
+        }
 
-  and substitute_computation subst = function
-    | Ast.Return expr -> Ast.Return (substitute_expression subst expr)
-    | Ast.Do (comp, abs) ->
-        Ast.Do
-          (substitute_computation subst comp, substitute_abstraction subst abs)
+  and substitute_computation subst (comp : _ Ast.computation) =
+    match comp.it with
+    | Ast.Return expr ->
+        { comp with it = Ast.Return (substitute_expression subst expr) }
+    | Ast.Do (c, abs) ->
+        {
+          comp with
+          it =
+            Ast.Do
+              (substitute_computation subst c, substitute_abstraction subst abs);
+        }
     | Ast.Match (expr, cases) ->
-        Ast.Match
-          ( substitute_expression subst expr,
-            List.map (substitute_abstraction subst) cases )
+        {
+          comp with
+          it =
+            Ast.Match
+              ( substitute_expression subst expr,
+                List.map (substitute_abstraction subst) cases );
+        }
     | Ast.Apply (expr1, expr2) ->
-        Ast.Apply
-          (substitute_expression subst expr1, substitute_expression subst expr2)
-    | Ast.Delay (n, c) -> Ast.Delay (n, substitute_computation subst c)
+        {
+          comp with
+          it =
+            Ast.Apply
+              ( substitute_expression subst expr1,
+                substitute_expression subst expr2 );
+        }
+    | Ast.Delay (n, c) ->
+        { comp with it = Ast.Delay (n, substitute_computation subst c) }
     | Ast.Box (rho, e, abs) ->
-        Ast.Box
-          (rho, substitute_expression subst e, substitute_abstraction subst abs)
+        {
+          comp with
+          it =
+            Ast.Box
+              ( rho,
+                substitute_expression subst e,
+                substitute_abstraction subst abs );
+        }
     | Ast.Unbox (e, abs) ->
-        Ast.Unbox
-          (substitute_expression subst e, substitute_abstraction subst abs)
+        {
+          comp with
+          it =
+            Ast.Unbox
+              (substitute_expression subst e, substitute_abstraction subst abs);
+        }
     | Ast.Perform (op, e, abs) ->
-        Ast.Perform
-          (op, substitute_expression subst e, substitute_abstraction subst abs)
+        {
+          comp with
+          it =
+            Ast.Perform
+              ( op,
+                substitute_expression subst e,
+                substitute_abstraction subst abs );
+        }
     | Ast.Handle (c, h) ->
-        Ast.Handle
-          (substitute_computation subst c, substitute_expression subst h)
+        {
+          comp with
+          it =
+            Ast.Handle
+              (substitute_computation subst c, substitute_expression subst h);
+        }
 
   and substitute_abstraction subst (pat, comp) =
     let subst' = remove_pattern_bound_variables subst pat in
@@ -261,8 +358,9 @@ module Make (T : Language.ResourceGrade.Grade) = struct
     let subst = Ast.VariableMap.map (refresh_expression []) subst in
     substitute_computation subst comp
 
-  let rec eval_function env = function
-    | Ast.Annotated (expr, _) -> eval_function env expr
+  let rec eval_function env (expr : _ Ast.expression) =
+    match expr.it with
+    | Ast.Annotated (expr', _) -> eval_function env expr'
     | Ast.Lambda (pat, comp) ->
         fun arg ->
           let subst = match_pattern_with_expression env pat arg in
@@ -271,7 +369,7 @@ module Make (T : Language.ResourceGrade.Grade) = struct
         fun arg ->
           let subst = match_pattern_with_expression env pat arg in
           substitute subst comp
-    | Ast.RecLambda (f, (pat, comp)) as expr ->
+    | Ast.RecLambda (f, (pat, comp)) ->
         fun arg ->
           let subst =
             match_pattern_with_expression env pat arg
@@ -280,22 +378,23 @@ module Make (T : Language.ResourceGrade.Grade) = struct
           substitute subst comp
     | Ast.Var x -> (
         match ContextHolderModule.find_variable_opt x env.variables with
-        | Some expr -> eval_function env expr
+        | Some expr' -> eval_function env expr'
         | None -> ContextHolderModule.find_variable x env.builtin_functions)
-    | expr ->
+    | _ ->
         Error.runtime "Function expected but got %t"
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
-  let rec eval_handler env = function
-    | Ast.Annotated (expr, _) -> eval_handler env expr
+  let rec eval_handler env (expr : _ Ast.expression) =
+    match expr.it with
+    | Ast.Annotated (expr', _) -> eval_handler env expr'
     | Ast.Handler (ret_case, op_cases) -> (ret_case, op_cases)
     | Ast.Var x -> (
         match ContextHolderModule.find_variable_opt x env.variables with
-        | Some expr -> eval_handler env expr
+        | Some expr' -> eval_handler env expr'
         | None ->
             Error.runtime
               "Handler expected but did not find it from environment")
-    | expr ->
+    | _ ->
         Error.runtime "Handler expected but got %t"
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
@@ -305,7 +404,11 @@ module Make (T : Language.ResourceGrade.Grade) = struct
       (fun (env, red, term') -> (env, redCtx red, fun () -> ctx (term' ())))
       terms'
 
-  let rec step_computation env = function
+  (* Every computation the interpreter builds is a contraction of the redex it
+     is reducing, so it is reported at the redex's span. *)
+  let rec step_computation env (comp : _ Ast.computation) =
+    let at = comp.at in
+    match comp.it with
     | Ast.Return _ -> []
     | Ast.Match (expr, cases) ->
         let rec find_case = function
@@ -336,10 +439,10 @@ module Make (T : Language.ResourceGrade.Grade) = struct
         let comps1' =
           step_in_context step_computation env
             (fun red -> DoCtx red)
-            (fun comp1' -> Ast.Do (comp1', comp2))
+            (fun comp1' -> Ast.located at (Ast.Do (comp1', comp2)))
             comp1
         in
-        match comp1 with
+        match comp1.it with
         | Ast.Return expr ->
             let pat, comp2' = comp2 in
             let subst = match_pattern_with_expression env pat expr in
@@ -348,7 +451,11 @@ module Make (T : Language.ResourceGrade.Grade) = struct
         | Ast.Perform (op, expr, (pat, cont)) ->
             ( env,
               ComputationRedex DoOp,
-              fun () -> Ast.Perform (op, expr, (pat, Ast.Do (cont, comp2))) )
+              fun () ->
+                Ast.located at
+                  (Ast.Perform
+                     (op, expr, (pat, Ast.located at (Ast.Do (cont, comp2)))))
+            )
             :: comps1'
         | _ -> comps1')
     | Ast.Delay (n, comp) ->
@@ -357,9 +464,9 @@ module Make (T : Language.ResourceGrade.Grade) = struct
           { env with state = ContextHolderModule.add_temp rho env.state }
         in
         [ (env', ComputationRedex Delay, fun () -> comp) ]
-    | Ast.Box (rho, expr, (pat, comp)) ->
-        let rec doBox rho expr pat comp =
-          match pat with
+    | Ast.Box (rho, expr, (pat, body)) ->
+        let rec doBox rho expr (pat : _ Ast.pattern) body =
+          match pat.it with
           | Ast.PVar x ->
               let resource_counter = env.resource_counter in
               (* let x' =
@@ -381,41 +488,41 @@ module Make (T : Language.ResourceGrade.Grade) = struct
               [
                 ( env',
                   ComputationRedex Box,
-                  fun () -> refresh_computation [ (x, x') ] comp );
+                  fun () -> refresh_computation [ (x, x') ] body );
               ]
-          | Ast.PAnnotated (pat', _) -> doBox rho expr pat' comp
+          | Ast.PAnnotated (pat', _) -> doBox rho expr pat' body
           | _ ->
               Error.runtime "Box expected a variable but got pattern %t"
                 (PrettyPrint.print_pattern pat)
         in
-        doBox rho expr pat comp
-    | Ast.Unbox (expr, (pat, comp)) ->
-        let rec doUnbox expr pat comp =
-          match expr with
+        doBox rho expr pat body
+    | Ast.Unbox (expr, (pat, body)) ->
+        let rec doUnbox (expr : _ Ast.expression) pat body =
+          match expr.it with
           | Ast.Var x ->
               let _rho', expr' =
                 ContextHolderModule.find_variable x env.state
               in
               let subst = match_pattern_with_expression env pat expr' in
-              [ (env, ComputationRedex Unbox, fun () -> substitute subst comp) ]
-          | Ast.Annotated (expr', _) -> doUnbox expr' pat comp
+              [ (env, ComputationRedex Unbox, fun () -> substitute subst body) ]
+          | Ast.Annotated (expr', _) -> doUnbox expr' pat body
           | _ ->
               Error.runtime "Unbox expected a variable but got expression %t"
                 (PrettyPrint.print_expression (module ResourceGrade) expr)
         in
-        doUnbox expr pat comp
+        doUnbox expr pat body
     | Ast.Perform _ -> []
     (* (op, _expr, (_pat, _comp)) ->
       Error.runtime "Unhandled operation %t" (Ast.OpName.print op) *)
-    | Ast.Handle (comp, handler) -> (
+    | Ast.Handle (body, handler) -> (
         let comps' =
           step_in_context step_computation env
             (fun red -> HandleCtx red)
-            (fun comp' -> Ast.Handle (comp', handler))
-            comp
+            (fun body' -> Ast.located at (Ast.Handle (body', handler)))
+            body
         in
         let (pat, ret_comp), op_cases = eval_handler env handler in
-        match comp with
+        match body.it with
         | Ast.Return expr ->
             let subst = match_pattern_with_expression env pat expr in
             ( env,
@@ -425,7 +532,8 @@ module Make (T : Language.ResourceGrade.Grade) = struct
         | Ast.Perform (op, expr, (op_pat, op_cont)) -> (
             let op_case = Ast.OpNameMap.find_opt op op_cases in
             match op_case with
-            | Some (Ast.PTuple [ op_arg_pat; op_cont_pat ], op_case) -> (
+            | Some ({ it = Ast.PTuple [ op_arg_pat; op_cont_pat ]; _ }, op_case)
+              -> (
                 let op_sig = Ast.OpNameMap.find_opt op env.op_signatures in
                 match op_sig with
                 | Some rho ->
@@ -441,17 +549,23 @@ module Make (T : Language.ResourceGrade.Grade) = struct
                       match_pattern_with_expression env' op_arg_pat expr
                     in
                     let cont_subst =
-                      match_pattern_with_expression env' op_cont_pat (Ast.Var x)
+                      match_pattern_with_expression env' op_cont_pat
+                        (Ast.located at (Ast.Var x))
                     in
                     ( env',
                       ComputationRedex HandleOp,
                       fun () ->
-                        Ast.Box
-                          ( rho,
-                            Ast.Lambda (op_pat, Ast.Handle (op_cont, handler)),
-                            ( Ast.PVar x,
-                              substitute cont_subst
-                                (substitute arg_subst op_case) ) ) )
+                        Ast.located at
+                          (Ast.Box
+                             ( rho,
+                               Ast.located at
+                                 (Ast.Lambda
+                                    ( op_pat,
+                                      Ast.located at
+                                        (Ast.Handle (op_cont, handler)) )),
+                               ( Ast.located at (Ast.PVar x),
+                                 substitute cont_subst
+                                   (substitute arg_subst op_case) ) )) )
                     :: comps'
                 | None ->
                     Error.runtime
@@ -462,8 +576,13 @@ module Make (T : Language.ResourceGrade.Grade) = struct
                 ( env,
                   ComputationRedex HandleOp,
                   fun () ->
-                    Ast.Perform
-                      (op, expr, (op_pat, Ast.Handle (op_cont, handler))) )
+                    Ast.located at
+                      (Ast.Perform
+                         ( op,
+                           expr,
+                           ( op_pat,
+                             Ast.located at (Ast.Handle (op_cont, handler)) ) ))
+                )
                 :: comps')
         | _ -> comps')
 
@@ -540,7 +659,7 @@ module Make (T : Language.ResourceGrade.Grade) = struct
 
   let steps = function
     | { computations = []; _ } -> []
-    | { computations = Ast.Return _ :: comps; environment } ->
+    | { computations = { it = Ast.Return _; _ } :: comps; environment } ->
         [
           {
             environment;
@@ -567,7 +686,7 @@ module Make (T : Language.ResourceGrade.Grade) = struct
        body runs in place of the call and its result is passed to the
        continuation, exactly as a handled operation's result would be. *)
     | {
-        computations = Ast.Perform (op, expr, (pat, cont)) :: comps;
+        computations = { it = Ast.Perform (op, expr, (pat, cont)); at } :: comps;
         environment;
       }
       when Ast.OpNameMap.mem op environment.op_defaults ->
@@ -583,7 +702,9 @@ module Make (T : Language.ResourceGrade.Grade) = struct
               (fun () ->
                 {
                   computations =
-                    Ast.Do (substitute subst dcomp', (pat, cont)) :: comps;
+                    Ast.located at
+                      (Ast.Do (substitute subst dcomp', (pat, cont)))
+                    :: comps;
                   environment;
                 });
           };

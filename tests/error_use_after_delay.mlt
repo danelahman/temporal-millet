@@ -1,0 +1,21 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/error_use_after_delay.mlt
+
+   Correctly rejected by the typechecker: a token is declared not to survive
+   any accumulated grade, and two things happen between binding it and using
+   it --- a delay and a performed operation --- each of which the error points
+   at in turn. The pure bindings interleaved with them take no time at all, so
+   the error says nothing about them. *)
+
+noneternal type token = Token
+
+operation Ping : unit ~> unit # 1
+
+run
+  let t = Token in
+  delay 2;
+  let a = 1 in
+  perform Ping ();
+  let b = a + a in
+  t

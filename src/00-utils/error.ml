@@ -1,21 +1,20 @@
 (** Error reporting *)
 
-type t = Location.t option * string * string
+exception Error of Diagnostic.t
 
-let print (loc, error_kind, msg) = Print.error ?loc error_kind "%s" msg
-
-exception Error of t
-
-(** [error ~loc error_kind fmt] raises an [Error] of kind [error_kind] with a
-    message [fmt] at a location [loc]. We use [Format.kasprintf] so the message
-    is built into a fresh buffer rather than the shared [Format.str_formatter],
-    which is not safe under OCaml 5 multidomain code. *)
-let error ?loc error_kind fmt =
+(** [error ~loc ~labels ~notes kind fmt] raises an [Error] of [kind]. The
+    message goes through [Format.kasprintf] into a fresh buffer rather than the
+    shared [Format.str_formatter], which is not multidomain-safe. *)
+let error ?loc ?(labels = []) ?(notes = []) kind fmt =
   Format.kasprintf
-    (fun msg -> raise (Error (loc, error_kind, msg)))
+    (fun message ->
+      raise (Error { Diagnostic.kind; primary = loc; message; labels; notes }))
     ("@[" ^^ fmt ^^ "@]")
 
-let fatal ?loc fmt = error ?loc "Fatal error" fmt
-let syntax ~loc fmt = error ~loc "Syntax error" fmt
-let typing ?loc fmt = error ?loc "Typing error" fmt
-let runtime ?loc fmt = error ?loc "Runtime error" fmt
+let fatal ?loc fmt = error ?loc Diagnostic.Fatal fmt
+let syntax ~loc fmt = error ~loc Diagnostic.Syntax fmt
+
+let typing ?loc ?labels ?notes fmt =
+  error ?loc ?labels ?notes Diagnostic.Typing fmt
+
+let runtime ?loc fmt = error ?loc Diagnostic.Runtime fmt

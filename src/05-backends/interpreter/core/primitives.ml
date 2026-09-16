@@ -5,21 +5,29 @@ module Primitives = Language.Primitives
 module PrettyPrint = Language.PrettyPrint
 
 module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
-  let binary_function f = function
+  (* A primitive's result is not written anywhere in the source, so it is
+     reported at the span of the argument it was computed from. *)
+  let return_const at c =
+    Ast.located at (Ast.Return (Ast.located at (Ast.Const c)))
+
+  let binary_function f (expr : _ Ast.expression) =
+    match expr.it with
     | Ast.Tuple [ expr1; expr2 ] -> f expr1 expr2
-    | expr ->
+    | _ ->
         Error.runtime "Pair expected but got %t"
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
-  let get_int = function
+  let get_int (expr : _ Ast.expression) =
+    match expr.it with
     | Ast.Const (Const.Integer n) -> n
-    | expr ->
+    | _ ->
         Error.runtime "Integer expected but got %t"
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
-  let get_float = function
+  let get_float (expr : _ Ast.expression) =
+    match expr.it with
     | Ast.Const (Const.Float n) -> n
-    | expr ->
+    | _ ->
         Error.runtime "Float expected but got %t"
           (PrettyPrint.print_expression (module ResourceGrade) expr)
 
@@ -47,25 +55,22 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         f n1 n2)
       expr
 
-  let int_to_int f =
-    int_to (fun n -> Ast.Return (Ast.Const (Const.Integer (f n))))
+  let int_to_int f expr =
+    return_const expr.Ast.at (Const.Integer (int_to f expr))
 
-  let int_int_to_int f =
-    int_int_to (fun n1 n2 -> Ast.Return (Ast.Const (Const.Integer (f n1 n2))))
+  let int_int_to_int f expr =
+    return_const expr.Ast.at (Const.Integer (int_int_to f expr))
 
-  let float_to_float f =
-    float_to (fun n -> Ast.Return (Ast.Const (Const.Float (f n))))
+  let float_to_float f expr =
+    return_const expr.Ast.at (Const.Float (float_to f expr))
 
-  let float_float_to_float f =
-    float_float_to (fun n1 n2 -> Ast.Return (Ast.Const (Const.Float (f n1 n2))))
+  let float_float_to_float f expr =
+    return_const expr.Ast.at (Const.Float (float_float_to f expr))
 
-  (* The built-in comparison primitives below use OCaml's polymorphic [(=)],
-     [(<)], etc. on AST values. This is safe only because [comparable_expression]
-     rejects the cases where it would be either undefined (functions, handlers)
-     or surprising. The AST is immutable and contains no abstract or cyclic
-     data, so structural compare on the remaining shapes (constants, tuples,
-     variants of comparables) is well-defined. *)
-  let rec comparable_expression = function
+  (* Which shapes the comparison primitives below accept: everything but a
+     function or a handler, which are not values that can be compared. *)
+  let rec comparable_expression (expr : _ Ast.expression) =
+    match expr.it with
     | Ast.Var _ -> true
     | Const _ -> true
     | Annotated (e, _) -> comparable_expression e
@@ -76,8 +81,9 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | RecLambda _ -> false
     | Handler _ -> false
 
-  let comparison f =
-    binary_function (fun e1 e2 ->
+  let comparison f (expr : _ Ast.expression) =
+    binary_function
+      (fun e1 e2 ->
         if not (comparable_expression e1) then
           Error.runtime "Incomparable expression %t"
             (PrettyPrint.print_expression
@@ -88,7 +94,10 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             (PrettyPrint.print_expression
                (module ResourceGrade)
                ~max_level:0 e2)
-        else Ast.Return (Ast.Const (Const.Boolean (f e1 e2))))
+        else
+          return_const expr.at
+            (Const.Boolean (f (Ast.compare_expression e1 e2) 0)))
+      expr
 
   let primitive_function = function
     | Primitives.CompareEq -> comparison ( = )
@@ -111,8 +120,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | Primitives.FloatNeg -> float_to_float ( ~-. )
     | Primitives.ToString ->
         fun expr ->
-          Ast.Return
-            (Ast.Const
-               (Const.String
-                  (PrettyPrint.string_of_expression (module ResourceGrade) expr)))
+          return_const expr.Ast.at
+            (Const.String
+               (PrettyPrint.string_of_expression (module ResourceGrade) expr))
 end

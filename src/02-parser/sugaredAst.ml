@@ -10,7 +10,7 @@ let float_ty_name = "float"
 let list_ty_name = "list"
 let empty_ty_name = "empty"
 
-type 'a annotated = { it : 'a; at : Location.t }
+type 'a annotated = 'a Location.located = { it : 'a; at : Location.t }
 type ty_param = string
 
 type 'rho ty = 'rho plain_ty annotated

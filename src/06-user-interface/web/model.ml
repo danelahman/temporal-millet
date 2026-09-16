@@ -1,4 +1,6 @@
 module Error = Utils.Error
+module Diagnostic = Utils.Diagnostic
+module Location = Utils.Location
 
 (* Abstract representation of a single reduction step, with all resource-grade-specific
    types captured in closures. This allows the model to work with any resource grade
@@ -51,7 +53,15 @@ and run_msg =
   | ChangeRandomStepSize of int
   | Back
 
-and msg = EditMsg of edit_msg | RunCode | RunMsg of run_msg | EditCode
+and msg =
+  | EditMsg of edit_msg
+  | RunCode
+  | RunMsg of run_msg
+  | EditCode
+  | HoverLabel of int option
+      (** The pointer has entered the given label of a reported error, or left
+          them. Top-level, since the error display belongs to neither the editor
+          nor the run. *)
 
 type edit_model = {
   use_stdlib : bool;
@@ -147,20 +157,35 @@ let run_update run_model = function
   | ChangeRandomStepSize random_step_size -> { run_model with random_step_size }
 
 type load_error = {
-  kind : string;  (** "Syntax error", "Typing error", ... *)
-  location : string option;  (** e.g. "line 12, char 5", when known *)
-  line : int option;  (** the line of the editor the error is at, when known *)
-  message : string;
+  diagnostic : Diagnostic.t;  (** why the source could not be loaded and run *)
+  hovered_label : int option;
+      (** The label the pointer is over, whose span is brightened in the editor.
+      *)
 }
-(** Why the source could not be loaded and run. *)
+(** An error the edit view reports, with the state of showing it. *)
 
 type model = {
   edit_model : edit_model;
-  run_model : (run_model, load_error option) result;
-      (** [Error None] is the edit view with nothing to report. *)
+  run_model : (run_model, load_error list) result;
+      (** [Error []] is the edit view with nothing to report. *)
 }
 
-let init = { edit_model = edit_init; run_model = Error None }
+let init = { edit_model = edit_init; run_model = Error [] }
+
+(* An error that is not a diagnostic of its own, such as an exception escaping
+   the interpreter: there is nothing to point at, only what went wrong. *)
+let fatal message =
+  {
+    diagnostic =
+      {
+        Diagnostic.kind = Fatal;
+        primary = None;
+        message;
+        labels = [];
+        notes = [];
+      };
+    hovered_label = None;
+  }
 
 let update model = function
   | EditMsg edit_msg ->
@@ -179,25 +204,25 @@ let update model = function
           with
           | None ->
               Error
-                (Some
-                   {
-                     kind = "Error";
-                     location = None;
-                     line = None;
-                     message =
-                       Printf.sprintf "Unknown resource grade '%s'"
-                         model.edit_model.selected_resource;
-                   })
+                [
+                  fatal
+                    (Printf.sprintf "Unknown resource grade '%s'"
+                       model.edit_model.selected_resource);
+                ]
           | Some (module RG : Language.ResourceGrade.Grade) ->
               let module B = WebInterpreter.Make (RG) in
               let module L = Loader.Loader (B) in
-              let prefix =
-                (if model.edit_model.use_stdlib then L.stdlib_source else "")
-                ^ "\n\n\n"
+              (* Loaded as two separate sources, so that an editor location
+                 is a location in what the user typed. *)
+              let state =
+                if model.edit_model.use_stdlib then
+                  L.load_source ~filename:Loader.stdlib_filename L.initial_state
+                    L.stdlib_source
+                else L.initial_state
               in
-              let source = prefix ^ model.edit_model.unparsed_code in
-              let state = L.load_source L.initial_state source in
-              let run_state = B.run state.backend in
+              let state, diagnostics =
+                L.load_source_all state model.edit_model.unparsed_code
+              in
               (* Build a run_model_state from a B.run_state, capturing all
                  resource-grade-specific types in closures so the rest of the
                  application is independent of the chosen resource grade. *)
@@ -234,44 +259,27 @@ let update model = function
                   is_done = B.is_done rs;
                 }
               in
-              Ok (run_init (make_run_state ~completed_runs:[] run_state))
+              if diagnostics <> [] then
+                Error
+                  (List.map
+                     (fun diagnostic -> { diagnostic; hovered_label = None })
+                     diagnostics)
+              else
+                Ok
+                  (run_init
+                     (make_run_state ~completed_runs:[] (B.run state.backend)))
         with
-        | Error.Error (loc, kind, message) ->
-            (* Locations count from the start of [source], which begins with
-               the standard library; report them relative to the editor. *)
-            let prefix_lines =
-              String.fold_left
-                (fun n c -> if c = '\n' then n + 1 else n)
-                0
-                ((if model.edit_model.use_stdlib then Loader.stdlib_source
-                  else "")
-                ^ "\n\n\n")
-            in
-            let located =
-              Option.map
-                (fun (loc : Utils.Location.t) ->
-                  let line = loc.line - prefix_lines in
-                  if line >= 1 then
-                    ( Printf.sprintf "line %d, char %d" line loc.column,
-                      Some line )
-                  else (Format.asprintf "%t" (Utils.Location.print loc), None))
-                loc
-            in
-            let location = Option.map fst located
-            and line = Option.bind located snd in
-            Error (Some { kind; location; line; message })
-        | Invalid_argument message ->
-            Error
-              (Some { kind = "Error"; location = None; line = None; message })
-        | exn ->
-            Error
-              (Some
-                 {
-                   kind = "Internal error";
-                   location = None;
-                   line = None;
-                   message = Printexc.to_string exn;
-                 })
+        | Error.Error d -> Error [ { diagnostic = d; hovered_label = None } ]
+        | Invalid_argument message -> Error [ fatal message ]
+        | exn -> Error [ fatal (Printexc.to_string exn) ]
       in
       { model with run_model }
-  | EditCode -> { model with run_model = Error None }
+  | EditCode -> { model with run_model = Error [] }
+  | HoverLabel hovered_label -> (
+      match model.run_model with
+      | Error errors ->
+          let errors =
+            List.map (fun error -> { error with hovered_label }) errors
+          in
+          { model with run_model = Error errors }
+      | Ok _ -> model)

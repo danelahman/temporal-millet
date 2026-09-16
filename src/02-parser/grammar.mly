@@ -131,9 +131,10 @@ plain_comma_term:
 binop_term: mark_position(plain_binop_term) { $1 }
 plain_binop_term:
   | t1 = binop_term op = binop t2 = binop_term
-    { Apply ({it= Apply ({it= Var op; at=Location.of_lexeme $startpos}, t1); at=Location.of_lexeme $startpos}, t2) }
+    { let op_loc = Location.of_lexing $startpos(op) $endpos(op) in
+      Apply ({it= Apply ({it= Var op; at= op_loc}, t1); at= Location.merge op_loc t1.at}, t2) }
   | t1 = binop_term CONS t2 = binop_term
-    { let tuple = {it= Tuple [t1; t2]; at= Location.of_lexeme $startpos} in
+    { let tuple = {it= Tuple [t1; t2]; at= Location.of_lexing $startpos $endpos} in
       Variant (cons_label, Some tuple) }
   | t = plain_uminus_term
     { t }
@@ -141,10 +142,10 @@ plain_binop_term:
 uminus_term: mark_position(plain_uminus_term) { $1 }
 plain_uminus_term:
   | MINUS t = uminus_term
-    { let op_loc = Location.of_lexeme $startpos($1) in
+    { let op_loc = Location.of_lexing $startpos($1) $endpos($1) in
       Apply ({it= Var "(~-)"; at= op_loc}, t) }
   | MINUSDOT t = uminus_term
-    { let op_loc = Location.of_lexeme $startpos($1) in
+    { let op_loc = Location.of_lexing $startpos($1) $endpos($1) in
       Apply ({it= Var "(~-.)"; at= op_loc}, t) }
   | t = plain_app_term
     { t }
@@ -154,9 +155,9 @@ plain_app_term:
     {
       match t.it, ts with
       | Variant (lbl, None), [t] -> Variant (lbl, Some t)
-      | Variant (lbl, _), _ -> Error.syntax ~loc:(t.at) "Label %s applied to too many argument" lbl
+      | Variant (lbl, _), _ -> Error.syntax ~loc:(t.at) "Label %s applied to too many arguments" lbl
       | _, _ ->
-        let apply t1 t2 = {it= Apply(t1, t2); at= t1.at} in
+        let apply t1 t2 = {it= Apply(t1, t2); at= Location.merge t1.at t2.at} in
         (List.fold_left apply t ts).it
     }
   | t = plain_prefix_term
@@ -166,7 +167,7 @@ prefix_term: mark_position(plain_prefix_term) { $1 }
 plain_prefix_term:
   | op = prefixop t = simple_term
     {
-      let op_loc = Location.of_lexeme $startpos(op) in
+      let op_loc = Location.of_lexing $startpos(op) $endpos(op) in
       Apply ({it= Var op; at= op_loc}, t)
     }
   | t = plain_simple_term
@@ -182,9 +183,9 @@ plain_simple_term:
     { Const cst }
   | LBRACK ts = separated_list(SEMI, comma_term) RBRACK
     {
-      let nil = {it= Variant (nil_label, None); at= Location.of_lexeme $endpos} in
+      let nil = {it= Variant (nil_label, None); at= Location.of_lexing $endpos $endpos} in
       let cons t ts =
-        let loc = t.at in
+        let loc = Location.merge t.at ts.at in
         let tuple = {it= Tuple [t; ts];at= loc} in
         {it= Variant (cons_label, Some tuple); at= loc}
       in
@@ -217,37 +218,37 @@ case:
 
 op_case:
   | op = UNAME p = pattern k = pattern ARROW t = term
-    { (op, ({it= PTuple [p; k]; at= Location.of_lexeme $startpos}, t)) }
+    { (op, ({it= PTuple [p; k]; at= Location.of_lexing $startpos $endpos}, t)) }
 
 lambdas0(SEP):
   | SEP t = term
     { t }
   | p = simple_pattern t = lambdas0(SEP)
-    { {it= Lambda (p, t); at= Location.of_lexeme $startpos} }
+    { {it= Lambda (p, t); at= Location.of_lexing $startpos $endpos} }
   | COLON ty = ty SEP t = term
-    { {it= Annotated (t, ty); at= Location.of_lexeme $startpos} }
+    { {it= Annotated (t, ty); at= Location.of_lexing $startpos $endpos} }
   | COLON ty = ty HASH grade = rho_grade SEP t = term
-    { {it= AnnotatedComp (t, ty, grade); at= Location.of_lexeme $startpos} }
+    { {it= AnnotatedComp (t, ty, grade); at= Location.of_lexing $startpos $endpos} }
 
 lambdas1(SEP):
   | p = simple_pattern t = lambdas0(SEP)
-    { {it= Lambda (p, t); at= Location.of_lexeme $startpos} }
+    { {it= Lambda (p, t); at= Location.of_lexing $startpos $endpos} }
 
 pure_lambdas(SEP):
   | SEP t = term
     { t }
   | p = simple_pattern t = pure_lambdas(SEP)
-    { {it= PureLambda (p, t); at= Location.of_lexeme $startpos} }
+    { {it= PureLambda (p, t); at= Location.of_lexing $startpos $endpos} }
   | COLON ty = ty SEP t = term
-    { {it= Annotated (t, ty); at= Location.of_lexeme $startpos} }
+    { {it= Annotated (t, ty); at= Location.of_lexing $startpos $endpos} }
   | COLON ty = ty HASH grade = rho_grade SEP t = term
-    { {it= AnnotatedComp (t, ty, grade); at= Location.of_lexeme $startpos} }
+    { {it= AnnotatedComp (t, ty, grade); at= Location.of_lexing $startpos $endpos} }
 
 let_def:
   | p = pattern EQUAL t = term
     { (p, t) }
   | p = pattern COLON ty= ty EQUAL t = term
-    { (p, {it= Annotated(t, ty); at= Location.of_lexeme $startpos}) }
+    { (p, {it= Annotated(t, ty); at= Location.of_lexing $startpos $endpos}) }
   | x = mark_position(ident) t = lambdas1(EQUAL)
     { ({it= PVar x.it; at= x.at}, t) }
 
@@ -272,7 +273,7 @@ plain_cons_pattern:
   | p = variant_pattern
     { p.it }
   | p1 = variant_pattern CONS p2 = cons_pattern
-    { let ptuple = {it= PTuple [p1; p2]; at= Location.of_lexeme $startpos} in
+    { let ptuple = {it= PTuple [p1; p2]; at= Location.of_lexing $startpos $endpos} in
       PVariant (cons_label, Some ptuple) }
 
 variant_pattern: mark_position(plain_variant_pattern) { $1 }
@@ -294,9 +295,9 @@ plain_simple_pattern:
     { PConst cst }
   | LBRACK ts = separated_list(SEMI, pattern) RBRACK
     {
-      let nil = {it= PVariant (nil_label, None);at= Location.of_lexeme $endpos} in
+      let nil = {it= PVariant (nil_label, None);at= Location.of_lexing $endpos $endpos} in
       let cons t ts =
-        let loc = t.at in
+        let loc = Location.merge t.at ts.at in
         let tuple = {it= PTuple [t; ts]; at= loc} in
         {it= PVariant (cons_label, Some tuple); at= loc}
       in
@@ -391,7 +392,7 @@ cases(case):
 
 mark_position(X):
   x = X
-  { {it= x; at= Location.of_lexeme $startpos}}
+  { {it= x; at= Location.of_lexing $startpos $endpos}}
 
 params:
   |
