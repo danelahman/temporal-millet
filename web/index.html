@@ -405,6 +405,8 @@
       background: rgba(0, 0, 0, 0.05);
       padding: 0.05em 0.3em;
       border-radius: 3px;
+      /* a fragment reads as one token, so it never breaks inside */
+      white-space: nowrap;
     }
 
     /* The error the caret sits in, singled out among the messages. */
