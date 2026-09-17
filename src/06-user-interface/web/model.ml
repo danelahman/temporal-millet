@@ -79,8 +79,9 @@ type edit_model = {
       (** Name of the currently selected resource grade (key in
           [resource_grade_modules]). *)
   selected_example : string option;
-      (** Title of the bundled example currently loaded, if the source has not
-          been edited since. *)
+      (** Title of the bundled example last loaded; editing it keeps the
+          selection, so the select box still says where the program came from.
+      *)
 }
 
 let default_resource_name =
@@ -119,17 +120,12 @@ let byte_offset source offset =
 
 let edit_update edit_model = function
   | UseStdlib use_stdlib -> { edit_model with use_stdlib }
-  | ChangeSource input ->
-      { edit_model with unparsed_code = input; selected_example = None }
+  | ChangeSource input -> { edit_model with unparsed_code = input }
   | InsertIndent (source, start, stop) ->
       let start = byte_offset source start and stop = byte_offset source stop in
       let before = String.sub source 0 start
       and after = String.sub source stop (String.length source - stop) in
-      {
-        edit_model with
-        unparsed_code = before ^ indentation ^ after;
-        selected_example = None;
-      }
+      { edit_model with unparsed_code = before ^ indentation ^ after }
   | LoadExample (title, resource_name, source) ->
       (* An example is written for a particular resource grade, so loading one
          switches to that grade. The user remains free to change it afterwards. *)
