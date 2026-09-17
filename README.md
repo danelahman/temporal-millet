@@ -239,7 +239,10 @@ Cool}` may be handled by performing `Heat`, `Extrude` and `Cool`
 in that order and continuing, while another order is rejected:
 
 ```
-Comparing resource inequality {Cool; Extrude; Heat} <= {Heat; Extrude; Cool} failed
+The case for PrintModel has grade {Cool; Extrude; Heat}, which does not match
+the grade {Heat; Extrude; Cool} of PrintModel followed by its continuation
+  Note: the resource inequality {Cool; Extrude; Heat} <= {Heat; Extrude; Cool}
+    does not hold
 ```
 
 Under the time monoids the same rule lets a case delay longer than the
@@ -254,17 +257,27 @@ can be neither fixed by the case nor instantiated at a use site. Inequalities
 mentioning `rho` are still decided where the order allows. A case that does
 not resume, `Op p k -> 5`, has grade `0`, a sub-grade of `1 + rho` for every
 `rho` under an upper bound, where zero is the minimum, but for no `rho` under
-a lower bound, where the failing instance is reported:
+a lower bound, where the messages state the quantification and the failing
+instance:
 
-    Comparing resource inequality 0 >= ρ₀ + 1 failed, already when the continuation grade is 0
+    For every grade ρ₀ the continuation k may have, the case for Op must have a
+    grade matching ρ₀ + 1, but its grade 0 does not
+      Note: the resource inequality 0 >= ρ₀ + 1 does not hold: for ρ₀ = 0 it
+        becomes 0 >= 1
 
 Resuming twice under `Op # 1` fails likewise under an upper bound, since
 `rho + rho <= 1 + rho` fails already for `rho = 2`; under a lower bound it is
 accepted, as `rho >= 0` always holds.
 
+Nested handlers quantify over one grade per case, and a message names the
+continuation each grade belongs to, so that an inner case whose constraint
+mentions the outer continuation's grade can be read.
+
 See [`examples/handlers_lower_bound.mlt`](examples/handlers_lower_bound.mlt),
-[`examples/handlers_upper_bound.mlt`](examples/handlers_upper_bound.mlt) and
-[`examples/3dprint_handlers.mlt`](examples/3dprint_handlers.mlt).
+[`examples/handlers_upper_bound.mlt`](examples/handlers_upper_bound.mlt),
+[`examples/handlers_nested.mlt`](examples/handlers_nested.mlt),
+[`examples/handlers_nested_reject.mlt`](examples/handlers_nested_reject.mlt)
+and [`examples/3dprint_handlers.mlt`](examples/3dprint_handlers.mlt).
 
 ### Default implementations
 

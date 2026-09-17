@@ -24,8 +24,16 @@ let select ?(a = []) empty_description msg describe_choice selected choices =
   in
   div ~a
     [
+      (* index 0 is the placeholder below, and a browser may report it *)
       elt "select"
-        ~a:[ onchange_index (fun i -> msg (List.nth choices (i - 1))) ]
+        ~a:
+          [
+            on "change"
+              Vdom.Decoder.(
+                map
+                  (fun i -> Option.map msg (List.nth_opt choices (i - 1)))
+                  (field "target.selectedIndex" Int));
+          ]
         (elt "option"
            ~a:
              [
@@ -62,38 +70,6 @@ let primary_id i = Printf.sprintf "error-primary-%d" i
 let label_id i j = Printf.sprintf "error-label-%d-%d" i j
 let error_id i = Printf.sprintf "editor-error-%d" i
 
-(* What the [i]th error marks in the editor: its primary span, badged with the
-   error's number, and each of its labels, the hovered one brightened.
-   Standard-library spans mark nothing. *)
-let marks_of_error i (error : Model.load_error) =
-  let mark ?badge mark_cls id (loc : Location.t) =
-    if in_editor loc then
-      [
-        {
-          SyntaxHighlight.from = loc.start.offset;
-          until = loc.stop.offset;
-          mark_cls;
-          id = Some id;
-          badge;
-        };
-      ]
-    else []
-  in
-  (match error.diagnostic.primary with
-    | Some loc ->
-        mark "error-primary" (primary_id i) loc
-          ~badge:(string_of_int (i + 1), "#" ^ error_id i)
-    | None -> [])
-  @ List.concat
-      (List.mapi
-         (fun j ({ span; _ } : Diagnostic.label) ->
-           let mark_cls =
-             if error.hovered_label = Some j then "error-related error-hover"
-             else "error-related"
-           in
-           mark mark_cls (label_id i j) span)
-         error.diagnostic.labels)
-
 (* The kind of error and where it points: an editor span by its line and
    characters, a standard-library span by its file as well. *)
 let load_error_header (error : Model.load_error) =
@@ -106,8 +82,7 @@ let load_error_header (error : Model.load_error) =
       Format.asprintf "%s in the standard library (%t)" kind
         (Location.print loc)
 
-(* The same, cut down to a line of the side panel's list: the kind of error and
-   the line it is on, with no characters and no file. *)
+(* The same, cut down for the side panel's list: no characters, no file. *)
 let load_error_summary (error : Model.load_error) =
   let kind = Diagnostic.kind_to_string error.diagnostic.kind in
   match error.diagnostic.primary with
@@ -116,6 +91,42 @@ let load_error_summary (error : Model.load_error) =
       Printf.sprintf "%s at line %d" kind loc.start.line
   | Some _ -> kind ^ " in the standard library"
 
+(* What the [i]th error marks in the editor: its primary span, whose lines the
+   gutter numbers in red, and each of its labels, the hovered one brightened.
+   Standard-library spans mark nothing. *)
+let marks_of_error i (error : Model.load_error) =
+  let mark ?marker mark_cls id (loc : Location.t) =
+    if in_editor loc then
+      [
+        {
+          SyntaxHighlight.from = loc.start.offset;
+          until = loc.stop.offset;
+          mark_cls;
+          id = Some id;
+          marker;
+        };
+      ]
+    else []
+  in
+  (match error.diagnostic.primary with
+    | Some loc ->
+        mark "error-primary" (primary_id i) loc
+          ~marker:
+            {
+              SyntaxHighlight.href = "#" ^ error_id i;
+              title = load_error_header error;
+            }
+    | None -> [])
+  @ List.concat
+      (List.mapi
+         (fun j ({ span; _ } : Diagnostic.label) ->
+           let mark_cls =
+             if error.hovered_label = Some j then "error-related error-hover"
+             else "error-related"
+           in
+           mark mark_cls (label_id i j) span)
+         error.diagnostic.labels)
+
 (* What to scroll to for an error: its highlighted primary span when it has
    one in the editor, otherwise the message block under the editor. *)
 let load_error_target i (error : Model.load_error) =
@@ -123,10 +134,8 @@ let load_error_target i (error : Model.load_error) =
   | Some loc when in_editor loc -> primary_id i
   | _ -> error_id i
 
-(* One error's message, numbered as the editor's badge and the side panel's
-   list number it. [active] is the error the caret sits in, [stale] says that
-   the source has been edited since, so that nothing in the editor is marked
-   any longer and the links into it are left out. *)
+(* One error's message. [active] is the error the caret sits in; under [stale]
+   the editor marks nothing, so the links into it are left out. *)
 let view_load_error ~stale ~active i (error : Model.load_error) =
   (* In the editor a label links to its span, which lights up while the
      pointer is on it; a standard-library span can only be named. *)
@@ -258,14 +267,20 @@ let oncaret_at =
 (* The editor proper: the highlighted text, with the errors' spans marked, and
    the transparent textarea stretched over it. *)
 let view_editor ~marks (model : Model.edit_model) =
-  let rows =
-    max 10 (String.split_on_char '\n' model.unparsed_code |> List.length)
-  in
+  let lines = String.split_on_char '\n' model.unparsed_code |> List.length in
+  let rows = max 10 lines in
   let highlighted =
-    SyntaxHighlight.highlight_with_marks ~marks (model.unparsed_code ^ "\n")
+    SyntaxHighlight.highlight_with_marks ~line_numbers:true ~marks
+      (model.unparsed_code ^ "\n")
+  in
+  (* The gutter is a small inset, the line numbers (0.558rem a digit at the
+     editor's 0.9rem) and a gap; in rem so the marker's smaller font can use it. *)
+  let gutter =
+    Printf.sprintf "calc(0.36rem + %d * 0.558rem + 0.63rem)"
+      (String.length (string_of_int lines))
   in
   div
-    ~a:[ class_ "code-editor" ]
+    ~a:[ class_ "code-editor"; style "--gutter" gutter ]
     [
       elt "pre" ~a:[ class_ "code-editor-display syn-ml" ] highlighted;
       elt "textarea"
@@ -388,7 +403,14 @@ let view_compiler (model : Model.model) =
                    else [])
                 [
                   elt "a"
-                    ~a:[ attr "href" ("#" ^ error_id i) ]
+                    ~a:
+                      [
+                        attr "href"
+                          ("#"
+                          ^
+                          if model.stale_errors then error_id i
+                          else load_error_target i error);
+                      ]
                     [ text (load_error_summary error) ];
                 ]
             in
@@ -411,8 +433,7 @@ let edit_view (model : Model.model) =
     match model.run_model with Error errors -> errors | Ok _ -> []
   in
   let stale = model.stale_errors in
-  (* Once the source has been edited the spans have moved, so the editor marks
-     nothing and only the messages remain. *)
+  (* Edited source: the spans have moved, so only the messages remain. *)
   let marks =
     if stale then [] else List.concat (List.mapi marks_of_error errors)
   in
@@ -517,8 +538,10 @@ let view_steps (run_model : Model.run_model) steps =
 
 let run_view (run_model : Model.run_model) =
   let steps = run_model.current.steps in
+  (* The index outlives the step list it points into: taking the last step
+     empties the list while the pointer is still on the button. *)
   let selected_step =
-    Option.map (List.nth steps) run_model.selected_step_index
+    Option.bind run_model.selected_step_index (List.nth_opt steps)
   in
   let active_view =
     if run_model.current.is_done && run_model.current.completed_runs <> [] then

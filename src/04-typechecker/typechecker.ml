@@ -181,17 +181,23 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     ty_eqs : ty_eq list;
     rho_eqs : rho_eq list;
     ineqs : constr list;
+    rigids : Ast.rigid_origin Ast.RhoParamMap.t;
+        (** Where each rigid grade in them was introduced, for the messages that
+            name the continuation it belongs to. *)
   }
   (** Everything one subterm asks of the solver. A monoid, so that inference
       reads as "the constraints of the parts, and these". *)
 
-  let empty = { ty_eqs = []; rho_eqs = []; ineqs = [] }
+  let empty =
+    { ty_eqs = []; rho_eqs = []; ineqs = []; rigids = Ast.RhoParamMap.empty }
 
   let union c1 c2 =
     {
       ty_eqs = c1.ty_eqs @ c2.ty_eqs;
       rho_eqs = c1.rho_eqs @ c2.rho_eqs;
       ineqs = c1.ineqs @ c2.ineqs;
+      (* Each parameter is made once, so the two maps never disagree. *)
+      rigids = Ast.RhoParamMap.union (fun _ o _ -> Some o) c1.rigids c2.rigids;
     }
 
   let concat cs = List.fold_right union cs empty
@@ -317,6 +323,26 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
      body: neither alone is the construct a message should point at. *)
   let abstraction_span ((pat, comp) : _ Ast.abstraction) =
     Location.merge pat.Ast.at comp.Ast.at
+
+  (* The variable a pattern binds the whole matched value to, if any; a
+     compiler-invented one is not one a message may name. *)
+  let rec pattern_variable (pat : _ Ast.pattern) =
+    match pat.Ast.it with
+    | Ast.PVar x | Ast.PAs (_, x) ->
+        if Ast.Variable.is_synthetic x then None else Some x
+    | Ast.PAnnotated (pat, _) -> pattern_variable pat
+    | _ -> None
+
+  (* Where the rigid grade of the case [Op p k -> ...] comes from. The parser
+     pairs the two patterns, so the continuation is the second component. *)
+  let rigid_origin op ~case_at ((pat, _) : _ Ast.abstraction) =
+    let k = match pat.Ast.it with Ast.PTuple [ _; k ] -> Some k | _ -> None in
+    {
+      Ast.op;
+      continuation = Option.bind k pattern_variable;
+      case_at;
+      continuation_at = (match k with Some k -> k.Ast.at | None -> case_at);
+    }
 
   (** How to describe the grade a [Do] puts into the context. The desugarer
       turns [delay n; c] and [perform Op e; c] into [Do]s whose bound
@@ -505,7 +531,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                   in
                   (* The case must be well-typed for every grade of the
                      continuation, so that grade is rigid. *)
-                  let rho = Ast.RhoRigid (Ast.RhoParamModule.fresh "rho") in
+                  let rho_param = Ast.RhoParamModule.fresh "rho" in
+                  let rho = Ast.RhoRigid rho_param in
                   let r =
                     because case_at (Ast.HandlerCase { op; signature_at })
                   in
@@ -530,6 +557,12 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                          e.g. a clause performing [Send] once realises the
                          grade [{Send | Send; Send}]. *)
                       ineq r' op_case_rho (Ast.RhoAdd (op_rho, rho));
+                      {
+                        empty with
+                        rigids =
+                          Ast.RhoParamMap.singleton rho_param
+                            (rigid_origin op ~case_at op_case);
+                      };
                       acc;
                     ])
             op_cases empty
@@ -1154,7 +1187,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           grade_rhs = Ast.substitute_rho subst eq.grade_rhs;
         })
 
-  let rec unify_rho_constraints state prev_unsolved_size unsolved
+  let rec unify_rho_constraints state ~rigids prev_unsolved_size unsolved
       (eqs : rho_eq list) =
     match eqs with
     | [] ->
@@ -1178,7 +1211,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                sorted)
         else
           (* Retry with deferred constraints *)
-          unify_rho_constraints state current_unsolved_size [] unsolved
+          unify_rho_constraints state ~rigids current_unsolved_size [] unsolved
     | eq :: eqs -> (
         let rho1' = simplify_rho eq.grade_lhs in
         let rho2' = simplify_rho eq.grade_rhs in
@@ -1188,7 +1221,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         let eliminate tp rho =
           let singleton = Ast.RhoParamMap.singleton tp rho in
           let rho_subst =
-            unify_rho_constraints state prev_unsolved_size
+            unify_rho_constraints state ~rigids prev_unsolved_size
               (subst_rho_equations singleton unsolved)
               (subst_rho_equations singleton eqs)
           in
@@ -1196,42 +1229,42 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         in
         match (rho1', rho2') with
         | _ when rho1' = rho2' ->
-            unify_rho_constraints state prev_unsolved_size unsolved eqs
+            unify_rho_constraints state ~rigids prev_unsolved_size unsolved eqs
         | Ast.RhoParam tp, rho when not (occurs_rho tp rho) -> eliminate tp rho
         | rho, Ast.RhoParam tp when not (occurs_rho tp rho) -> eliminate tp rho
         | Ast.RhoConst z, Ast.RhoAdd (t1, t2)
         | Ast.RhoAdd (t1, t2), Ast.RhoConst z
           when z = ResourceGrade.zero ->
-            unify_rho_constraints state prev_unsolved_size unsolved
+            unify_rho_constraints state ~rigids prev_unsolved_size unsolved
               (defer t1 (Ast.RhoConst ResourceGrade.zero)
               :: defer t2 (Ast.RhoConst ResourceGrade.zero)
               :: eqs)
         | t, (Ast.RhoAdd _ as u) ->
             let left_rho, right_rho = normalise_rho_pair t u in
             if left_rho = t && right_rho = u then
-              unify_rho_constraints state prev_unsolved_size
+              unify_rho_constraints state ~rigids prev_unsolved_size
                 (defer left_rho right_rho :: unsolved)
                 eqs
             else
-              unify_rho_constraints state prev_unsolved_size unsolved
+              unify_rho_constraints state ~rigids prev_unsolved_size unsolved
                 (defer left_rho right_rho :: eqs)
         | (Ast.RhoAdd _ as u), t ->
             let left_rho, right_rho = normalise_rho_pair u t in
             if left_rho = u && right_rho = t then
-              unify_rho_constraints state prev_unsolved_size
+              unify_rho_constraints state ~rigids prev_unsolved_size
                 (defer left_rho right_rho :: unsolved)
                 eqs
             else
-              unify_rho_constraints state prev_unsolved_size unsolved
+              unify_rho_constraints state ~rigids prev_unsolved_size unsolved
                 (defer left_rho right_rho :: eqs)
         | (Ast.RhoRigid _ as r), u | u, (Ast.RhoRigid _ as r) ->
             (* Nothing above applied, so the other side is neither an unknown
                nor a reducible sum: the case would be well-typed only for this
                one grade of its continuation. *)
-            E.rigid_required_equal (printer ()) ~rigid:r ~other:u
+            E.rigid_required_equal (printer ()) ~rigids ~rigid:r ~other:u
               ~reason:eq.grade_reason ~root:eq.grade_root
         | u1, u2 ->
-            unify_rho_constraints state prev_unsolved_size
+            unify_rho_constraints state ~rigids prev_unsolved_size
               (defer u1 u2 :: unsolved) eqs)
 
   (** [reduce_eternal state ty] reduces the obligation that [ty] be eternal to
@@ -1424,12 +1457,6 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         | _ -> true)
       |> build_rho_from_param_list
     in
-    let rec instantiate_rigid w = function
-      | Ast.RhoRigid _ -> Ast.RhoConst w
-      | Ast.RhoAdd (l, r) ->
-          Ast.RhoAdd (instantiate_rigid w l, instantiate_rigid w r)
-      | rho -> rho
-    in
     if rho1 = rho2 then Holds
     else
       let left, right = normalise_rho_pair rho1 rho2 in
@@ -1449,8 +1476,9 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           then Unknown
           else
             let refutes w =
-              decide_ground (instantiate_rigid w left)
-                (instantiate_rigid w right)
+              decide_ground
+                (Ast.instantiate_rigid w left)
+                (Ast.instantiate_rigid w right)
               = Some false
             in
             (* One tick past all the constants refutes the bound a constant
@@ -1480,7 +1508,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
       discharged as soon as either side holds, and reduced to [eternal τ] when
       the inequality fails or a rigid grade leaves it open, since nothing may be
       assumed about the grade of a continuation. *)
-  let simplify_constraints state cs =
+  let simplify_constraints state ~rigids cs =
     let mentions_rigid rho =
       not (Ast.RhoParamSet.is_empty (Ast.rigid_rhos rho))
     in
@@ -1489,7 +1517,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           let rho1 = simplify_rho rho1 and rho2 = simplify_rho rho2 in
           match decide_ineq ~loc:(reason_at reason) state rho1 rho2 with
           | Holds -> acc
-          | Fails witness -> E.ineq_failed (printer ()) rho1 rho2 reason witness
+          | Fails witness ->
+              E.ineq_failed (printer ()) ~rigids rho1 rho2 reason witness
           | Unknown -> Ast.Ineq (rho1, rho2, reason) :: acc)
       | Ast.Eternal (ty, reason) as c -> (
           match reduce_eternal state ty with
@@ -1504,10 +1533,11 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               match (reduce_eternal state ty, verdict) with
               | Some vars, _ when Ast.TyParamSet.is_empty vars -> acc
               | None, Fails witness ->
-                  E.eternal_or_ineq_failed (printer ()) ty rho1 rho2 reason
-                    witness
+                  E.eternal_or_ineq_failed (printer ()) ~rigids ty rho1 rho2
+                    reason witness
               | None, _ ->
-                  E.eternal_or_ineq_unknown (printer ()) ty rho1 rho2 reason
+                  E.eternal_or_ineq_unknown (printer ()) ~rigids ty rho1 rho2
+                    reason
               | Some _, Fails _ -> Ast.Eternal (ty, reason) :: acc
               | Some _, _ ->
                   if mentions_rigid rho1 || mentions_rigid rho2 then
@@ -1531,7 +1561,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
 
       Canonical forms are compared on their types and grades alone, so a
       duplicate keeps the reason of the constraint that was seen first. *)
-  let solve_residuals state ~generalisable:(gen_tys, gen_rhos) cs =
+  let solve_residuals state ~rigids ~generalisable:(gen_tys, gen_rhos) cs =
     let fv_tys, fv_rhos =
       List.fold_left
         (fun (tys, rhos) c ->
@@ -1554,7 +1584,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         Ast.RhoParamMap.empty
     in
     let cs' =
-      simplify_constraints state
+      simplify_constraints state ~rigids
         (List.map (Ast.substitute_constr ty_subst rho_subst) cs)
     in
     let vars_of ty =
@@ -1571,7 +1601,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         (fun (atoms, disjs) c ->
           match c with
           | Ast.Ineq (rho1, rho2, reason) ->
-              E.non_ground_ineq (printer ()) rho1 rho2 reason
+              E.non_ground_ineq (printer ()) ~rigids rho1 rho2 reason
           | Ast.Eternal (ty, reason) ->
               ( List.fold_left
                   (fun atoms a ->
@@ -1614,6 +1644,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let in_source_order cs =
     let by at1 at2 = Location.compare at1 at2 in
     {
+      cs with
       ty_eqs =
         List.stable_sort
           (fun e1 e2 -> by (reason_at e1.reason) (reason_at e2.reason))
@@ -1635,7 +1666,10 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     let ty_subst, rho_eqs' =
       unify_ty_constraints state Subst.empty [] cs.ty_eqs
     in
-    let rho_subst = unify_rho_constraints state 0 [] (cs.rho_eqs @ rho_eqs') in
+    let rigids = cs.rigids in
+    let rho_subst =
+      unify_rho_constraints state ~rigids 0 [] (cs.rho_eqs @ rho_eqs')
+    in
     let ineqs' =
       subst_rho_inequations
         (Subst.union_prefer_right ty_subst rho_subst)
@@ -1653,24 +1687,19 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     in
     let subst = Subst.union_prefer_right ty_subst' rho_subst'' in
     let residual =
-      simplify_constraints state (subst_rho_inequations subst ineqs'')
+      simplify_constraints state ~rigids (subst_rho_inequations subst ineqs'')
     in
     (subst, residual)
 
   (** A rigid grade is universally quantified in the handler case that
       introduced it, so it must not escape: in the type of a definition it would
       be generalised and instantiated freely at each use. *)
-  let check_no_rigid_escape ~loc rigid describe =
-    match Ast.RhoParamSet.choose_opt rigid with
+  let check_no_rigid_escape ~loc ~rigids escaping described =
+    match Ast.RhoParamSet.choose_opt escaping with
     | None -> ()
     | Some r ->
-        let rho_pp = PrettyPrint.RhoPrintParam.create () in
-        let ty_pp = PrettyPrint.TyPrintParam.create () in
-        Error.typing ~loc
-          "The grade %t of a handler continuation may be any grade and cannot \
-           occur in %t"
-          (PrettyPrint.print_rho (module ResourceGrade) rho_pp (Ast.RhoRigid r))
-          (describe ty_pp rho_pp)
+        let p = printer () in
+        E.rigid_escape p ~rigids ~loc ~described:(described p) r
 
   let infer ~(loc : Location.t) state e =
     let comp_ty, cs = infer_computation state e in
@@ -1678,17 +1707,16 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     (* A top-level computation exports no type, so every parameter of its
        residual constraints may be instantiated as the constraints need. *)
     let _ =
-      solve_residuals state
+      solve_residuals state ~rigids:cs.rigids
         ~generalisable:(Ast.TyParamSet.empty, Ast.RhoParamSet.empty)
         residual
     in
     let comp_ty' = simplify_comp_ty (Subst.apply_comp_ty subst comp_ty) in
     (let (Ast.CompTy (ty, rho)) = comp_ty' in
-     check_no_rigid_escape ~loc (Ast.rigid_rhos_comp_ty comp_ty')
-       (fun ty_pp rho_pp ppf ->
-         Format.fprintf ppf "the type %t # %t of the computation"
-           (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty)
-           (PrettyPrint.print_rho (module ResourceGrade) rho_pp rho)));
+     check_no_rigid_escape ~loc ~rigids:cs.rigids
+       (Ast.rigid_rhos_comp_ty comp_ty') (fun p ->
+         Printf.sprintf "the type %s # %s of the computation" (p.E.ty ty)
+           (p.E.rho rho)));
     comp_ty'
 
   let add_external_function x entry state =
@@ -1701,16 +1729,17 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     let ty, cs = infer_expression state e in
     let subst, residual = unify state cs in
     let ty'' = simplify_ty (Subst.apply_ty subst ty) in
-    check_no_rigid_escape ~loc (Ast.rigid_rhos_ty ty'') (fun ty_pp rho_pp ppf ->
-        Format.fprintf ppf "the type %t of %t"
-          (PrettyPrint.print_ty (module ResourceGrade) ty_pp rho_pp ty'')
-          (Ast.Variable.print x));
+    check_no_rigid_escape ~loc ~rigids:cs.rigids (Ast.rigid_rhos_ty ty'')
+      (fun p ->
+        Printf.sprintf "the type %s of %s" (p.E.ty ty'')
+          (Ast.Variable.string_of x));
     let free_vars, free_rhos = Ast.free_vars ty'' in
     (* The constraints the definition could not discharge qualify its scheme,
        to be owed again at each use, which nests the definition's reason for
        each inside its own. *)
     let constrs =
-      solve_residuals state ~generalisable:(free_vars, free_rhos) residual
+      solve_residuals state ~rigids:cs.rigids
+        ~generalisable:(free_vars, free_rhos) residual
     in
     let scheme : ResourceGrade.t Ast.ty_scheme =
       {
@@ -1891,18 +1920,18 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         let default path : reason =
           { at = loc; why = Ast.DefaultOf { op; signature_at }; path }
         in
-        let _, residual =
-          unify state
-            (concat
-               [
-                 ty_eq (default [ Ast.Argument ]) arg_ty param_ty;
-                 ty_eq (default [ Ast.Result ]) res_ty arity_ty;
-                 cs;
-                 ineq (default []) impl_rho bound_rho;
-               ])
+        let cs =
+          concat
+            [
+              ty_eq (default [ Ast.Argument ]) arg_ty param_ty;
+              ty_eq (default [ Ast.Result ]) res_ty arity_ty;
+              cs;
+              ineq (default []) impl_rho bound_rho;
+            ]
         in
+        let _, residual = unify state cs in
         let _ =
-          solve_residuals state
+          solve_residuals state ~rigids:cs.rigids
             ~generalisable:(Ast.TyParamSet.empty, Ast.RhoParamSet.empty)
             residual
         in

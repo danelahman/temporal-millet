@@ -1,0 +1,26 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/continuation_nested_twice_reject_upper.mlt *)
+
+operation Op1 : unit ~> unit # 1
+operation Op2 : unit ~> unit # 1
+
+(* Correctly rejected by the typechecker: the inner case resumes k' twice and
+   then the outer k, so its grade overruns the one tick Op2 allows on top of
+   the inner continuation. *)
+let h =
+  handler
+  | x -> x
+  | Op1 p k ->
+      handle
+        perform Op2 ();
+        continue k with ()
+      with
+        (handler
+         | y -> y
+         | Op2 q k' ->
+             let a = continue k' with () in
+             let b = continue k' with () in
+             continue k with ())
+
+run handle (perform Op1 (); 7) with h

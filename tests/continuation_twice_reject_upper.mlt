@@ -4,13 +4,9 @@
 
 operation Op : unit ~> unit # 1
 
-(* Resuming twice gives the case grade rho + rho, which is not a sub-grade of
-   1 + rho for every rho: it fails already for rho = 2. *)
+(* Correctly rejected by the typechecker: resuming twice gives the case grade
+   rho + rho, which is not a sub-grade of 1 + rho for every rho: it fails
+   already for rho = 2. *)
 let h = handler | x -> x | Op p k -> let a = continue k with () in continue k with ()
 
-(* Correctly rejected by the typechecker:
-
-     Typing error: Comparing resource inequality ρ₀ <= 1 failed, already when
-       the continuation grade is 2
-*)
 run handle (perform Op (); 3) with h

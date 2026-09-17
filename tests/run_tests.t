@@ -12,6 +12,7 @@
   >     noneternal_lower.mlt) ../temporal-millet $f;;
   >     noneternal*.mlt) ../temporal-millet --resources time-upper-bound $f;;
   >     continuation_discard_reject_lower.mlt) ../temporal-millet $f;;
+  >     continuation_nested_discard_reject_lower.mlt) ../temporal-millet $f;;
   >     continuation_twice_lower.mlt) ../temporal-millet $f;;
   >     continuation_*.mlt) ../temporal-millet --resources time-upper-bound $f;;
   >     error_use_after_delay.mlt) ../temporal-millet --resources time-upper-bound $f;;
@@ -145,15 +146,19 @@
   ======================================================================
   continuation_discard_reject_lower.mlt
   ======================================================================
-  File "continuation_discard_reject_lower.mlt", line 9, characters 27-38:
-  9 | let h = handler | x -> x | Op p k -> 5
-                                 ^^^^^^^^^^^
-  Typing error: The case for Op has grade 0, which does not match the grade ρ₀ + 1 of Op followed by its continuation
+  File "continuation_discard_reject_lower.mlt", line 10, characters 27-38:
+  10 | let h = handler | x -> x | Op p k -> 5
+                                  ^^^^^^^^^^^
+  Typing error: For every grade ρ₀ the continuation k may have, the case for Op must have a grade matching ρ₀ + 1, but its grade 0 does not
     File "continuation_discard_reject_lower.mlt", line 5, characters 0-31:
     5 | operation Op : unit ~> unit # 1
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     operation Op is declared here
-    Note: the resource inequality 0 >= ρ₀ + 1 does not hold, already when the continuation grade is 0
+    File "continuation_discard_reject_lower.mlt", line 10, characters 32-33:
+    10 | let h = handler | x -> x | Op p k -> 5
+                                         ^
+    k may have any grade ρ₀
+    Note: the resource inequality 0 >= ρ₀ + 1 does not hold: for ρ₀ = 0 it becomes 0 >= 1
   ======================================================================
   continuation_discard_upper.mlt
   ======================================================================
@@ -176,19 +181,94 @@
   File "continuation_escape_reject.mlt", line 9, characters 0-71:
   9 | let h g = handler | x -> x | Op p k -> g k; delay 1; continue k with ()
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  Typing error: The grade ρ₀ of a handler continuation may be any grade and cannot occur in the type ([1](unit → α # ρ₀) → β) → α # ρ₁ ⇒ α # 0 of h
+  Typing error: The type ([1](unit → α # ρ₀) → β) → α # ρ₁ ⇒ α # 0 of h mentions ρ₀, the grade of the continuation k in the case for Op, which may be any grade and so cannot occur in it
+    File "continuation_escape_reject.mlt", line 9, characters 34-35:
+    9 | let h g = handler | x -> x | Op p k -> g k; delay 1; continue k with ()
+                                          ^
+    k may have any grade ρ₀
   ======================================================================
   continuation_fixed_reject.mlt
   ======================================================================
-  File "continuation_fixed_reject.mlt", line 9, characters 39-95:
-  9 | let h = handler | x -> (fun () -> x) | Op p k -> (fun () -> let f = continue k with () in f ())
-                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  Typing error: The grade ρ₀ of a handler continuation may be any grade, but here it is required to equal 0
+  File "continuation_fixed_reject.mlt", line 10, characters 39-95:
+  10 | let h = handler | x -> (fun () -> x) | Op p k -> (fun () -> let f = continue k with () in f ())
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  Typing error: The continuation k in the case for Op may have any grade ρ₀, but here ρ₀ is required to equal 0
     File "continuation_fixed_reject.mlt", line 5, characters 0-31:
     5 | operation Op : unit ~> unit # 1
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     operation Op is declared here
+    File "continuation_fixed_reject.mlt", line 10, characters 44-45:
+    10 | let h = handler | x -> (fun () -> x) | Op p k -> (fun () -> let f = continue k with () in f ())
+                                                     ^
+    k may have any grade ρ₀
     Note: while matching unit → β # ρ₁ + ρ₂ against unit → α
+  ======================================================================
+  continuation_nested_discard_reject_lower.mlt
+  ======================================================================
+  File "continuation_nested_discard_reject_lower.mlt", line 21, characters 11-41:
+  21 |          | Op2 q k' -> continue k with ())
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  Typing error: For every grade ρ₀ the continuation k may have and every grade ρ₁ the continuation k' may have, the case for Op2 must have a grade matching ρ₁ + 3, but its grade ρ₀ does not
+    File "continuation_nested_discard_reject_lower.mlt", line 6, characters 0-32:
+    6 | operation Op2 : unit ~> unit # 3
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    operation Op2 is declared here
+    File "continuation_nested_discard_reject_lower.mlt", line 14, characters 10-11:
+    14 |   | Op1 p k ->
+                   ^
+    k may have any grade ρ₀
+    File "continuation_nested_discard_reject_lower.mlt", line 21, characters 17-19:
+    21 |          | Op2 q k' -> continue k with ())
+                          ^^
+    k' may have any grade ρ₁
+    Note: the resource inequality ρ₀ >= ρ₁ + 3 does not hold: for ρ₀ = 0 and ρ₁ = 0 it becomes 0 >= 3
+  ======================================================================
+  continuation_nested_escape_reject.mlt
+  ======================================================================
+  File "continuation_nested_escape_reject.mlt", lines 10-20, characters 0-58:
+  10 | let h g =
+       ^^^^^^^^^
+  Typing error: The type ([1](unit → α # ρ₀) → β) → α # ρ₁ ⇒ α # 0 of h mentions ρ₀, the grade of the continuation k' in the case for Op2, which may be any grade and so cannot occur in it
+    File "continuation_nested_escape_reject.mlt", line 20, characters 17-19:
+    20 |          | Op2 q k' -> g k'; delay 1; continue k' with ())
+                          ^^
+    k' may have any grade ρ₀
+  ======================================================================
+  continuation_nested_fixed_reject.mlt
+  ======================================================================
+  File "continuation_nested_fixed_reject.mlt", line 21, characters 11-70:
+  21 |          | Op2 q k' -> (fun () -> let f = continue k' with () in f ()))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  Typing error: The continuation k' in the case for Op2 may have any grade ρ₀, but here ρ₀ is required to equal 0
+    File "continuation_nested_fixed_reject.mlt", line 6, characters 0-32:
+    6 | operation Op2 : unit ~> unit # 1
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    operation Op2 is declared here
+    File "continuation_nested_fixed_reject.mlt", line 21, characters 17-19:
+    21 |          | Op2 q k' -> (fun () -> let f = continue k' with () in f ()))
+                          ^^
+    k' may have any grade ρ₀
+    Note: while matching unit → β # ρ₁ + ρ₂ against unit → α
+  ======================================================================
+  continuation_nested_twice_reject_upper.mlt
+  ======================================================================
+  File "continuation_nested_twice_reject_upper.mlt", lines 21-24, characters 11-31:
+  21 |          | Op2 q k' ->
+                  ^^^^^^^^^^^
+  Typing error: For every grade ρ₀ the continuation k may have and every grade ρ₁ the continuation k' may have, the case for Op2 must have a grade matching 1, but its grade ρ₀ + ρ₁ does not
+    File "continuation_nested_twice_reject_upper.mlt", line 6, characters 0-32:
+    6 | operation Op2 : unit ~> unit # 1
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    operation Op2 is declared here
+    File "continuation_nested_twice_reject_upper.mlt", line 14, characters 10-11:
+    14 |   | Op1 p k ->
+                   ^
+    k may have any grade ρ₀
+    File "continuation_nested_twice_reject_upper.mlt", line 21, characters 17-19:
+    21 |          | Op2 q k' ->
+                          ^^
+    k' may have any grade ρ₁
+    Note: the resource inequality ρ₀ + ρ₁ <= 1 does not hold: for ρ₀ = 1 and ρ₁ = 1 it becomes 2 <= 1
   ======================================================================
   continuation_twice_lower.mlt
   ======================================================================
@@ -204,15 +284,19 @@
   ======================================================================
   continuation_twice_reject_upper.mlt
   ======================================================================
-  File "continuation_twice_reject_upper.mlt", line 9, characters 27-85:
-  9 | let h = handler | x -> x | Op p k -> let a = continue k with () in continue k with ()
-                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  Typing error: The case for Op has grade ρ₀, which does not match the grade 1 of Op followed by its continuation
+  File "continuation_twice_reject_upper.mlt", line 10, characters 27-85:
+  10 | let h = handler | x -> x | Op p k -> let a = continue k with () in continue k with ()
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  Typing error: For every grade ρ₀ the continuation k may have, the case for Op must have a grade matching 1, but its grade ρ₀ does not
     File "continuation_twice_reject_upper.mlt", line 5, characters 0-31:
     5 | operation Op : unit ~> unit # 1
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     operation Op is declared here
-    Note: the resource inequality ρ₀ <= 1 does not hold, already when the continuation grade is 2
+    File "continuation_twice_reject_upper.mlt", line 10, characters 32-33:
+    10 | let h = handler | x -> x | Op p k -> let a = continue k with () in continue k with ()
+                                         ^
+    k may have any grade ρ₀
+    Note: the resource inequality ρ₀ <= 1 does not hold: for ρ₀ = 2 it becomes 2 <= 1
   ======================================================================
   default_ops.mlt
   ======================================================================

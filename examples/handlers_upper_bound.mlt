@@ -35,7 +35,9 @@ let h_fast =
 (* Correctly rejected by the typechecker: 72 ticks overrun the 71 the
    continuation must be resumed within:
 
-     Typing error: Comparing resource inequality 72 <= 71 failed
+     Typing error: The case for Get has grade 72, which does not match the
+       grade 71 of Get followed by its continuation
+       Note: the resource inequality 72 <= 71 does not hold
 *)
 (*
 let h_slow =
@@ -58,8 +60,10 @@ let h_abandon =
    the clause may promise only 71 + rho, i.e. rho <= 71, which fails already
    for rho = 72:
 
-     Typing error: Comparing resource inequality ρ₀ <= 71 failed, already
-       when the continuation grade is 72
+     Typing error: For every grade ρ₀ the continuation k may have, the case
+       for Get must have a grade matching 71, but its grade ρ₀ does not
+       Note: the resource inequality ρ₀ <= 71 does not hold: for ρ₀ = 72 it
+         becomes 72 <= 71
    (Contrast: accepted under a lower bound.)
 *)
 (*
@@ -86,8 +90,11 @@ let h_before =
 (* Correctly rejected by the typechecker: 'f' is not eternal, so it may not
    be used after a resumption that may take any number of ticks:
 
-     Typing error: Type unit → int of variable f is not eternal and resource
-       inequality ρ₀ <= 0 failed, already when the continuation grade is 1
+     Typing error: Variable f is used after grade ρ₀ has elapsed, but its
+       type unit → int is not eternal
+       Note: for every grade ρ₀ the continuation k may have, the resource
+         inequality ρ₀ <= 0 must hold, but does not: for ρ₀ = 1 it becomes 1
+         <= 0
 *)
 (*
 let h_after =
@@ -103,9 +110,9 @@ let h_after =
    would escape into the type of 'h_leak' through 'g', where a caller could
    pick it:
 
-     Typing error: The grade ρ₀ of a handler continuation may be any grade
-       and cannot occur in the type ([71](int → α # ρ₀) → β # ρ₁) → α # ρ₂ ⇒
-       α # 0 of h_leak
+     Typing error: The type ([71](int → α # ρ₀) → β # ρ₁) → α # ρ₂ ⇒ α # 0
+       of h_leak mentions ρ₀, the grade of the continuation k in the case
+       for Get, which may be any grade and so cannot occur in it
 *)
 (*
 let h_leak g =

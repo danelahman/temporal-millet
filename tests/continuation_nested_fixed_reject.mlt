@@ -1,0 +1,23 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/continuation_nested_fixed_reject.mlt *)
+
+operation Op1 : unit ~> unit # 1
+operation Op2 : unit ~> unit # 1
+
+(* Correctly rejected by the typechecker: the return clause makes the result
+   type 'unit -> α # 0', so the inner case's function would fix the arbitrary
+   grade of k' to 0. *)
+let h =
+  handler
+  | x -> (fun () -> x)
+  | Op1 p k ->
+      handle
+        perform Op2 ();
+        continue k with ()
+      with
+        (handler
+         | y -> y
+         | Op2 q k' -> (fun () -> let f = continue k' with () in f ()))
+
+run handle (perform Op1 (); 7) with h

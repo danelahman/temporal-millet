@@ -62,6 +62,16 @@ let nil_label = Label.fresh nil_label_string
 let cons_label_string = "$cons$"
 let cons_label = Label.fresh cons_label_string
 
+type rigid_origin = {
+  op : operation;
+  continuation : variable option;
+  case_at : Location.t;
+  continuation_at : Location.t;
+}
+(** Where a rigid continuation grade was introduced, so that a message can name
+    the continuation it belongs to. [continuation] is the variable the case
+    binds it to, when the pattern is one. *)
+
 (** How a grade came to be accumulated, for the messages that explain why a
     variable may no longer be used. *)
 type elapsed_kind =
@@ -383,6 +393,13 @@ let rec rigid_rhos = function
   | RhoConst _ | RhoParam _ -> RhoParamSet.empty
   | RhoRigid a -> RhoParamSet.singleton a
   | RhoAdd (l, r) -> RhoParamSet.union (rigid_rhos l) (rigid_rhos r)
+
+(** [instantiate_rigid w rho] takes the instance of [rho] in which every rigid
+    grade is [w]. A failing ground instance refutes the universal statement. *)
+let rec instantiate_rigid w = function
+  | RhoRigid _ -> RhoConst w
+  | RhoAdd (l, r) -> RhoAdd (instantiate_rigid w l, instantiate_rigid w r)
+  | rho -> rho
 
 let rec rigid_rhos_ty = function
   | TyConst _ | TyParam _ -> RhoParamSet.empty

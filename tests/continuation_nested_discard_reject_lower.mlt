@@ -1,0 +1,23 @@
+(* Run this test with the default 'time-lower-bound' grading monoid, e.g.
+
+     ./temporal-millet tests/continuation_nested_discard_reject_lower.mlt *)
+
+operation Op1 : unit ~> unit # 2
+operation Op2 : unit ~> unit # 3
+
+(* Correctly rejected by the typechecker: the inner case discards k' and only
+   resumes the outer k, so its grade is the outer continuation's alone and
+   misses the inner one's. *)
+let h =
+  handler
+  | x -> x
+  | Op1 p k ->
+      handle
+        perform Op2 ();
+        continue k with ()
+      with
+        (handler
+         | y -> y
+         | Op2 q k' -> continue k with ())
+
+run handle (perform Op1 (); 7) with h

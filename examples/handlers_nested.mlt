@@ -1,0 +1,36 @@
+(* Run this example with the 'time-lower-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-lower-bound examples/handlers_nested.mlt *)
+
+(* An operation case is checked for every grade its continuation may have, so
+   two nested cases quantify over two such grades: ρ₀ for the outer 'k' and ρ₁
+   for the inner 'k''. *)
+
+operation Op1 : unit ~> unit # 2
+operation Op2 : unit ~> unit # 3
+
+(* Correctly accepted by the typechecker: the inner case delays the 3 ticks of
+   'Op2', resumes 'k'' and then the outer 'k' once more, so its grade
+   3 + ρ₁ + ρ₀ is a sub-grade of 3 + ρ₁, i.e. ρ₀ >= 0, true for every ρ₀. *)
+let h =
+  handler
+  | x -> x
+  | Op1 p k ->
+      handle
+        perform Op2 ();
+        continue k with ()
+      with
+        (handler
+         | y -> y
+         | Op2 q k' ->
+             delay 3;
+             let a = continue k' with () in
+             continue k with ())
+
+(* The run performs 'Op1', whose case performs 'Op2'; the outer case's grade
+   3 + ρ₀ covers the 2 ticks of 'Op1', and the run returns 7. *)
+run
+  handle
+    perform Op1 ();
+    return 7
+  with h

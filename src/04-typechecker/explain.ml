@@ -49,6 +49,78 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let describe x =
     match var_name x with Some name -> name | None -> "this expression"
 
+  (* ------------------------------------------------------------------ *)
+  (* Universally quantified continuation grades                          *)
+  (* ------------------------------------------------------------------ *)
+
+  type rigids = Ast.rigid_origin Ast.RhoParamMap.t
+  (** Where each rigid grade a message may print was introduced. One that
+      reaches a message without an origin is described as before. *)
+
+  (* The continuation of a case, as the subject of a sentence and as a noun
+     phrase; it is named only when the case binds it to a variable. *)
+  let continuation_subject (o : Ast.rigid_origin) =
+    match Option.map var_name o.continuation with
+    | Some (Some name) -> name
+    | _ -> "the continuation"
+
+  let continuation_phrase (o : Ast.rigid_origin) =
+    match Option.map var_name o.continuation with
+    | Some (Some name) -> "the continuation " ^ name
+    | _ -> "the continuation"
+
+  (** The rigid grades of [rhos] whose origin is known, outermost case first:
+      [Location.compare] puts a containing span before the span it contains. *)
+  let rigids_of rigids rhos =
+    List.fold_left
+      (fun acc rho -> Ast.RhoParamSet.union acc (Ast.rigid_rhos rho))
+      Ast.RhoParamSet.empty rhos
+    |> Ast.RhoParamSet.elements
+    |> List.filter_map (fun r ->
+        Option.map (fun o -> (r, o)) (Ast.RhoParamMap.find_opt r rigids))
+    |> List.sort (fun (_, o1) (_, o2) ->
+        Location.compare o1.Ast.case_at o2.Ast.case_at)
+
+  (** The fixed form the messages quantify with. It renders the grades, so a
+      sentence that opens with it numbers them from the outermost case. *)
+  let for_every p rs =
+    "for every "
+    ^ String.concat " and every "
+        (List.map
+           (fun (r, o) ->
+             Printf.sprintf "grade %s %s may have" (p.rho (Ast.RhoRigid r))
+               (continuation_phrase o))
+           rs)
+
+  (* A rigid grade on first mention, where the sentence has room for it. *)
+  let rigid_description p (r, (o : Ast.rigid_origin)) =
+    Printf.sprintf "%s, the grade of %s in the case for %s"
+      (p.rho (Ast.RhoRigid r)) (continuation_phrase o) (op_name o.op)
+
+  let rigid_labels p rs =
+    List.map
+      (fun (r, (o : Ast.rigid_origin)) ->
+        label o.continuation_at
+          (Printf.sprintf "%s may have any grade %s" (continuation_subject o)
+             (p.rho (Ast.RhoRigid r))))
+      rs
+
+  (* The refuting instance of the quantified grades, spelled out as the
+     inequality it turns the constraint into. *)
+  let witness_clause p rs rho1 rho2 = function
+    | None -> ""
+    | Some w ->
+        Printf.sprintf ": for %s it becomes %s %s %s"
+          (String.concat " and "
+             (List.map
+                (fun (r, _) ->
+                  Printf.sprintf "%s = %s" (p.rho (Ast.RhoRigid r))
+                    (ResourceGrade.show w))
+                rs))
+          (p.rho (Ast.instantiate_rigid w rho1))
+          ResourceGrade.is_sub_rho_symbol
+          (p.rho (Ast.instantiate_rigid w rho2))
+
   (* One place that contributed to an elapsed grade, naming its share; the
      headline gives the total. A [delay n] states its grade in the source, so it
      is repeated only where the monoid renders it as other than the [n]. *)
@@ -363,39 +435,59 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                 rest)
           ~notes:(matching_note p root) message
 
-  let rigid_required_equal p ~rigid ~other ~(reason : reason) ~root =
+  let rigid_required_equal p ~rigids ~rigid ~other ~(reason : reason) ~root =
+    let rs = rigids_of rigids [ rigid; other ] in
+    let named =
+      match rigid with
+      | Ast.RhoRigid r ->
+          Option.map (fun o -> (r, o)) (Ast.RhoParamMap.find_opt r rigids)
+      | _ -> None
+    in
+    let message =
+      match named with
+      | None ->
+          Printf.sprintf
+            "The grade %s of a handler continuation may be any grade, but here \
+             it is required to equal %s"
+            (p.rho rigid) (p.rho other)
+      | Some (_, (o : Ast.rigid_origin)) ->
+          let who = String.capitalize_ascii (continuation_phrase o) in
+          let g = p.rho rigid in
+          Printf.sprintf
+            "%s in the case for %s may have any grade %s, but here %s is \
+             required to equal %s"
+            who (op_name o.op) g g (p.rho other)
+    in
     fail ~loc:reason.at
-      ~labels:(labels_of_reason p reason)
-      ~notes:(matching_note p root)
-      (Printf.sprintf
-         "The grade %s of a handler continuation may be any grade, but here it \
-          is required to equal %s"
-         (p.rho rigid) (p.rho other))
+      ~labels:(labels_of_reason p reason @ rigid_labels p rs)
+      ~notes:(matching_note p root) message
 
   (* ------------------------------------------------------------------ *)
   (* Inequalities and eternality                                         *)
   (* ------------------------------------------------------------------ *)
 
-  (* A refuting instance of the universally quantified continuation grades. *)
-  let witness_text rho1 rho2 = function
-    | None -> ""
-    | Some w ->
-        let rigid =
-          Ast.RhoParamSet.union (Ast.rigid_rhos rho1) (Ast.rigid_rhos rho2)
-        in
-        Printf.sprintf ", already when the continuation grade%s %s %s"
-          (if Ast.RhoParamSet.cardinal rigid > 1 then "s" else "")
-          (if Ast.RhoParamSet.cardinal rigid > 1 then "are" else "is")
-          (ResourceGrade.show w)
+  let plain_ineq g1 g2 =
+    Printf.sprintf "the resource inequality %s %s %s does not hold" g1
+      ResourceGrade.is_sub_rho_symbol g2
 
-  let ineq_text p rho1 rho2 witness =
-    Printf.sprintf "the resource inequality %s %s %s does not hold%s"
-      (p.rho rho1) ResourceGrade.is_sub_rho_symbol (p.rho rho2)
-      (witness_text rho1 rho2 witness)
+  (* The constraint as a note. With rigid grades in it the note also carries
+     the quantification and, when there is one, the refuting instance. *)
+  let ineq_text p ~rigids rho1 rho2 witness =
+    let rs = rigids_of rigids [ rho1; rho2 ] in
+    let quantified = match rs with [] -> "" | rs -> for_every p rs in
+    let g1 = p.rho rho1 in
+    let g2 = p.rho rho2 in
+    match rs with
+    | [] -> plain_ineq g1 g2
+    | rs ->
+        Printf.sprintf
+          "%s, the resource inequality %s %s %s must hold, but does not%s"
+          quantified g1 ResourceGrade.is_sub_rho_symbol g2
+          (witness_clause p rs rho1 rho2 witness)
 
-  (** An inequality between grades that cannot hold. Only the reason knows which
-      promise it breaks. *)
-  let ineq_failed p rho1 rho2 (reason : reason) witness =
+  (* An inequality whose headline the reason picks; the quantification, if
+     any, goes into the note. *)
+  let ineq_failed_generic p ~rigids ~rs rho1 rho2 (reason : reason) witness =
     let g1 = p.rho rho1 and g2 = p.rho rho2 in
     let specific, message =
       match reason.why with
@@ -435,13 +527,36 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               ResourceGrade.is_sub_rho_symbol g2 )
     in
     (* The note spells out the constraint, which the specific headlines do not,
-       and carries the refuting instance. The generic headline already is the
-       constraint, so there the note only earns its place with a witness. *)
+       and carries the quantification and the refuting instance; the generic
+       headline already is the constraint, so there it needs one of those. *)
     let notes =
-      if specific || witness <> None then [ ineq_text p rho1 rho2 witness ]
+      if specific || witness <> None || rs <> [] then
+        [ ineq_text p ~rigids rho1 rho2 witness ]
       else []
     in
-    fail ~loc:reason.at ~labels:(labels_of_reason p reason) ~notes message
+    fail ~loc:reason.at
+      ~labels:(labels_of_reason p reason @ rigid_labels p rs)
+      ~notes message
+
+  (** An inequality between grades that cannot hold. Only the reason knows which
+      promise it breaks. *)
+  let ineq_failed p ~rigids rho1 rho2 (reason : reason) witness =
+    let rs = rigids_of rigids [ rho1; rho2 ] in
+    match (reason.why, rs) with
+    | Ast.ContinuationGrade { op; _ }, _ :: _ ->
+        (* The case's own constraint: the headline carries the quantification,
+           the note the inequality and its refuting instance. *)
+        let quantified = String.capitalize_ascii (for_every p rs) in
+        let g1 = p.rho rho1 in
+        let g2 = p.rho rho2 in
+        fail ~loc:reason.at
+          ~labels:(labels_of_reason p reason @ rigid_labels p rs)
+          ~notes:[ plain_ineq g1 g2 ^ witness_clause p rs rho1 rho2 witness ]
+          (Printf.sprintf
+             "%s, the case for %s must have a grade matching %s, but its grade \
+              %s does not"
+             quantified (op_name op) g2 g1)
+    | _ -> ineq_failed_generic p ~rigids ~rs rho1 rho2 reason witness
 
   let not_eternal p ty (reason : reason) =
     let t = p.ty ty in
@@ -460,7 +575,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     fail ~loc:reason.at ~labels:(labels_of_reason p reason) ~notes:[] message
 
   (** A disjunction [eternal τ ∨ ρ₁ ≾ ρ₂] with both sides refuted. *)
-  let eternal_or_ineq_failed p ty rho1 rho2 (reason : reason) witness =
+  let eternal_or_ineq_failed p ~rigids ty rho1 rho2 (reason : reason) witness =
     let t = p.ty ty in
     let message, notes =
       match reason.why with
@@ -469,21 +584,25 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               "%s is used after grade %s has elapsed, but its type %s is not \
                eternal"
               (subject var) (p.rho rho1) t,
-            [ ineq_text p rho1 rho2 witness ] )
+            [ ineq_text p ~rigids rho1 rho2 witness ] )
       | Ast.InstanceOf { var; _ } ->
           ( Printf.sprintf
               "Type %s is not eternal, as required by the type of %s" t
               (describe var),
-            [ ineq_text p rho1 rho2 witness ] )
+            [ ineq_text p ~rigids rho1 rho2 witness ] )
       | _ ->
           ( Printf.sprintf "Type %s is not eternal and %s" t
-              (ineq_text p rho1 rho2 witness),
+              (ineq_text p ~rigids rho1 rho2 witness),
             [] )
     in
-    fail ~loc:reason.at ~labels:(labels_of_reason p reason) ~notes message
+    fail ~loc:reason.at
+      ~labels:
+        (labels_of_reason p reason
+        @ rigid_labels p (rigids_of rigids [ rho1; rho2 ]))
+      ~notes message
 
   (** The same disjunction, its inequality left open rather than refuted. *)
-  let eternal_or_ineq_unknown p ty rho1 rho2 (reason : reason) =
+  let eternal_or_ineq_unknown p ~rigids ty rho1 rho2 (reason : reason) =
     let t = p.ty ty in
     let g1 = p.rho rho1 and g2 = p.rho rho2 in
     let message, notes =
@@ -506,31 +625,47 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               t g1 g2,
             [] )
     in
-    fail ~loc:reason.at ~labels:(labels_of_reason p reason) ~notes message
+    fail ~loc:reason.at
+      ~labels:
+        (labels_of_reason p reason
+        @ rigid_labels p (rigids_of rigids [ rho1; rho2 ]))
+      ~notes message
 
   (** An inequality that survived solving with unknown grades still in it.
       Inequalities are not carried into schemes, so it cannot be deferred. *)
-  let non_ground_ineq p rho1 rho2 (reason : reason) =
-    let rigid =
-      Ast.RhoParamSet.union (Ast.rigid_rhos rho1) (Ast.rigid_rhos rho2)
-    in
-    let rigid_clause =
-      match Ast.RhoParamSet.elements rigid with
-      | [] -> ""
-      | [ r ] ->
-          Printf.sprintf
-            ", where %s is the grade of a handler continuation and may be any \
-             grade"
-            (p.rho (Ast.RhoRigid r))
+  let non_ground_ineq p ~rigids rho1 rho2 (reason : reason) =
+    let rs = rigids_of rigids [ rho1; rho2 ] in
+    let message =
+      match rs with
+      | [] ->
+          Printf.sprintf "Cannot compare non-ground resource values %s and %s"
+            (p.rho rho1) (p.rho rho2)
       | rs ->
-          Printf.sprintf
-            ", where %s are grades of handler continuations and may be any \
-             grades"
-            (String.concat ", " (List.map (fun r -> p.rho (Ast.RhoRigid r)) rs))
+          let g1 = p.rho rho1 in
+          let g2 = p.rho rho2 in
+          Printf.sprintf "Cannot decide the resource inequality %s %s %s %s" g1
+            ResourceGrade.is_sub_rho_symbol g2 (for_every p rs)
     in
     fail ~loc:reason.at
-      ~labels:(labels_of_reason p reason)
-      ~notes:[]
-      (Printf.sprintf "Cannot compare non-ground resource values %s and %s%s"
-         (p.rho rho1) (p.rho rho2) rigid_clause)
+      ~labels:(labels_of_reason p reason @ rigid_labels p rs)
+      ~notes:[] message
+
+  (** A rigid grade in the type a definition or a run exports. [described] is
+      that type, rendered with [p] so that its grades are already numbered. *)
+  let rigid_escape p ~rigids ~loc ~described r =
+    match Ast.RhoParamMap.find_opt r rigids with
+    | None ->
+        fail ~loc ~labels:[] ~notes:[]
+          (Printf.sprintf
+             "The grade %s of a handler continuation may be any grade and \
+              cannot occur in %s"
+             (p.rho (Ast.RhoRigid r)) described)
+    | Some o ->
+        fail ~loc
+          ~labels:(rigid_labels p [ (r, o) ])
+          ~notes:[]
+          (Printf.sprintf
+             "%s mentions %s, which may be any grade and so cannot occur in it"
+             (String.capitalize_ascii described)
+             (rigid_description p (r, o)))
 end

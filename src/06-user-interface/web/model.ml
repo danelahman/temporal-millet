@@ -93,10 +93,9 @@ let edit_init =
 (** What a Tab in the editor inserts; the editor's [tab-size] matches. *)
 let indentation = "  "
 
-(** [byte_offset source offset] is the byte of [source] that the browser's
-    [offset] points at. A selection is counted in UTF-16 code units while an
-    OCaml string holds the same text as UTF-8 bytes, and the two part company at
-    the first character outside ASCII. *)
+(** [byte_offset source offset] is the byte of [source] the browser's [offset]
+    points at: a selection counts UTF-16 code units, an OCaml string UTF-8
+    bytes, and the two part company outside ASCII. *)
 let byte_offset source offset =
   let length = String.length source in
   let rec go byte units =
@@ -109,8 +108,7 @@ let byte_offset source offset =
         else if lead < 0xF0 then 3
         else 4
       in
-      (* A character outside the basic plane is a surrogate pair, so two code
-         units rather than one. *)
+      (* outside the basic plane: a surrogate pair, so two code units *)
       go (byte + width) (units + if width = 4 then 2 else 1)
   in
   go 0 0
@@ -199,9 +197,8 @@ type model = {
   active_error : int option;
       (** The error the caret sits in, singled out among the messages. *)
   stale_errors : bool;
-      (** Whether the source has been edited since the errors were reported.
-          Their spans then point at bytes that have moved, so the editor stops
-          marking them and the messages are shown as out of date. *)
+      (** Whether the source has been edited since the errors were reported, so
+          that their spans point at bytes that have moved. *)
 }
 
 let init =
@@ -233,8 +230,7 @@ let edits_source = function
   | UseStdlib _ | SelectResource _ -> false
 
 (* The first error whose primary span covers [offset], a byte of the editor's
-   text. A point span is widened to the byte it points at, as the editor
-   widens it when marking it. *)
+   text. A point span is widened as the editor widens it when marking it. *)
 let error_at errors offset =
   let covers (error : load_error) =
     match error.diagnostic.primary with
@@ -352,8 +348,7 @@ let update model = function
           { model with run_model = Error errors }
       | Ok _ -> model)
   | CaretAt offset -> (
-      (* Once the source has been edited the spans no longer say where the
-         caret is, so a click then singles out nothing. *)
+      (* Edited source: the spans no longer say where the caret is. *)
       match model.run_model with
       | Error errors when not model.stale_errors ->
           let offset = byte_offset model.edit_model.unparsed_code offset in
