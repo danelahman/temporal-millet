@@ -91,10 +91,20 @@ let load_error_summary (error : Model.load_error) =
       Printf.sprintf "%s at line %d" kind loc.start.line
   | Some _ -> kind ^ " in the standard library"
 
+(* The line numbers of one error are separate elements, so they are lit as a
+   block through the model: each reports the pointer entering or leaving, and
+   wears [is-hover] while the model says this error is the one under it. *)
+let error_number_attrs ~hovered i =
+  (if hovered then [ class_ "is-hover" ] else [])
+  @ [
+      onmouseenter (fun _ -> Model.HoverError (Some i));
+      onmouseleave (fun _ -> Model.HoverError None);
+    ]
+
 (* What the [i]th error marks in the editor: its primary span, whose lines the
    gutter numbers in red, and each of its labels, the hovered one brightened.
    Standard-library spans mark nothing. *)
-let marks_of_error i (error : Model.load_error) =
+let marks_of_error ~hovered i (error : Model.load_error) =
   let mark ?marker mark_cls id (loc : Location.t) =
     if in_editor loc then
       [
@@ -115,6 +125,7 @@ let marks_of_error i (error : Model.load_error) =
             {
               SyntaxHighlight.href = "#" ^ error_id i;
               title = load_error_header error;
+              attrs = error_number_attrs ~hovered i;
             }
     | None -> [])
   @ List.concat
@@ -202,7 +213,12 @@ let view_load_error ~stale ~active i (error : Model.load_error) =
     ~a:[ class_ classes; attr "id" (error_id i) ]
     [
       div
-        ~a:[ class_ "message-header" ]
+        ~a:
+          [
+            class_ "message-header";
+            onmouseenter (fun _ -> Model.HoverError (Some i));
+            onmouseleave (fun _ -> Model.HoverError None);
+          ]
         [
           elt "p"
             [
@@ -399,8 +415,12 @@ let view_compiler (model : Model.model) =
             let view_entry i error =
               elt "li"
                 ~a:
-                  (if model.active_error = Some i then [ class_ "is-active" ]
-                   else [])
+                  ((if model.active_error = Some i then [ class_ "is-active" ]
+                    else [])
+                  @ [
+                      onmouseenter (fun _ -> Model.HoverError (Some i));
+                      onmouseleave (fun _ -> Model.HoverError None);
+                    ])
                 [
                   elt "a"
                     ~a:
@@ -435,7 +455,13 @@ let edit_view (model : Model.model) =
   let stale = model.stale_errors in
   (* Edited source: the spans have moved, so only the messages remain. *)
   let marks =
-    if stale then [] else List.concat (List.mapi marks_of_error errors)
+    if stale then []
+    else
+      List.concat
+        (List.mapi
+           (fun i error ->
+             marks_of_error ~hovered:(model.hovered_error = Some i) i error)
+           errors)
   in
   view_contents
     [
@@ -606,7 +632,7 @@ let view_navbar =
     div
       ~a:[ class_ "navbar-brand" ]
       [
-        elt "a"
+        div
           ~a:[ class_ "navbar-item brand-title" ]
           [
             elt "img"

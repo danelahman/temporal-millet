@@ -63,6 +63,10 @@ and msg =
       (** The pointer has entered the given label of a reported error, or left
           them. Top-level, since the error display belongs to neither the editor
           nor the run. *)
+  | HoverError of int option
+      (** The pointer has entered the given reported error — any of its line
+          numbers in the editor, its entry in the side panel, or the header of
+          its message — or left it. *)
   | CaretAt of int
       (** The caret has been placed at the given offset of the editor, in UTF-16
           code units: the error whose span it lands in, if any, becomes the
@@ -196,6 +200,10 @@ type model = {
       (** [Error []] is the edit view with nothing to report. *)
   active_error : int option;
       (** The error the caret sits in, singled out among the messages. *)
+  hovered_error : int option;
+      (** The error the pointer is on, all of whose line numbers light up
+          together. Kept here rather than left to CSS, the numbers of one error
+          being separate elements with no parent of their own. *)
   stale_errors : bool;
       (** Whether the source has been edited since the errors were reported, so
           that their spans point at bytes that have moved. *)
@@ -206,6 +214,7 @@ let init =
     edit_model = edit_init;
     run_model = Error [];
     active_error = None;
+    hovered_error = None;
     stale_errors = false;
   }
 
@@ -246,6 +255,7 @@ let update model = function
         model with
         edit_model = edit_update model.edit_model edit_msg;
         active_error = None;
+        hovered_error = None;
         stale_errors = model.stale_errors || edits_source edit_msg;
       }
   | RunMsg run_msg -> (
@@ -331,12 +341,19 @@ let update model = function
         | Invalid_argument message -> Error [ fatal message ]
         | exn -> Error [ fatal (Printexc.to_string exn) ]
       in
-      { model with run_model; active_error = None; stale_errors = false }
+      {
+        model with
+        run_model;
+        active_error = None;
+        hovered_error = None;
+        stale_errors = false;
+      }
   | EditCode ->
       {
         model with
         run_model = Error [];
         active_error = None;
+        hovered_error = None;
         stale_errors = false;
       }
   | HoverLabel hovered_label -> (
@@ -347,6 +364,7 @@ let update model = function
           in
           { model with run_model = Error errors }
       | Ok _ -> model)
+  | HoverError hovered_error -> { model with hovered_error }
   | CaretAt offset -> (
       (* Edited source: the spans no longer say where the caret is. *)
       match model.run_model with

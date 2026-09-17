@@ -276,9 +276,17 @@
       z-index: 3;
     }
 
-    .line-number.is-error:hover {
+    /* Every number of the error the pointer is on, the model saying which
+       that is: the numbers of one error are siblings, not a group CSS could
+       select from any one of them. */
+    .line-number.is-error:hover,
+    .line-number.is-error.is-hover {
       color: #cc0f35;
       text-decoration: underline;
+    }
+
+    .line-number.is-error.is-hover::before {
+      background: #cc0f35;
     }
 
     /* A bar down the gutter beside the lines of one error. The numbers are
@@ -289,8 +297,10 @@
       content: "";
       position: absolute;
       left: -0.24rem;
-      top: 0;
-      bottom: 0;
+      /* Overlapping its neighbours by a pixel: abutting pieces leave a seam
+         wherever a line box does not land on a whole device pixel. */
+      top: -1px;
+      bottom: -1px;
       width: 2px;
       border-radius: 1px;
       background: #f14668;
@@ -430,13 +440,21 @@
       padding-top: 1.5rem;
     }
 
+    /* <navbar> is not an element the browser knows, so it is laid out inline
+       — dropping its vertical margin — until Bulma makes it a flex box at the
+       desktop breakpoint. Laid out the same way at every width instead. */
     .navbar {
       background-color: transparent;
+      display: block;
+      min-height: 0;
       margin-bottom: 1.5rem;
     }
 
+    /* Bulma holds the brand 3.25rem tall and pads its items out, either of
+       which would leave the gap below the header wider than the margin. */
     .navbar-brand {
       flex-grow: 1;
+      min-height: 0;
     }
 
     .navbar-brand .brand-title {
@@ -444,7 +462,7 @@
       align-items: center;
       gap: 0.75rem;
       /* Line the mark up with the left edge of the editor box below. */
-      padding-left: 0;
+      padding: 0;
       /* Bulma holds a navbar item at its content width, which would push the
          brand off the right of a narrow page. */
       flex-shrink: 1;
@@ -495,6 +513,20 @@
         max-height: 2.5rem;
         height: 2.5rem;
         width: 2.5rem;
+      }
+
+      /* The full size would tower over the smaller mark beside it. */
+      .navbar-brand .brand-title .title {
+        font-size: 1.5rem;
+      }
+
+      /* A one-line header needs less air around it than the two-line one. */
+      .section {
+        padding-top: 1rem;
+      }
+
+      .navbar {
+        margin-bottom: 1rem;
       }
     }
 

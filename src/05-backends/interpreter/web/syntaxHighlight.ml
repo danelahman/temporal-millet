@@ -202,18 +202,22 @@ let tokens s =
   done;
   List.rev !toks
 
-type marker = {
+type 'msg marker = {
   href : string;  (** where it links to, such as the message explaining it *)
   title : string;  (** the headline shown on hovering it *)
+  attrs : 'msg Vdom.attribute list;
+      (** What else goes on every one of the numbers, such as the handlers and
+          the class by which the view makes them light up as one block. A class
+          here is merged into the numbers' own. *)
 }
 (** What the line numbers of the lines a mark covers link to. *)
 
-type mark = {
+type 'msg mark = {
   from : int;
   until : int;
   mark_cls : string;
   id : string option;
-  marker : marker option;
+  marker : 'msg marker option;
 }
 (** A range of the text to wrap in a class of its own, such as the span of an
     error, with an optional element id to scroll to or link to. Unlike tokens,
@@ -254,19 +258,18 @@ let line_number_node ?link n =
     (* A line an error covers: the number itself is the link to the message,
        which is why it must stay clickable through the textarea. The ends of
        the span are marked so that the gutter bar can be inset there. *)
-    | Some ({ href; title }, first, last) ->
+    | Some ({ href; title; attrs }, first, last) ->
         let classes =
           "line-number is-error"
           ^ (if first then " is-error-start" else "")
           ^ if last then " is-error-end" else ""
         in
+        (* [add_class] rather than a second class attribute, an element having
+           but one: a class among [attrs] is merged into the ones above. *)
         Vdom.elt "a"
           ~a:
-            [
-              Vdom.class_ classes;
-              Vdom.attr "href" href;
-              Vdom.attr "title" title;
-            ]
+            (Vdom.add_class classes
+               (Vdom.attr "href" href :: Vdom.attr "title" title :: attrs))
           [ Vdom.text (string_of_int n) ]
   in
   Vdom.elt "span" ~a:[ Vdom.class_ "line-number-anchor" ] [ number ]
