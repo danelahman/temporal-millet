@@ -239,10 +239,11 @@ Cool}` may be handled by performing `Heat`, `Extrude` and `Cool`
 in that order and continuing, while another order is rejected:
 
 ```
-The case for PrintModel has grade {Cool; Extrude; Heat}, which does not match
-the grade {Heat; Extrude; Cool} of PrintModel followed by its continuation
-  Note: the resource inequality {Cool; Extrude; Heat} <= {Heat; Extrude; Cool}
-    does not hold
+The case for `PrintModel` has grade `{Cool; Extrude; Heat}`, which does not
+match the grade `{Heat; Extrude; Cool}` of `PrintModel` followed by its
+continuation
+  Note: the resource inequality
+    `{Cool; Extrude; Heat} <= {Heat; Extrude; Cool}` does not hold
 ```
 
 Under the time monoids the same rule lets a case delay longer than the
@@ -260,10 +261,10 @@ not resume, `Op p k -> 5`, has grade `0`, a sub-grade of `1 + rho` for every
 a lower bound, where the messages state the quantification and the failing
 instance:
 
-    For every grade ρ₀ the continuation k may have, the case for Op must have a
-    grade matching ρ₀ + 1, but its grade 0 does not
-      Note: the resource inequality 0 >= ρ₀ + 1 does not hold: for ρ₀ = 0 it
-        becomes 0 >= 1
+    For every grade `ρ₀` the continuation `k` may have, the case for `Op` must
+    have a grade matching `1 + ρ₀`, but its grade `0` does not
+      Note: the resource inequality `∀ρ₀. 0 >= ρ₀ + 1` does not hold: for
+        `ρ₀ = 0` it becomes `0 >= 1`
 
 Resuming twice under `Op # 1` fails likewise under an upper bound, since
 `rho + rho <= 1 + rho` fails already for `rho = 2`; under a lower bound it is

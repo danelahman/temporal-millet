@@ -59,9 +59,9 @@ let h_twice =
    only once 71 ticks have passed since the call, but this clause delays
    only 70:
 
-     Typing error: The case for Get has grade 70, which does not match the
-       grade 71 of Get followed by its continuation
-       Note: the resource inequality 70 >= 71 does not hold
+     Typing error: The case for `Get` has grade `70`, which does not match
+       the grade `71` of `Get` followed by its continuation
+       Note: the resource inequality `70 >= 71` does not hold
 *)
 (*
 let h_short =
@@ -75,9 +75,9 @@ let h_short =
 (* Correctly rejected by the typechecker: performing 'Set' costs only 2
    ticks, short of the 71 the continuation demands:
 
-     Typing error: The case for Get has grade 2, which does not match the
-       grade 71 of Get followed by its continuation
-       Note: the resource inequality 2 >= 71 does not hold
+     Typing error: The case for `Get` has grade `2`, which does not match
+       the grade `71` of `Get` followed by its continuation
+       Note: the resource inequality `2 >= 71` does not hold
 *)
 (*
 let h_swap =
@@ -92,10 +92,11 @@ let h_swap =
    71 + rho for every rho, but never resuming gives it grade 0, which already
    fails for rho = 0:
 
-     Typing error: For every grade ρ₀ the continuation k may have, the case
-       for Get must have a grade matching ρ₀ + 71, but its grade 0 does not
-       Note: the resource inequality 0 >= ρ₀ + 71 does not hold: for ρ₀ = 0
-         it becomes 0 >= 71
+     Typing error: For every grade `ρ₀` the continuation `k` may have, the
+       case for `Get` must have a grade matching `71 + ρ₀`, but its grade `0`
+       does not
+       Note: the resource inequality `∀ρ₀. 0 >= ρ₀ + 71` does not hold: for
+         `ρ₀ = 0` it becomes `0 >= 71`
 *)
 (*
 let h_abandon =
@@ -108,8 +109,8 @@ let h_abandon =
    handler's result type 'unit -> α # 0', so the 'Get' clause's function must
    also have grade 0, forcing the continuation's arbitrary grade to equal 0:
 
-     Typing error: The continuation k in the case for Get may have any grade
-       ρ₀, but here ρ₀ is required to equal 0
+     Typing error: The continuation `k` in the case for `Get` may have any
+       grade `ρ₀`, but here `ρ₀` is required to equal `0`
 *)
 (*
 let h_fixed =
@@ -122,9 +123,9 @@ let h_fixed =
    would escape into the type of h_leak through g, where a caller could pick
    it:
 
-     Typing error: The type ([71](int → α # ρ₀) → β # ρ₁) → α # ρ₂ ⇒ α # 0
-       of h_leak mentions ρ₀, the grade of the continuation k in the case
-       for Get, which may be any grade and so cannot occur in it
+     Typing error: The type `([71](int → α # ρ₀) → β # ρ₁) → α # ρ₂ ⇒ α # 0`
+       of `h_leak` mentions `ρ₀`, the grade of the continuation `k` in the
+       case for `Get`, which may be any grade and so cannot occur in it
 *)
 (*
 let h_leak g =

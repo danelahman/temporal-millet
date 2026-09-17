@@ -131,7 +131,15 @@ type 'a why =
       (** [Do]: the bound computation's grade names the context entry *)
   | DefaultOf of { op : operation; signature_at : Location.t }
 
-and 'a reason = { at : Location.t; why : 'a why; path : step list }
+and 'a reason = {
+  at : Location.t;
+  why : 'a why;
+  path : step list;
+  stated : ('a rho * 'a rho) option;
+      (** An inequality as it was generated, before the solver cancelled what
+          its two sides have in common; [None] for the other constraints and for
+          one that was never cancelled, which states itself. *)
+}
 (** [at] is the construct the constraint was generated for, [path] the position
     within it a decomposed equation came from, innermost last.
 
@@ -316,7 +324,13 @@ let rec substitute_reason rho_subst reason =
         InstanceOf { i with inner = substitute_reason rho_subst i.inner }
     | why -> why
   in
-  { reason with why }
+  let stated =
+    Option.map
+      (fun (rho1, rho2) ->
+        (substitute_rho rho_subst rho1, substitute_rho rho_subst rho2))
+      reason.stated
+  in
+  { reason with why; stated }
 
 let substitute_constr ty_subst rho_subst =
   let reason_of = substitute_reason rho_subst in

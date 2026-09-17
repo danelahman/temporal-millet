@@ -59,10 +59,10 @@ and msg =
   | RunCode
   | RunMsg of run_msg
   | EditCode
-  | HoverLabel of int option
-      (** The pointer has entered the given label of a reported error, or left
-          them. Top-level, since the error display belongs to neither the editor
-          nor the run. *)
+  | HoverLabel of (int * int) option
+      (** The pointer has entered label [j] of reported error [i], or left the
+          labels. Top-level, since the error display belongs to neither the
+          editor nor the run. *)
   | HoverError of int option
       (** The pointer has entered the given reported error — any of its line
           numbers in the editor, its entry in the side panel, or the header of
@@ -251,12 +251,19 @@ let error_at errors offset =
 
 let update model = function
   | EditMsg edit_msg ->
+      (* A loaded example replaces the program, so the errors of the old one
+         go with it; an edit only makes them out of date. *)
+      let run_model, stale_errors =
+        match edit_msg with
+        | LoadExample _ -> (Error [], false)
+        | _ -> (model.run_model, model.stale_errors || edits_source edit_msg)
+      in
       {
-        model with
         edit_model = edit_update model.edit_model edit_msg;
+        run_model;
         active_error = None;
         hovered_error = None;
-        stale_errors = model.stale_errors || edits_source edit_msg;
+        stale_errors;
       }
   | RunMsg run_msg -> (
       match model.run_model with
@@ -356,11 +363,19 @@ let update model = function
         hovered_error = None;
         stale_errors = false;
       }
-  | HoverLabel hovered_label -> (
+  | HoverLabel hovered -> (
       match model.run_model with
       | Error errors ->
           let errors =
-            List.map (fun error -> { error with hovered_label }) errors
+            List.mapi
+              (fun i error ->
+                let hovered_label =
+                  match hovered with
+                  | Some (i', j) when i' = i -> Some j
+                  | _ -> None
+                in
+                { error with hovered_label })
+              errors
           in
           { model with run_model = Error errors }
       | Ok _ -> model)

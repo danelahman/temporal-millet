@@ -21,6 +21,21 @@ type t = {
 val kind_to_string : kind -> string
 (** ["Syntax error"], ["Typing error"], ... *)
 
+val place : string
+(** The marker a label's text carries where it refers to its own span. A
+    terminal follows the label with an excerpt of that span, so there it reads
+    ["here"]; a renderer that shows no excerpt names the line instead. *)
+
+val render_label_text : place:string -> string -> string
+(** [render_label_text ~place text] puts [place] where [text] has the marker. *)
+
+val segments : string -> [ `Text of string | `Code of string ] list
+(** [segments text] splits a message, a label or a note into prose and the code
+    fragments the text marks with backticks, as [rustc] does. An unmatched
+    backtick leaves the rest as prose, and empty pieces are dropped. A terminal
+    prints the text as it stands; a renderer that can set type uses this to show
+    the fragments in a monospace font. *)
+
 val print : ?source:(string -> string option) -> t -> Format.formatter -> unit
 (** [print ~source d] prints [d] for a terminal: the primary location in the
     compiler's format, so that editors can jump to it, then the headline, the

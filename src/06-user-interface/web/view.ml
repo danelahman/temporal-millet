@@ -102,9 +102,9 @@ let error_number_attrs ~hovered i =
     ]
 
 (* What the [i]th error marks in the editor: its primary span, whose lines the
-   gutter numbers in red, and each of its labels, the hovered one brightened.
-   Standard-library spans mark nothing. *)
-let marks_of_error ~hovered i (error : Model.load_error) =
+   gutter numbers in red, and, under [with_labels], each of its labels, the
+   hovered one brightened. Standard-library spans mark nothing. *)
+let marks_of_error ~hovered ~with_labels i (error : Model.load_error) =
   let mark ?marker mark_cls id (loc : Location.t) =
     if in_editor loc then
       [
@@ -120,7 +120,9 @@ let marks_of_error ~hovered i (error : Model.load_error) =
   in
   (match error.diagnostic.primary with
     | Some loc ->
-        mark "error-primary" (primary_id i) loc
+        mark
+          (if hovered then "error-primary is-hover" else "error-primary")
+          (primary_id i) loc
           ~marker:
             {
               SyntaxHighlight.href = "#" ^ error_id i;
@@ -128,7 +130,10 @@ let marks_of_error ~hovered i (error : Model.load_error) =
               attrs = error_number_attrs ~hovered i;
             }
     | None -> [])
-  @ List.concat
+  @
+  if not with_labels then []
+  else
+    List.concat
       (List.mapi
          (fun j ({ span; _ } : Diagnostic.label) ->
            let mark_cls =
@@ -148,27 +153,47 @@ let load_error_target i (error : Model.load_error) =
 (* One error's message. [active] is the error the caret sits in; under [stale]
    the editor marks nothing, so the links into it are left out. *)
 let view_load_error ~stale ~active i (error : Model.load_error) =
+  (* The backticks a diagnostic marks its code fragments with are not shown,
+     as they are in a terminal; the fragments are set in a monospace font. *)
+  let rendered message =
+    List.map
+      (function
+        | `Text prose -> text prose
+        | `Code fragment ->
+            elt "code" ~a:[ class_ "diag-code" ] [ text fragment ])
+      (Diagnostic.segments message)
+  in
   (* In the editor a label links to its span, which lights up while the
      pointer is on it; a standard-library span can only be named. *)
   let view_label j ({ span; text = label_text } : Diagnostic.label) =
+    (* No excerpt is shown here, so a label that says "here" is made to name
+       the line instead, and needs no line reference after it. *)
+    let place =
+      if in_editor span then Printf.sprintf "on line %d" span.start.line
+      else Printf.sprintf "on line %d of the standard library" span.start.line
+    in
+    let placed = Diagnostic.render_label_text ~place label_text in
     let where =
-      elt "span"
-        ~a:[ class_ "error-line-ref" ]
+      if placed <> label_text then []
+      else
         [
-          text
-            (if in_editor span then Printf.sprintf " (line %d)" span.start.line
-             else Printf.sprintf " (standard library, line %d)" span.start.line);
+          elt "span"
+            ~a:[ class_ "error-line-ref" ]
+            [
+              text
+                (if in_editor span then
+                   Printf.sprintf " (line %d)" span.start.line
+                 else
+                   Printf.sprintf " (standard library, line %d)" span.start.line);
+            ];
         ]
     in
+    let content = rendered placed @ where in
     if in_editor span && not stale then
       elt "li"
-        ~a:[ onmouseenter (fun _ -> Model.HoverLabel (Some j)) ]
-        [
-          elt "a"
-            ~a:[ attr "href" ("#" ^ label_id i j) ]
-            [ text label_text; where ];
-        ]
-    else elt "li" [ text label_text; where ]
+        ~a:[ onmouseenter (fun _ -> Model.HoverLabel (Some (i, j))) ]
+        [ elt "a" ~a:[ attr "href" ("#" ^ label_id i j) ] content ]
+    else elt "li" content
   in
   let labels =
     match error.diagnostic.labels with
@@ -190,7 +215,7 @@ let view_load_error ~stale ~active i (error : Model.load_error) =
         [
           elt "ul"
             ~a:[ class_ "error-notes" ]
-            (List.map (fun note -> elt "li" [ text note ]) notes);
+            (List.map (fun note -> elt "li" (rendered note)) notes);
         ]
   in
   let header_aside =
@@ -230,7 +255,7 @@ let view_load_error ~stale ~active i (error : Model.load_error) =
         ];
       div
         ~a:[ class_ "message-body" ]
-        ((elt "p" [ text error.diagnostic.message ] :: labels) @ notes);
+        ((elt "p" (rendered error.diagnostic.message) :: labels) @ notes);
     ]
 
 (* Tab inside the editor inserts an indentation instead of moving the focus
@@ -312,8 +337,7 @@ let view_editor ~marks (model : Model.edit_model) =
             oninsert_indent;
             oncaret_at;
             int_prop "rows" rows;
-            attr "placeholder"
-              "Type a program, or load an example from the right";
+            attr "placeholder" "Type a program, or load an example";
             attr "spellcheck" "false";
             attr "autocapitalize" "off";
             attr "autocorrect" "off";
@@ -459,8 +483,18 @@ let edit_view (model : Model.model) =
     else
       List.concat
         (List.mapi
-           (fun i error ->
-             marks_of_error ~hovered:(model.hovered_error = Some i) i error)
+           (fun i (error : Model.load_error) ->
+             (* Labels of every error at once would only confuse; they show
+                for the error the user is looking at, or when it is alone. *)
+             let with_labels =
+               List.length errors = 1
+               || model.hovered_error = Some i
+               || model.active_error = Some i
+               || error.hovered_label <> None
+             in
+             marks_of_error
+               ~hovered:(model.hovered_error = Some i)
+               ~with_labels i error)
            errors)
   in
   view_contents

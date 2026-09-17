@@ -114,7 +114,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         let params, _ = Ast.TyNameMap.find ty_name state.type_definitions in
         let expected, actual = (List.length params, List.length tys) in
         if expected <> actual then
-          Error.typing ~loc "Type %t expects %d argument%s but is given %d"
+          Error.typing ~loc "Type `%t` expects %d argument%s but is given %d"
             (Ast.TyName.print ty_name) expected
             (if expected = 1 then "" else "s")
             actual
@@ -203,7 +203,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let concat cs = List.fold_right union cs empty
 
   (* A reason for a constraint a construct generates directly, undecomposed. *)
-  let because at why : reason = { at; why; path = [] }
+  let because at why : reason = { at; why; path = []; stated = None }
 
   (* A syntax node and a reason both have an [at]; these say which one is meant
      where the surrounding code cannot. *)
@@ -393,11 +393,11 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                 cs )
         | None, Some _ ->
             Error.typing ~loc:pat.at
-              "Constructor %s takes no argument but is given one"
+              "Constructor `%s` takes no argument but is given one"
               (Ast.Label.string_of lbl)
         | Some _, None ->
             Error.typing ~loc:pat.at
-              "Constructor %s takes an argument but is given none"
+              "Constructor `%s` takes an argument but is given none"
               (Ast.Label.string_of lbl))
 
   and infer_expression state (e : _ Ast.expression) =
@@ -500,11 +500,11 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                 cs )
         | None, Some _ ->
             Error.typing ~loc:e.at
-              "Constructor %s takes no argument but is given one"
+              "Constructor `%s` takes no argument but is given one"
               (Ast.Label.string_of lbl)
         | Some _, None ->
             Error.typing ~loc:e.at
-              "Constructor %s takes an argument but is given none"
+              "Constructor `%s` takes an argument but is given none"
               (Ast.Label.string_of lbl))
     | Ast.Handler (ret_case, op_cases) ->
         let arg_rho = fresh_rho () in
@@ -522,7 +522,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               let case_at = abstraction_span op_case in
               match Ast.OpNameMap.find_opt op state.op_signatures with
               | None ->
-                  Error.typing ~loc:case_at "Case for an unknown operation %s"
+                  Error.typing ~loc:case_at "Case for an unknown operation `%s`"
                     (Ast.OpName.string_of op)
               | Some (param_ty, arity_ty, op_rho, signature_at) ->
                   let op_args_ty, Ast.CompTy (op_case_ty, op_case_rho), case_cs
@@ -697,7 +697,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | Ast.Perform (op, e, ((pat, _) as abs)) -> (
         match Ast.OpNameMap.find_opt op state.op_signatures with
         | None ->
-            Error.typing ~loc:c.at "Unknown operation %s"
+            Error.typing ~loc:c.at "Unknown operation `%s`"
               (Ast.OpName.string_of op)
         | Some (param_ty, arity_ty, op_rho, signature_at) ->
             let value_ty, cs = infer_expression state e in
@@ -899,19 +899,21 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let printer () : E.printer =
     let ty_pp = PrettyPrint.TyPrintParam.create () in
     let rho_pp = PrettyPrint.RhoPrintParam.create () in
+    let ty_raw ty =
+      render
+        (PrettyPrint.print_ty
+           (module ResourceGrade)
+           ty_pp rho_pp (simplify_ty ty))
+    in
+    let rho_raw rho =
+      render
+        (PrettyPrint.print_rho (module ResourceGrade) rho_pp (simplify_rho rho))
+    in
     {
-      E.ty =
-        (fun ty ->
-          render
-            (PrettyPrint.print_ty
-               (module ResourceGrade)
-               ty_pp rho_pp (simplify_ty ty)));
-      rho =
-        (fun rho ->
-          render
-            (PrettyPrint.print_rho
-               (module ResourceGrade)
-               rho_pp (simplify_rho rho)));
+      E.ty = (fun ty -> E.code (ty_raw ty));
+      rho = (fun rho -> E.code (rho_raw rho));
+      ty_raw;
+      rho_raw;
       is_zero = (fun rho -> simplify_rho rho = Ast.RhoConst ResourceGrade.zero);
     }
 
@@ -1148,6 +1150,16 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | hd :: tl ->
         List.fold_left (fun acc e -> Ast.RhoAdd (acc, to_rho e)) (to_rho hd) tl
 
+  (** The two sides of a constraint as {!normalise_rho_pair} has them just
+      before it cancels: flattened, their units dropped and their adjacent
+      constants added up, in the order the source wrote them. *)
+  let fold_rho_pair rho1 rho2 =
+    let folded rho =
+      build_rho_from_param_list
+        (fold_adjacent_constants (build_rho_param_list rho))
+    in
+    (folded rho1, folded rho2)
+
   (** [normalise_rho_pair rho1 rho2] rewrites a constraint between the two sums
       [rho1] and [rho2] into a simpler one that implies it: the summands are
       flattened left to right, the units are dropped, the adjacent constants are
@@ -1204,7 +1216,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                   (reason_at e2.grade_reason))
               unsolved
           in
-          E.rho_stuck (printer ())
+          E.rho_stuck (printer ()) ~rigids
             (List.map
                (fun eq ->
                  (eq.grade_lhs, eq.grade_rhs, eq.grade_reason, eq.grade_root))
@@ -1328,6 +1340,13 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     let process ~may_default wrap reason rho1 rho2 ineqs =
       let rho1' = simplify_rho rho1 in
       let rho2' = simplify_rho rho2 in
+      (* What the constraint said before the first cancellation, kept for the
+         headline; a later round finds it already recorded and leaves it. *)
+      let stated : reason =
+        match reason.Ast.stated with
+        | Some _ -> reason
+        | None -> { reason with Ast.stated = Some (fold_rho_pair rho1' rho2') }
+      in
       match (rho1', rho2') with
       | _ when rho1' = rho2' ->
           unify_rho_ineq_constraints state prev_unsolved_size unsolved ineqs
@@ -1357,23 +1376,23 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           let left_rho, right_rho = normalise_rho_pair t u in
           if left_rho = t && right_rho = u then
             unify_rho_ineq_constraints state prev_unsolved_size
-              (wrap left_rho right_rho :: unsolved)
+              (wrap reason left_rho right_rho :: unsolved)
               ineqs
           else
             unify_rho_ineq_constraints state prev_unsolved_size unsolved
-              (wrap left_rho right_rho :: ineqs)
+              (wrap stated left_rho right_rho :: ineqs)
       | (Ast.RhoAdd _ as u), t ->
           let left_rho, right_rho = normalise_rho_pair u t in
           if left_rho = u && right_rho = t then
             unify_rho_ineq_constraints state prev_unsolved_size
-              (wrap left_rho right_rho :: unsolved)
+              (wrap reason left_rho right_rho :: unsolved)
               ineqs
           else
             unify_rho_ineq_constraints state prev_unsolved_size unsolved
-              (wrap left_rho right_rho :: ineqs)
+              (wrap stated left_rho right_rho :: ineqs)
       | rho1'', rho2'' ->
           unify_rho_ineq_constraints state prev_unsolved_size
-            (wrap rho1'' rho2'' :: unsolved)
+            (wrap reason rho1'' rho2'' :: unsolved)
             ineqs
     in
     function
@@ -1387,11 +1406,11 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | Ast.EternalOrIneq (ty, rho1, rho2, reason) :: ineqs ->
         process
           ~may_default:(reduce_eternal state ty = None)
-          (fun r1 r2 -> Ast.EternalOrIneq (ty, r1, r2, reason))
+          (fun reason r1 r2 -> Ast.EternalOrIneq (ty, r1, r2, reason))
           reason rho1 rho2 ineqs
     | Ast.Ineq (rho1, rho2, reason) :: ineqs ->
         process ~may_default:true
-          (fun r1 r2 -> Ast.Ineq (r1, r2, reason))
+          (fun reason r1 r2 -> Ast.Ineq (r1, r2, reason))
           reason rho1 rho2 ineqs
     | (Ast.Eternal _ as c) :: ineqs ->
         unify_rho_ineq_constraints state prev_unsolved_size (c :: unsolved)
@@ -1408,7 +1427,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | Some bounds -> bounds
     | None ->
         Error.typing ~loc
-          "Unknown event '%s'; the events of a resource grade must be declared \
+          "Unknown event `%s`; the events of a resource grade must be declared \
            operations"
           ev
 
@@ -1715,8 +1734,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     (let (Ast.CompTy (ty, rho)) = comp_ty' in
      check_no_rigid_escape ~loc ~rigids:cs.rigids
        (Ast.rigid_rhos_comp_ty comp_ty') (fun p ->
-         Printf.sprintf "the type %s # %s of the computation" (p.E.ty ty)
-           (p.E.rho rho)));
+         Printf.sprintf "the type %s of the computation"
+           (E.code (Printf.sprintf "%s # %s" (p.E.ty_raw ty) (p.E.rho_raw rho)))));
     comp_ty'
 
   let add_external_function x entry state =
@@ -1732,7 +1751,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     check_no_rigid_escape ~loc ~rigids:cs.rigids (Ast.rigid_rhos_ty ty'')
       (fun p ->
         Printf.sprintf "the type %s of %s" (p.E.ty ty'')
-          (Ast.Variable.string_of x));
+          (E.code (Ast.Variable.string_of x)));
     let free_vars, free_rhos = Ast.free_vars ty'' in
     (* The constraints the definition could not discharge qualify its scheme,
        to be owed again at each use, which nests the definition's reason for
@@ -1781,8 +1800,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | Ast.TyInline _ ->
         let name = Ast.TyName.string_of ty_name in
         Error.typing ~loc
-          "type %s is an alias and cannot be declared noneternal; wrap it in a \
-           constructor, as in 'noneternal type %s = %s of ...'"
+          "type `%s` is an alias and cannot be declared noneternal; wrap it in \
+           a constructor, as in `noneternal type %s = %s of ...`"
           name name
           (String.capitalize_ascii name)
 
@@ -1825,20 +1844,20 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
       match StringMap.find_opt ev state.op_bounds with
       | Some bounds -> bounds
       | None ->
-          Error.typing ~loc "unknown event '%s' in the grade of operation %s" ev
-            op_name
+          Error.typing ~loc "unknown event `%s` in the grade of operation `%s`"
+            ev op_name
     in
     let op_bounds' =
       match (ResourceGrade.needs_op_bounds, rho, bounds) with
       | false, _, Some _ ->
           Error.typing ~loc
             "runtime bounds are only used by the timed-trace grading monoids; \
-             under '%s' the operation grade already carries them"
+             under `%s` the operation grade already carries them"
             ResourceGrade.name
       | false, _, None -> state.op_bounds
       | true, (Ast.RhoParam _ | Ast.RhoRigid _ | Ast.RhoAdd _), _ ->
           Error.typing ~loc
-            "the grade of operation %s must be a literal under the '%s' \
+            "the grade of operation `%s` must be a literal under the `%s` \
              grading monoid"
             op_name ResourceGrade.name
       | true, Ast.RhoConst grade, _ when ResourceGrade.is_atomic op_name grade
@@ -1846,28 +1865,28 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           match bounds with
           | None ->
               Error.typing ~loc
-                "atomic operation %s needs runtime bounds `within (lo, hi)` \
-                 under the '%s' grading monoid"
+                "atomic operation `%s` needs runtime bounds `within (lo, hi)` \
+                 under the `%s` grading monoid"
                 op_name ResourceGrade.name
           | Some (lo, hi) ->
               if lo > hi then
                 Error.typing ~loc
-                  "the runtime bounds of operation %s must satisfy lo <= hi"
+                  "the runtime bounds of operation `%s` must satisfy `lo <= hi`"
                   op_name
               else if hi < 1 then
                 Error.typing ~loc
-                  "the upper runtime bound of operation %s must be at least 1"
+                  "the upper runtime bound of operation `%s` must be at least 1"
                   op_name
               else StringMap.add op_name (lo, hi) state.op_bounds)
       | true, Ast.RhoConst grade, Some _ ->
           Error.typing ~loc
-            "operation %s is compound, so its runtime bounds follow from its \
-             grade %s and must not be declared"
+            "operation `%s` is compound, so its runtime bounds follow from its \
+             grade `%s` and must not be declared"
             op_name (ResourceGrade.show grade)
       | true, Ast.RhoConst grade, None -> (
           if List.mem op_name (ResourceGrade.events grade) then
             Error.typing ~loc
-              "compound operation %s may not name itself in its grade %s"
+              "compound operation `%s` may not name itself in its grade `%s`"
               op_name (ResourceGrade.show grade);
           match ResourceGrade.implied_bounds event_bounds grade with
           | Some bounds -> StringMap.add op_name bounds state.op_bounds
@@ -1894,17 +1913,17 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let add_operation_default ~(loc : Location.t) state (op, abs) =
     let op_name = Ast.OpName.string_of op in
     match Ast.OpNameMap.find_opt op state.op_signatures with
-    | None -> Error.typing ~loc "unknown operation %s" op_name
+    | None -> Error.typing ~loc "unknown operation `%s`" op_name
     | Some (param_ty, arity_ty, op_rho, signature_at) ->
         if Ast.OpNameSet.mem op state.op_defaults then
-          Error.typing ~loc "operation %s already has a default implementation"
-            op_name;
+          Error.typing ~loc
+            "operation `%s` already has a default implementation" op_name;
         (match op_rho with
         | Ast.RhoConst grade when not (ResourceGrade.is_atomic op_name grade) ->
             Error.typing ~loc
               "a default implementation may only be given for an atomic \
-               operation, but the grade of %s is %s; handle it with a handler \
-               in terms of the operations it names"
+               operation, but the grade of `%s` is `%s`; handle it with a \
+               handler in terms of the operations it names"
               op_name (ResourceGrade.show grade)
         | Ast.RhoConst _ | Ast.RhoParam _ | Ast.RhoRigid _ | Ast.RhoAdd _ -> ());
         let bound_rho =
@@ -1918,7 +1937,12 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         (* The two equations of a default share a reason, so the step that
            tells them apart is recorded in its path. *)
         let default path : reason =
-          { at = loc; why = Ast.DefaultOf { op; signature_at }; path }
+          {
+            at = loc;
+            why = Ast.DefaultOf { op; signature_at };
+            path;
+            stated = None;
+          }
         in
         let cs =
           concat

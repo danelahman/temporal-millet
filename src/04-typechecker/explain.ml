@@ -13,9 +13,17 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   type rho = ResourceGrade.t Ast.rho
   type reason = ResourceGrade.t Ast.reason
 
+  (** A fragment of the user's code inside a sentence, marked as {!Diagnostic}
+      marks it: this is the one place a diagnostic's backticks come from. *)
+  let code text = "`" ^ text ^ "`"
+
   type printer = {
-    ty : ty -> string;
-    rho : rho -> string;
+    ty : ty -> string;  (** the type as a code fragment *)
+    rho : rho -> string;  (** the grade as a code fragment *)
+    ty_raw : ty -> string;
+    rho_raw : rho -> string;
+        (** Unmarked, for a sentence that spells out a larger fragment — an
+            equation or an inequality — and marks that as a whole. *)
     is_zero : rho -> bool;
         (** Asked of the elapsed grades; a zero grade gets no label. *)
   }
@@ -25,15 +33,20 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
 
   let label span text = { Diagnostic.span; text }
 
-  (** A variable as a message may name it. A compiler-invented one is not named
-      at all — the programmer cannot recognise a name they never wrote — and the
-      message talks about the expression instead. *)
+  (* A label that points at its own span says so; how it is worded is the
+     renderer's, since only it knows whether the span is shown alongside. *)
+  let here = Diagnostic.place
+
+  (** A variable as a message may name it, as a code fragment. A
+      compiler-invented one is not named at all — the programmer cannot
+      recognise a name they never wrote — and the message talks about the
+      expression instead, in prose. *)
   let var_name x =
     if Ast.Variable.is_synthetic x then None
-    else Some (Ast.Variable.string_of x)
+    else Some (code (Ast.Variable.string_of x))
 
-  let op_name op = Ast.OpName.string_of op
-  let label_name lbl = Ast.Label.string_of lbl
+  let op_name op = code (Ast.OpName.string_of op)
+  let label_name lbl = code (Ast.Label.string_of lbl)
 
   (* "Variable x" or, for a variable the programmer never wrote, "This
      expression"; both start a sentence. *)
@@ -110,34 +123,57 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let witness_clause p rs rho1 rho2 = function
     | None -> ""
     | Some w ->
-        Printf.sprintf ": for %s it becomes %s %s %s"
+        Printf.sprintf ": for %s it becomes %s"
           (String.concat " and "
              (List.map
                 (fun (r, _) ->
-                  Printf.sprintf "%s = %s" (p.rho (Ast.RhoRigid r))
-                    (ResourceGrade.show w))
+                  code
+                    (Printf.sprintf "%s = %s"
+                       (p.rho_raw (Ast.RhoRigid r))
+                       (ResourceGrade.show w)))
                 rs))
-          (p.rho (Ast.instantiate_rigid w rho1))
-          ResourceGrade.is_sub_rho_symbol
-          (p.rho (Ast.instantiate_rigid w rho2))
+          (code
+             (Printf.sprintf "%s %s %s"
+                (p.rho_raw (Ast.instantiate_rigid w rho1))
+                ResourceGrade.is_sub_rho_symbol
+                (p.rho_raw (Ast.instantiate_rigid w rho2))))
+
+  (* A fragment whose sides mention rigid grades states what it claims of every
+     one of them, so it carries its quantifier; one without them stands as it
+     is. Both the inequalities and the equations go through here. *)
+  let quantified p rs text =
+    match rs with
+    | [] -> code text
+    | rs ->
+        code
+          (Printf.sprintf "∀%s. %s"
+             (String.concat " "
+                (List.map (fun (r, _) -> p.rho_raw (Ast.RhoRigid r)) rs))
+             text)
 
   (* One place that contributed to an elapsed grade, naming its share; the
      headline gives the total. A [delay n] states its grade in the source, so it
      is repeated only where the monoid renders it as other than the [n]. *)
   let elapsed_text p rho = function
     | Ast.Delayed n ->
-        let g = p.rho rho in
-        if g = string_of_int n then Printf.sprintf "delay %d elapses here" n
-        else Printf.sprintf "delay %d elapses here (grade %s)" n g
+        let g = p.rho_raw rho in
+        if g = string_of_int n then
+          Printf.sprintf "%s elapses %s"
+            (code (Printf.sprintf "delay %d" n))
+            here
+        else
+          Printf.sprintf "%s elapses %s (grade %s)"
+            (code (Printf.sprintf "delay %d" n))
+            here (code g)
     | Ast.Performed op ->
-        Printf.sprintf "%s is performed here (grade %s)" (op_name op)
+        Printf.sprintf "%s is performed %s (grade %s)" (op_name op) here
           (p.rho rho)
     | Ast.Sequenced ->
-        Printf.sprintf "this computation runs here (grade %s)" (p.rho rho)
+        Printf.sprintf "this computation runs %s (grade %s)" here (p.rho rho)
     | Ast.Boxed ->
-        Printf.sprintf "the value is boxed here (grade %s ahead)" (p.rho rho)
+        Printf.sprintf "the value is boxed %s (grade %s ahead)" here (p.rho rho)
     | Ast.Handled ->
-        Printf.sprintf "the handled computation runs here (grade %s)"
+        Printf.sprintf "the handled computation runs %s (grade %s)" here
           (p.rho rho)
 
   (* The context gets an entry for every computation a [let] sequences, whether
@@ -157,8 +193,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         [
           label at
             (match var_name x with
-            | Some name -> name ^ " is bound here"
-            | None -> "this value is bound here");
+            | Some name -> name ^ " is bound " ^ here
+            | None -> "this value is bound " ^ here);
         ]
 
   (** The related places a reason contributes: where a variable was bound, where
@@ -187,7 +223,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         let definition =
           match defined_at with
           | None -> []
-          | Some at -> [ label at (name ^ " is defined here") ]
+          | Some at -> [ label at (name ^ " is defined " ^ here) ]
         in
         definition
         @ [ label inner.at ("because of this use inside " ^ name) ]
@@ -197,7 +233,9 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | Ast.PerformArgument { op; signature_at }
     | Ast.PerformContinuation { op; signature_at }
     | Ast.DefaultOf { op; signature_at } ->
-        [ label signature_at ("operation " ^ op_name op ^ " is declared here") ]
+        [
+          label signature_at ("operation " ^ op_name op ^ " is declared " ^ here);
+        ]
     | Ast.MatchBranch | Ast.Annotation | Ast.PatternAnnotation
     | Ast.VariantArgument _ | Ast.BoxedValue | Ast.HandleWith
     | Ast.RecursiveDefinition _ | Ast.PureBody | Ast.Sequencing ->
@@ -374,7 +412,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     in
     let message =
       if occurs then
-        Printf.sprintf "Cannot construct the infinite type %s = %s" t1 t2
+        Printf.sprintf "Cannot construct the infinite type %s"
+          (code (Printf.sprintf "%s = %s" (p.ty_raw lhs) (p.ty_raw rhs)))
       else message
     in
     let labels =
@@ -390,7 +429,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                   (List.exists
                      (fun (l : Diagnostic.label) -> Location.equal l.span r.at)
                      labels) ->
-          [ label r.at (shown ^ " was inferred here") ]
+          [ label r.at (shown ^ " was inferred " ^ here) ]
       | _ -> []
     in
     let via_labels =
@@ -414,12 +453,14 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
 
   (** The grade unifier can make no more progress. Every stuck equation is
       shown: which one to change is exactly what it could not decide. *)
-  let rho_stuck p unsolved =
+  let rho_stuck p ~rigids unsolved =
     match unsolved with
     | [] -> assert false
     | (lhs, rhs, (reason : reason), root) :: rest ->
         let show (lhs, rhs, _, _) =
-          Printf.sprintf "%s = %s" (p.rho lhs) (p.rho rhs)
+          quantified p
+            (rigids_of rigids [ lhs; rhs ])
+            (Printf.sprintf "%s = %s" (p.rho_raw lhs) (p.rho_raw rhs))
         in
         let message =
           "Cannot determine the grades: "
@@ -431,7 +472,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             (labels_of_reason p reason
             @ List.map
                 (fun ((_, _, (r : reason), _) as eq) ->
-                  label r.at ("and here: " ^ show eq))
+                  label r.at ("and " ^ here ^ ": " ^ show eq))
                 rest)
           ~notes:(matching_note p root) message
 
@@ -466,29 +507,48 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   (* Inequalities and eternality                                         *)
   (* ------------------------------------------------------------------ *)
 
-  let plain_ineq g1 g2 =
-    Printf.sprintf "the resource inequality %s %s %s does not hold" g1
-      ResourceGrade.is_sub_rho_symbol g2
+  (* The two sides a headline names, with the rigid grades it must quantify
+     over: the inequality as it was generated, unless the cancellation dropped
+     one of those grades, in which case only the cancelled form can be said. *)
+  let stated_sides ~rigids (reason : reason) rho1 rho2 =
+    let rs = rigids_of rigids [ rho1; rho2 ] in
+    let same s1 s2 =
+      List.map fst (rigids_of rigids [ s1; s2 ]) = List.map fst rs
+    in
+    match reason.Ast.stated with
+    | Some (s1, s2) when same s1 s2 -> (s1, s2, rs)
+    | Some _ | None -> (rho1, rho2, rs)
+
+  (* The inequality is one fragment of the user's code, so its two sides come
+     in unmarked and the whole of it is marked here. *)
+  let ineq_code p rs g1 g2 =
+    quantified p rs
+      (Printf.sprintf "%s %s %s" g1 ResourceGrade.is_sub_rho_symbol g2)
+
+  let plain_ineq p rs g1 g2 =
+    Printf.sprintf "the resource inequality %s does not hold"
+      (ineq_code p rs g1 g2)
 
   (* The constraint as a note. With rigid grades in it the note also carries
      the quantification and, when there is one, the refuting instance. *)
   let ineq_text p ~rigids rho1 rho2 witness =
     let rs = rigids_of rigids [ rho1; rho2 ] in
     let quantified = match rs with [] -> "" | rs -> for_every p rs in
-    let g1 = p.rho rho1 in
-    let g2 = p.rho rho2 in
+    let g1 = p.rho_raw rho1 in
+    let g2 = p.rho_raw rho2 in
     match rs with
-    | [] -> plain_ineq g1 g2
+    | [] -> plain_ineq p [] g1 g2
     | rs ->
         Printf.sprintf
-          "%s, the resource inequality %s %s %s must hold, but does not%s"
-          quantified g1 ResourceGrade.is_sub_rho_symbol g2
+          "%s, the resource inequality %s must hold, but does not%s" quantified
+          (ineq_code p rs g1 g2)
           (witness_clause p rs rho1 rho2 witness)
 
   (* An inequality whose headline the reason picks; the quantification, if
      any, goes into the note. *)
-  let ineq_failed_generic p ~rigids ~rs rho1 rho2 (reason : reason) witness =
-    let g1 = p.rho rho1 and g2 = p.rho rho2 in
+  let ineq_failed_generic p ~rigids ~rs ~stated:(s1, s2) rho1 rho2
+      (reason : reason) witness =
+    let g1 = p.rho s1 and g2 = p.rho s2 in
     let specific, message =
       match reason.why with
       | Ast.Annotation ->
@@ -505,7 +565,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               (op_name op) g1 g2 (op_name op) )
       | Ast.Unboxed { var; _ } ->
           ( true,
-            if p.is_zero rho1 then
+            if p.is_zero s1 then
               Printf.sprintf
                 "%s is unboxed before any grade has elapsed, but its box grade \
                  is %s"
@@ -523,15 +583,15 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
               (op_name op) g1 g2 (op_name op) )
       | _ ->
           ( false,
-            Printf.sprintf "The resource inequality %s %s %s does not hold" g1
-              ResourceGrade.is_sub_rho_symbol g2 )
+            Printf.sprintf "The resource inequality %s does not hold"
+              (ineq_code p rs (p.rho_raw s1) (p.rho_raw s2)) )
     in
     (* The note spells out the constraint, which the specific headlines do not,
        and carries the quantification and the refuting instance; the generic
        headline already is the constraint, so there it needs one of those. *)
     let notes =
-      if specific || witness <> None || rs <> [] then
-        [ ineq_text p ~rigids rho1 rho2 witness ]
+      if specific || witness <> None || rs <> [] || (s1, s2) <> (rho1, rho2)
+      then [ ineq_text p ~rigids rho1 rho2 witness ]
       else []
     in
     fail ~loc:reason.at
@@ -541,22 +601,28 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   (** An inequality between grades that cannot hold. Only the reason knows which
       promise it breaks. *)
   let ineq_failed p ~rigids rho1 rho2 (reason : reason) witness =
-    let rs = rigids_of rigids [ rho1; rho2 ] in
+    let s1, s2, rs = stated_sides ~rigids reason rho1 rho2 in
     match (reason.why, rs) with
     | Ast.ContinuationGrade { op; _ }, _ :: _ ->
         (* The case's own constraint: the headline carries the quantification,
            the note the inequality and its refuting instance. *)
         let quantified = String.capitalize_ascii (for_every p rs) in
-        let g1 = p.rho rho1 in
-        let g2 = p.rho rho2 in
+        let g1 = p.rho s1 in
+        let g2 = p.rho s2 in
         fail ~loc:reason.at
           ~labels:(labels_of_reason p reason @ rigid_labels p rs)
-          ~notes:[ plain_ineq g1 g2 ^ witness_clause p rs rho1 rho2 witness ]
+          ~notes:
+            [
+              plain_ineq p rs (p.rho_raw rho1) (p.rho_raw rho2)
+              ^ witness_clause p rs rho1 rho2 witness;
+            ]
           (Printf.sprintf
              "%s, the case for %s must have a grade matching %s, but its grade \
               %s does not"
              quantified (op_name op) g2 g1)
-    | _ -> ineq_failed_generic p ~rigids ~rs rho1 rho2 reason witness
+    | _ ->
+        ineq_failed_generic p ~rigids ~rs ~stated:(s1, s2) rho1 rho2 reason
+          witness
 
   let not_eternal p ty (reason : reason) =
     let t = p.ty ty in
@@ -577,13 +643,14 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   (** A disjunction [eternal τ ∨ ρ₁ ≾ ρ₂] with both sides refuted. *)
   let eternal_or_ineq_failed p ~rigids ty rho1 rho2 (reason : reason) witness =
     let t = p.ty ty in
+    let s1, _, rs = stated_sides ~rigids reason rho1 rho2 in
     let message, notes =
       match reason.why with
       | Ast.UseAfterTime { var; _ } ->
           ( Printf.sprintf
               "%s is used after grade %s has elapsed, but its type %s is not \
                eternal"
-              (subject var) (p.rho rho1) t,
+              (subject var) (p.rho s1) t,
             [ ineq_text p ~rigids rho1 rho2 witness ] )
       | Ast.InstanceOf { var; _ } ->
           ( Printf.sprintf
@@ -596,9 +663,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             [] )
     in
     fail ~loc:reason.at
-      ~labels:
-        (labels_of_reason p reason
-        @ rigid_labels p (rigids_of rigids [ rho1; rho2 ]))
+      ~labels:(labels_of_reason p reason @ rigid_labels p rs)
       ~notes message
 
   (** The same disjunction, its inequality left open rather than refuted. *)
@@ -641,10 +706,9 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           Printf.sprintf "Cannot compare non-ground resource values %s and %s"
             (p.rho rho1) (p.rho rho2)
       | rs ->
-          let g1 = p.rho rho1 in
-          let g2 = p.rho rho2 in
-          Printf.sprintf "Cannot decide the resource inequality %s %s %s %s" g1
-            ResourceGrade.is_sub_rho_symbol g2 (for_every p rs)
+          Printf.sprintf "Cannot decide the resource inequality %s %s"
+            (ineq_code p rs (p.rho_raw rho1) (p.rho_raw rho2))
+            (for_every p rs)
     in
     fail ~loc:reason.at
       ~labels:(labels_of_reason p reason @ rigid_labels p rs)

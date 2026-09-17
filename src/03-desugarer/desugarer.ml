@@ -13,7 +13,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     StringMap.update str
       (function
         | None -> Some symb
-        | Some _ -> Error.syntax ~loc "%s %s defined multiple times" kind str)
+        | Some _ -> Error.syntax ~loc "%s `%s` defined multiple times" kind str)
       string_map
 
   type state = {
@@ -46,7 +46,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
 
   let find_symbol ~loc map name =
     match StringMap.find_opt name map with
-    | None -> Error.syntax ~loc "Unknown name %s" name
+    | None -> Error.syntax ~loc "Unknown name `%s`" name
     | Some symbol -> symbol
 
   let lookup_ty_name ~loc state = find_symbol ~loc state.ty_names

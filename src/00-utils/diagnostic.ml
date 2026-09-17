@@ -16,6 +16,40 @@ let kind_to_string = function
   | Fatal -> "Fatal error"
 
 let lines text = String.split_on_char '\n' text
+let place = "{here}"
+
+let render_label_text ~place:shown text =
+  let n = String.length place and len = String.length text in
+  let buffer = Buffer.create len in
+  let rec go i =
+    if i >= len then ()
+    else if i + n <= len && String.sub text i n = place then (
+      Buffer.add_string buffer shown;
+      go (i + n))
+    else (
+      Buffer.add_char buffer text.[i];
+      go (i + 1))
+  in
+  go 0;
+  Buffer.contents buffer
+
+(* Backticks alternate between prose and code, so the pieces a split yields do
+   too. An odd count leaves a piece with no closing backtick: it is prose, and
+   keeps the backtick it opened with, as that is what a terminal shows. *)
+let segments text =
+  let rec go acc code = function
+    | [] -> List.rev acc
+    | [ last ] ->
+        let last = if code then "`" ^ last else last in
+        List.rev (if last = "" then acc else `Text last :: acc)
+    | piece :: rest ->
+        let acc =
+          if piece = "" then acc
+          else (if code then `Code piece else `Text piece) :: acc
+        in
+        go acc (not code) rest
+  in
+  go [] false (String.split_on_char '`' text)
 
 (* The span's first line with carets under it, from the start of the span to
    its end or to the end of the line, whichever comes first. A multi-line span
@@ -63,6 +97,10 @@ let print ?(source = fun _ -> None) d ppf =
   | None -> ());
   Format.fprintf ppf "%s: %s@\n" (kind_to_string d.kind) d.message;
   List.iter
-    (fun { span; text } -> print_located ~source ~indent:"  " span text ppf)
+    (fun { span; text } ->
+      (* The excerpt of the span follows the label, so it can say "here". *)
+      print_located ~source ~indent:"  " span
+        (render_label_text ~place:"here" text)
+        ppf)
     d.labels;
   List.iter (fun note -> Format.fprintf ppf "  Note: %s@\n" note) d.notes

@@ -6,8 +6,8 @@
    box was given, and only four are delayed. The run is left uncommented, so
    that running the file shows the error:
 
-     Typing error: Variable boxed is unboxed after grade 4 has elapsed,
-       which does not match its box grade 5
+     Typing error: Variable `boxed` is unboxed after grade `4` has elapsed,
+       which does not match its box grade `5`
 *)
 run
     let x = (10, 10) in
