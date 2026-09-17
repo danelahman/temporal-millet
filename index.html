@@ -12,12 +12,16 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.0/css/bulma.min.css">
   <script src="web.bc.js"></script>
   <style>
-    .aside {
-      position: sticky;
-      /* Safari */
-      position: -webkit-sticky;
-      top: 0;
-      height: 100%;
+    /* Only from the tablet breakpoint up: below it the columns stack, and a
+       sticky panel would hover over the editor it is meant to sit beside. */
+    @media screen and (min-width: 769px) {
+      .aside {
+        position: sticky;
+        /* Safari */
+        position: -webkit-sticky;
+        top: 0;
+        height: 100%;
+      }
     }
 
     .panel-block {
@@ -116,7 +120,9 @@
       font-size: inherit;
       line-height: inherit;
       letter-spacing: 0;
-      padding: 0.75em 1em;
+      /* The left padding is the gutter the markers and line numbers sit in;
+         both layers carry it, so the caret stays over the text it is in. */
+      padding: 0.75em 1em 0.75em var(--gutter, 2.1em);
       margin: 0;
       border: 1px solid #dbdbdb;
       border-radius: 4px;
@@ -136,7 +142,6 @@
       overflow: hidden;
       background: #f6f8fa;
       color: #24292e;
-      z-index: 1;
     }
 
     .code-editor .code-editor-input {
@@ -211,48 +216,189 @@
       font-size: 0.9rem;
     }
 
-    /* Under the run button, in the sticky panel: where the error is. */
-    .error-pointer {
-      display: block;
+    /* Under the run button: every error reported, numbered as the messages
+       under the editor are, each a link into the editor. */
+    .error-list {
       margin-top: 0.6rem;
-      text-align: center;
+      padding-left: 1.6em;
+      list-style: decimal outside;
       font-size: 0.9rem;
       color: #f14668;
     }
 
-    .error-pointer:hover {
+    .error-list li {
+      margin-top: 0.15em;
+      overflow-wrap: anywhere;
+    }
+
+    /* reported before the source was edited, as the messages are */
+    .error-list.is-stale {
+      opacity: 0.55;
+    }
+
+    /* the error the caret is in */
+    .error-list li.is-active {
+      font-weight: 600;
+    }
+
+    .error-list a {
+      color: inherit;
+    }
+
+    .error-list a:hover {
       color: #cc0f35;
       text-decoration: underline;
     }
 
-    /* The line a syntax error points at: a soft band with a red edge. */
-    pre.syn-ml .error-line {
-      position: relative;
-      display: inline-block;
-      width: 100%;
-      min-height: 1.5em;
-      background: #feecf0;
-      /* extend the band into the editor's left padding, without moving text */
-      box-shadow: -0.6em 0 0 #feecf0;
-      border-radius: 2px;
+    /* The line numbers, right-aligned in the gutter. Absolute against the
+       <pre> so that they cost the line no width. */
+    .line-number {
+      position: absolute;
+      /* the number slot: from the inset to the gap before the text */
+      left: 0.36rem;
+      top: auto;
+      width: calc(var(--gutter, 2.1em) - 0.99rem);
+      text-align: right;
+      color: #b5b5b5;
+      font: inherit;
+      -webkit-user-select: none;
+      user-select: none;
+      pointer-events: none;
     }
 
-    pre.syn-ml .error-line::before {
+    /* The number of a line an error's span covers: red and a link to the
+       message, so it must take the clicks the textarea over it would swallow. */
+    .line-number.is-error {
+      color: #f14668;
+      font-weight: 600;
+      text-decoration: none;
+      pointer-events: auto;
+      z-index: 3;
+    }
+
+    /* Every number of the error the pointer is on, the model saying which
+       that is: the numbers of one error are siblings, not a group CSS could
+       select from any one of them. */
+    .line-number.is-error:hover,
+    .line-number.is-error.is-hover {
+      color: #cc0f35;
+      text-decoration: underline;
+    }
+
+    .line-number.is-error.is-hover::before {
+      background: #cc0f35;
+    }
+
+    /* A bar down the gutter beside the lines of one error. The numbers are
+       absolute and as tall as their line box, so consecutive ones join up; the
+       inset ends leave a gap where one error meets the next. It follows the
+       number, so a wrapped source line gets the bar on its first row only. */
+    .line-number.is-error::before {
       content: "";
       position: absolute;
-      top: 0;
-      bottom: 0;
-      left: -0.6em;
-      width: 3px;
+      left: -0.24rem;
+      /* Overlapping its neighbours by a pixel: abutting pieces leave a seam
+         wherever a line box does not land on a whole device pixel. */
+      top: -1px;
+      bottom: -1px;
+      width: 2px;
+      border-radius: 1px;
       background: #f14668;
+    }
+
+    .line-number.is-error-start::before {
+      top: 3px;
+    }
+
+    .line-number.is-error-end::before {
+      bottom: 3px;
+    }
+
+    /* The span an error points at: a soft band under a wavy red underline.
+       The decoration is cloned onto every visual line so that a span wrapping
+       or crossing a newline stays marked throughout. */
+    pre.syn-ml .error-primary {
+      background: #feecf0;
+      text-decoration: underline wavy #f14668;
+      text-underline-offset: 3px;
       border-radius: 2px;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+
+    /* The span of a label: a place the message refers to, marked more
+       quietly than the error itself. */
+    pre.syn-ml .error-related {
+      background: #fff8e1;
+      text-decoration: underline dotted #b8860b;
+      text-underline-offset: 3px;
+      border-radius: 2px;
+      -webkit-box-decoration-break: clone;
+      box-decoration-break: clone;
+    }
+
+    /* ... and the same span while the pointer is on its label. */
+    pre.syn-ml .error-hover {
+      background: #ffe9a8;
+      text-decoration-style: solid;
+    }
+
+    .error-labels,
+    .error-notes {
+      margin-top: 0.6em;
+      list-style: disc outside;
+      padding-left: 1.2em;
+    }
+
+    .error-labels li,
+    .error-notes li {
+      margin-top: 0.2em;
+    }
+
+    .error-labels a {
+      color: inherit;
+      text-decoration: underline dotted;
+    }
+
+    .error-labels a:hover {
+      color: #cc0f35;
+    }
+
+    .error-labels .error-line-ref,
+    .error-notes {
+      color: #7a7a7a;
     }
 
     .editor-error .message-body {
       font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
       font-size: 0.9rem;
       white-space: pre-wrap;
-      overflow-wrap: break-word;
+      /* a long type is broken rather than let out of the viewport */
+      overflow-wrap: anywhere;
+    }
+
+    /* The error the caret sits in, singled out among the messages. */
+    .editor-error.is-active {
+      border-left: 4px solid #f14668;
+      border-radius: 4px;
+    }
+
+    /* Reported before the source was edited: greyed until it is run again. */
+    .editor-error.is-stale {
+      opacity: 0.55;
+    }
+
+    .editor-error .message-header .show-in-editor,
+    .editor-error .message-header .stale-note {
+      flex-shrink: 0;
+      margin-left: 0.75rem;
+      font-size: 0.9rem;
+      font-weight: 400;
+    }
+
+    .editor-error .message-header .show-in-editor {
+      color: inherit;
+      text-decoration: underline dotted;
     }
 
     .code-editor-input::placeholder {
@@ -294,13 +440,21 @@
       padding-top: 1.5rem;
     }
 
+    /* <navbar> is not an element the browser knows, so it is laid out inline
+       — dropping its vertical margin — until Bulma makes it a flex box at the
+       desktop breakpoint. Laid out the same way at every width instead. */
     .navbar {
       background-color: transparent;
+      display: block;
+      min-height: 0;
       margin-bottom: 1.5rem;
     }
 
+    /* Bulma holds the brand 3.25rem tall and pads its items out, either of
+       which would leave the gap below the header wider than the margin. */
     .navbar-brand {
       flex-grow: 1;
+      min-height: 0;
     }
 
     .navbar-brand .brand-title {
@@ -308,25 +462,33 @@
       align-items: center;
       gap: 0.75rem;
       /* Line the mark up with the left edge of the editor box below. */
-      padding-left: 0;
+      padding: 0;
+      /* Bulma holds a navbar item at its content width, which would push the
+         brand off the right of a narrow page. */
+      flex-shrink: 1;
+      min-width: 0;
     }
 
     .navbar-brand .brand-text {
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
+      min-width: 0;
     }
 
     .navbar-brand .brand-title .title {
       margin: 0;
       line-height: 1;
+      white-space: nowrap;
     }
 
+    /* One line or none: a narrow page drops it rather than break it up. */
     .navbar-brand .brand-tagline {
       margin: 0;
       color: #7a7a7a;
       font-size: 0.95rem;
       line-height: 1.2;
+      white-space: nowrap;
     }
 
     .navbar-brand .brand-logo {
@@ -335,7 +497,37 @@
       max-height: 3.5rem;
       height: 3.5rem;
       width: 3.5rem;
+      flex-shrink: 0;
       display: block;
+    }
+
+    /* The one-line tagline needs 715px of page, so below the tablet
+       breakpoint the header keeps only the mark and the name, and the mark
+       shrinks to leave room for it. */
+    @media screen and (max-width: 768px) {
+      .navbar-brand .brand-tagline {
+        display: none;
+      }
+
+      .navbar-brand .brand-logo {
+        max-height: 2.5rem;
+        height: 2.5rem;
+        width: 2.5rem;
+      }
+
+      /* The full size would tower over the smaller mark beside it. */
+      .navbar-brand .brand-title .title {
+        font-size: 1.5rem;
+      }
+
+      /* A one-line header needs less air around it than the two-line one. */
+      .section {
+        padding-top: 1rem;
+      }
+
+      .navbar {
+        margin-bottom: 1rem;
+      }
     }
 
     .site-footer {
