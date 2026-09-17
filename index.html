@@ -162,8 +162,11 @@
       scroll-behavior: smooth;
     }
 
-    .editor-error {
+    /* Bulma adds 1.5rem under a message; the top margin alone is the gap. */
+    .editor-error,
+    .editor-error:not(:last-child) {
       margin-top: 1rem;
+      margin-bottom: 0;
     }
 
     /* The side panel gets narrow at intermediate window widths: let its
@@ -326,6 +329,11 @@
       box-decoration-break: clone;
     }
 
+    /* while the pointer is on the error's line numbers or message */
+    pre.syn-ml .error-primary.is-hover {
+      background: #fbd0d9;
+    }
+
     /* The span of a label: a place the message refers to, marked more
        quietly than the error itself. */
     pre.syn-ml .error-related {
@@ -350,6 +358,12 @@
       padding-left: 1.2em;
     }
 
+    /* Labels and notes are two lists but one run of bullets, so the second
+       starts where an item would, not where a list would. */
+    .error-labels + .error-notes {
+      margin-top: 0;
+    }
+
     .error-labels li,
     .error-notes li {
       margin-top: 0.2em;
@@ -364,17 +378,33 @@
       color: #cc0f35;
     }
 
-    .error-labels .error-line-ref,
-    .error-notes {
+    /* Only the line reference is muted: a note carries the constraint that
+       failed and its counterexample, which read with the message. */
+    .error-labels .error-line-ref {
       color: #7a7a7a;
     }
 
+    /* The prose of a diagnostic is prose; only the code fragments it marks
+       are set in the editor's font, by .diag-code below. */
     .editor-error .message-body {
-      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-      font-size: 0.9rem;
+      font-family: inherit;
+      font-size: 0.95rem;
       white-space: pre-wrap;
       /* a long type is broken rather than let out of the viewport */
       overflow-wrap: anywhere;
+    }
+
+    /* The element is named too, to outweigh Bulma's own rules for a <code>
+       inside a message body. */
+    code.diag-code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.9em;
+      /* Bulma colours a bare <code> its own red; the fragment belongs to the
+         sentence around it, so it takes that sentence's colour. */
+      color: inherit;
+      background: rgba(0, 0, 0, 0.05);
+      padding: 0.05em 0.3em;
+      border-radius: 3px;
     }
 
     /* The error the caret sits in, singled out among the messages. */
