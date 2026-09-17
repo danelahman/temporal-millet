@@ -209,8 +209,11 @@ let deliver_by_events () =
    through the extruder. The types alone no longer allow a print to be run
    backwards, so only the grade can catch this:
 
-     Typing error: Comparing resource inequality {Heat; Cool; Extrude}
-       <= {Heat; Extrude; Cool} failed
+     Typing error: The case for `PrintModel` has grade
+       `{Heat; Cool; Extrude}`, which does not match the grade
+       `{Heat; Extrude; Cool}` of `PrintModel` followed by its continuation
+       Note: the resource inequality
+         `{Heat; Cool; Extrude} <= {Heat; Extrude; Cool}` does not hold
 *)
 (*
 let early_cooler =
@@ -227,8 +230,11 @@ let early_cooler =
    'Cool', and the order of a demand is not negotiable, however the model that
    is handed to the cooler came to be:
 
-     Typing error: Comparing resource inequality {Cool; Heat}
-       <= {Heat; Cool | Heat; Extrude; Cool} failed
+     Typing error: The case for `Print` has grade `{Cool; Heat}`, which does
+       not match the grade `{Heat; Cool | Heat; Extrude; Cool}` of `Print`
+       followed by its continuation
+       Note: the resource inequality
+         `{Cool; Heat} <= {Heat; Cool | Heat; Extrude; Cool}` does not hold
 *)
 (*
 let twisted_printer =
@@ -246,8 +252,12 @@ let twisted_printer =
    where the very same clause is accepted, because an upper bound only forbids
    doing more:
 
-     Typing error: Comparing resource inequality {Heat; Extrude}
-       <= {Heat; Cool | Heat; Extrude; Cool} failed
+     Typing error: The case for `Print` has grade `{Heat; Extrude}`, which
+       does not match the grade `{Heat; Cool | Heat; Extrude; Cool}` of
+       `Print` followed by its continuation
+       Note: the resource inequality
+         `{Heat; Extrude} <= {Heat; Cool | Heat; Extrude; Cool}` does not
+         hold
 *)
 (*
 let sloppy_printer =
@@ -266,7 +276,10 @@ let sloppy_printer =
    circular. A default is checked against the 'within (1, 1)' bounds instead,
    which the very same tick of mixing meets exactly:
 
-     Typing error: Comparing resource inequality {1} <= {MixEpoxy} failed
+     Typing error: The case for `MixEpoxy` has grade `{1}`, which does not
+       match the grade `{MixEpoxy}` of `MixEpoxy` followed by its
+       continuation
+       Note: the resource inequality `{1} <= {MixEpoxy}` does not hold
 *)
 (*
 let mixer =
@@ -279,7 +292,9 @@ let mixer =
    instead of before it, so only the two ticks of the closing rest are banked
    towards the eight it needs to set:
 
-     Typing error: Comparing resource inequality {2} <= {8} failed
+     Typing error: Variable `glue` is unboxed after grade `{2}` has elapsed,
+       which does not match its box grade `{8}`
+       Note: the resource inequality `{2} <= {8}` does not hold
 *)
 (*
 let print_sword_eager () =
@@ -297,7 +312,10 @@ let print_sword_eager () =
    demanded operation, so a clause that only delays cannot realise the
    transmission 'Deliver' promises, no matter how long it waits:
 
-     Typing error: Comparing resource inequality {6} <= {Tx | Tx; Tx} failed
+     Typing error: The case for `Deliver` has grade `{6}`, which does not
+       match the grade `{Tx | Tx; Tx}` of `Deliver` followed by its
+       continuation
+       Note: the resource inequality `{6} <= {Tx | Tx; Tx}` does not hold
 *)
 (*
 let deliver_stall =
@@ -309,7 +327,10 @@ let deliver_stall =
 (* Correctly rejected by the typechecker: a clause that drops the message
    altogether banks nothing towards the transmission 'Deliver' promises:
 
-     Typing error: Comparing resource inequality {0} <= {Tx | Tx; Tx} failed
+     Typing error: The case for `Deliver` has grade `{0}`, which does not
+       match the grade `{Tx | Tx; Tx}` of `Deliver` followed by its
+       continuation
+       Note: the resource inequality `{0} <= {Tx | Tx; Tx}` does not hold
 *)
 (*
 let deliver_drop =
@@ -322,7 +343,9 @@ let deliver_drop =
    the extrusion, so the three ticks the extruder banks are spent before the
    glue exists, and nothing at all is banked towards the three it needs to set:
 
-     Typing error: Comparing resource inequality {0} <= {3} failed
+     Typing error: Variable `glue` is unboxed before any grade has elapsed,
+       but its box grade is `{3}`
+       Note: the resource inequality `{0} <= {3}` does not hold
 *)
 (*
 let extrude_layer_slow h =
@@ -336,7 +359,9 @@ let extrude_layer_slow h =
    transmission, which banks only two ticks, not the four the receipt
    demands:
 
-     Typing error: Comparing resource inequality {Tx | Tx; Tx} <= {4} failed
+     Typing error: Variable `slot` is unboxed after grade `{Tx | Tx; Tx}` has
+       elapsed, which does not match its box grade `{4}`
+       Note: the resource inequality `{Tx | Tx; Tx} <= {4}` does not hold
 *)
 (*
 let deliver_ping_eager () =
@@ -351,8 +376,10 @@ let deliver_ping_eager () =
 (* Correctly rejected by the typechecker: one 'Deliver' does not guarantee two
    transmissions, so it does not cover a demand for two:
 
-     Typing error: Comparing resource inequality {Tx | Tx; Tx}
-       <= {Tx; Tx} failed
+     Typing error: Variable `slot` is unboxed after grade `{Tx | Tx; Tx}` has
+       elapsed, which does not match its box grade `{Tx; Tx}`
+       Note: the resource inequality `{Tx | Tx; Tx} <= {Tx; Tx}` does not
+         hold
 *)
 (*
 let deliver_by_two () =

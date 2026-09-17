@@ -4,7 +4,10 @@
         expressions, are not supported.
     - Expressions similar to ```let f x = x in (f 5, f "foo")``` are not
         supported. Type checking fails with error
-        "Typing error: Cannot unify int = string".
+
+        Typing error: This argument has type `string` but the function
+          expects `int`
+          Note: while matching `int → int` against `string → α # ρ₀`
 *)
 
 let f x = x

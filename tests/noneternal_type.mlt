@@ -36,8 +36,9 @@ let stamp_later () =
 (* Correctly rejected by the typechecker: a ticket holds a token, so it is
    non-eternal too and does not survive the wait:
 
-     Typing error: Type ticket is not eternal and resource inequality 1 <= 0
-       failed
+     Typing error: Variable `c` is used after grade `1` has elapsed, but its
+       type `ticket` is not eternal
+       Note: the resource inequality `1 <= 0` does not hold
 *)
 (*
 let pass_on_late () =

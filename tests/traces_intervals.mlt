@@ -198,9 +198,13 @@ let send_by_events () =
    it has been through the extruder. The types alone no longer allow a print to
    be run backwards, so only the grade can catch this:
 
-     Typing error: Comparing resource inequality
-       ({Heat; Cool; Extrude},{Heat; Cool; Extrude})
-       <= ({Heat; Extrude; Cool},{Heat; Extrude; Cool}) failed
+     Typing error: The case for `PrintModel` has grade
+       `({Heat; Cool; Extrude},{Heat; Cool; Extrude})`, which does not match
+       the grade `({Heat; Extrude; Cool},{Heat; Extrude; Cool})` of
+       `PrintModel` followed by its continuation
+       Note: the resource inequality
+         `({Heat; Cool; Extrude},{Heat; Cool; Extrude}) <= ({Heat; Extrude; Cool},{Heat; Extrude; Cool})`
+         does not hold
 *)
 (*
 let early_cooler =
@@ -217,10 +221,13 @@ let early_cooler =
    'Cool', and the order of a bound is not negotiable, however the model that
    is handed to the cooler came to be:
 
-     Typing error: Comparing resource inequality
-       ({Cool; Heat},{Cool; Heat})
-       <= ({Heat; Cool | Heat; Extrude; Cool},
-           {Heat; Cool | Heat; Extrude; Cool}) failed
+     Typing error: The case for `Print` has grade
+       `({Cool; Heat},{Cool; Heat})`, which does not match the grade
+       `({Heat; Cool | Heat; Extrude; Cool},{Heat; Cool | Heat; Extrude; Cool})`
+       of `Print` followed by its continuation
+       Note: the resource inequality
+         `({Cool; Heat},{Cool; Heat}) <= ({Heat; Cool | Heat; Extrude; Cool},{Heat; Cool | Heat; Extrude; Cool})`
+         does not hold
 *)
 (*
 let twisted_printer =
@@ -237,10 +244,13 @@ let twisted_printer =
    neither run of 'Print', even though the upper bound of 'Print' would
    happily allow it:
 
-     Typing error: Comparing resource inequality
-       ({Heat; Extrude},{Heat; Extrude})
-       <= ({Heat; Cool | Heat; Extrude; Cool},
-           {Heat; Cool | Heat; Extrude; Cool}) failed
+     Typing error: The case for `Print` has grade
+       `({Heat; Extrude},{Heat; Extrude})`, which does not match the grade
+       `({Heat; Cool | Heat; Extrude; Cool},{Heat; Cool | Heat; Extrude; Cool})`
+       of `Print` followed by its continuation
+       Note: the resource inequality
+         `({Heat; Extrude},{Heat; Extrude}) <= ({Heat; Cool | Heat; Extrude; Cool},{Heat; Cool | Heat; Extrude; Cool})`
+         does not hold
 *)
 (*
 let sloppy_printer =
@@ -259,8 +269,11 @@ let sloppy_printer =
    A default is checked against the 'within (1, 1)' bounds instead, which the
    very same tick of mixing meets exactly:
 
-     Typing error: Comparing resource inequality
-       ({1},{1}) <= ({MixEpoxy},{MixEpoxy}) failed
+     Typing error: The case for `MixEpoxy` has grade `({1},{1})`, which does
+       not match the grade `({MixEpoxy},{MixEpoxy})` of `MixEpoxy` followed
+       by its continuation
+       Note: the resource inequality `({1},{1}) <= ({MixEpoxy},{MixEpoxy})`
+         does not hold
 *)
 (*
 let mixer =
@@ -273,7 +286,9 @@ let mixer =
    instead of before it, so only the two ticks of the closing rest are banked
    towards the eight it needs to set:
 
-     Typing error: Comparing resource inequality ({2},{2}) <= ({8},{11}) failed
+     Typing error: Variable `glue` is unboxed after grade `({2},{2})` has
+       elapsed, which does not match its box grade `({8},{11})`
+       Note: the resource inequality `({2},{2}) <= ({8},{11})` does not hold
 *)
 (*
 let print_sword_lazy () =
@@ -292,9 +307,12 @@ let print_sword_lazy () =
    the epoxy may have hardened, since 2 + 5 + 2 + 5 = 14 is past its pot life
    of eleven:
 
-     Typing error: Comparing resource inequality
-       ({Heat; Extrude; Cool; 5},{Heat; Extrude; Cool; 5})
-       <= ({8},{11}) failed
+     Typing error: Variable `glue` is unboxed after grade
+       `({Heat; Extrude; Cool; 5},{Heat; Extrude; Cool; 5})` has elapsed,
+       which does not match its box grade `({8},{11})`
+       Note: the resource inequality
+         `({Heat; Extrude; Cool; 5},{Heat; Extrude; Cool; 5}) <= ({8},{11})`
+         does not hold
 *)
 (*
 let print_sword_impatient () =
@@ -313,8 +331,9 @@ let print_sword_impatient () =
    and mixed epoxy does not keep, since 'epoxy' is declared 'noneternal', so
    the unboxed glue does not survive that tick:
 
-     Typing error: Type epoxy is not eternal and resource inequality
-       ({1},{1}) <= ({0},{0}) failed
+     Typing error: Variable `g` is used after grade `({1},{1})` has elapsed,
+       but its type `epoxy` is not eternal
+       Note: the resource inequality `({1},{1}) <= ({0},{0})` does not hold
 *)
 (*
 let print_sword_hasty () =
@@ -333,9 +352,11 @@ let print_sword_hasty () =
    and the extruder, and the quick epoxy may have hardened by the time it is
    reached, since 2 + 1 + 5 = 8 is past the seven ticks of its pot life:
 
-     Typing error: Comparing resource inequality
-       ({Heat; 1; Extrude},{Heat; 1; Extrude})
-       <= ({3},{7}) failed
+     Typing error: Variable `glue` is unboxed after grade
+       `({Heat; 1; Extrude},{Heat; 1; Extrude})` has elapsed, which does not
+       match its box grade `({3},{7})`
+       Note: the resource inequality
+         `({Heat; 1; Extrude},{Heat; 1; Extrude}) <= ({3},{7})` does not hold
 *)
 (*
 let make_cog_impatient () =
@@ -352,7 +373,9 @@ let make_cog_impatient () =
    the extrusion, so nothing at all is banked towards the three ticks it needs
    to set by the time it is unboxed:
 
-     Typing error: Comparing resource inequality ({0},{0}) <= ({3},{7}) failed
+     Typing error: Variable `glue` is unboxed before any grade has elapsed,
+       but its box grade is `({3},{7})`
+       Note: the resource inequality `({0},{0}) <= ({3},{7})` does not hold
 *)
 (*
 let make_cog_lazy () =
@@ -367,9 +390,12 @@ let make_cog_lazy () =
 (* Correctly rejected by the typechecker: the upper bound of 'Send' allows at
    most two transmissions, so a clause that retries twice does not fit:
 
-     Typing error: Comparing resource inequality
-       ({Tx; Tx; Tx},{Tx; Tx; Tx})
-       <= ({Tx | Tx; Tx},{Tx | Tx; Tx}) failed
+     Typing error: The case for `Send` has grade
+       `({Tx; Tx; Tx},{Tx; Tx; Tx})`, which does not match the grade
+       `({Tx | Tx; Tx},{Tx | Tx; Tx})` of `Send` followed by its continuation
+       Note: the resource inequality
+         `({Tx; Tx; Tx},{Tx; Tx; Tx}) <= ({Tx | Tx; Tx},{Tx | Tx; Tx})` does
+         not hold
 *)
 (*
 let send_thrice =
@@ -386,9 +412,11 @@ let send_thrice =
    delays, so there is no allowance left to pay for a tick of waiting, even
    though the lower bound would be happy with it:
 
-     Typing error: Comparing resource inequality
-       ({Tx; 1},{Tx; 1})
-       <= ({Tx | Tx; Tx},{Tx | Tx; Tx}) failed
+     Typing error: The case for `Send` has grade `({Tx; 1},{Tx; 1})`, which
+       does not match the grade `({Tx | Tx; Tx},{Tx | Tx; Tx})` of `Send`
+       followed by its continuation
+       Note: the resource inequality
+         `({Tx; 1},{Tx; 1}) <= ({Tx | Tx; Tx},{Tx | Tx; Tx})` does not hold
 *)
 (*
 let send_lazy =
@@ -400,9 +428,11 @@ let send_lazy =
 (* Correctly rejected by the typechecker: the session expires after five
    ticks, which does not pay for a retried send, which costs 3 + 3:
 
-     Typing error: Comparing resource inequality
-       ({Tx | Tx; Tx},{Tx | Tx; Tx})
-       <= ({2},{5}) failed
+     Typing error: Variable `slot` is unboxed after grade
+       `({Tx | Tx; Tx},{Tx | Tx; Tx})` has elapsed, which does not match its
+       box grade `({2},{5})`
+       Note: the resource inequality
+         `({Tx | Tx; Tx},{Tx | Tx; Tx}) <= ({2},{5})` does not hold
 *)
 (*
 let send_telemetry_impatient () =
@@ -417,9 +447,11 @@ let send_telemetry_impatient () =
 (* Correctly rejected by the typechecker: the receipt is not ready after four
    ticks if the send consists of a single transmission, which banks only two:
 
-     Typing error: Comparing resource inequality
-       ({Tx | Tx; Tx},{Tx | Tx; Tx})
-       <= ({4},{6}) failed
+     Typing error: Variable `slot` is unboxed after grade
+       `({Tx | Tx; Tx},{Tx | Tx; Tx})` has elapsed, which does not match its
+       box grade `({4},{6})`
+       Note: the resource inequality
+         `({Tx | Tx; Tx},{Tx | Tx; Tx}) <= ({4},{6})` does not hold
 *)
 (*
 let send_telemetry_lazy () =

@@ -14,7 +14,7 @@ let g (x: 'a) : 'a = 12
 let g (x: 'a) y : 'a = y
 
 (* Parsing of the following two expressions fails.
-    Reported error "Syntax error ... Unknown name --b--"
+    Reported error "Syntax error: Unknown name `b`"
 let g x : 'a*'b = (x, x)
 let g (x: 'a) (y: 'b) : 'a*'b = (x, y) *)
 

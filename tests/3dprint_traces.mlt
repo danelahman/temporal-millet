@@ -35,8 +35,7 @@ default MixEpoxy () = delay 1; box (8, 11) Epoxy
 
 (* A print is the three steps, in that order, on both sides of the pair. The
    finished print has to set for two ticks and be collected within eight. *)
-operation PrintModel : model ~> [(2, 8)] print
-  # ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
+operation PrintModel : model ~> [(2, 8)] print # ({Heat; Extrude; Cool}, {Heat; Extrude; Cool})
 
 (* Correctly accepted by the typechecker: the clause performs exactly the three
    steps 'PrintModel' promises, in the promised order, which covers the lower
@@ -86,8 +85,8 @@ run handle label_print "Sword #1" (Model "Sword") with printer
 
 (* Correctly rejected by the typechecker: epoxy is not,
 
-     Typing error: Type epoxy is not eternal, as required by the type of
-       label_print
+     Typing error: `epoxy` is not eternal, but `label_print` needs the type
+       of `tag` to be eternal
 *)
 (*
 run handle label_print Epoxy (Model "Sword") with printer
@@ -106,9 +105,10 @@ run after_preparing (fun () -> ()) Epoxy
 
 (* Correctly rejected by the typechecker: neither holds,
 
-     Typing error: Type epoxy is not eternal and resource inequality
-       ({Heat},{Heat}) <= ({0},{0}) failed, as required by the type of
-       after_preparing
+     Typing error: `epoxy` is not eternal, but `after_preparing` needs the
+       type of `item` to be eternal
+       Note: the resource inequality `({Heat},{Heat}) <= ({0},{0})` does not
+         hold
 *)
 (*
 run after_preparing (fun () -> perform Heat (Model "Base")) Epoxy

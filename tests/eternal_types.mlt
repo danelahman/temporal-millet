@@ -19,8 +19,9 @@ let stamp_later () =
 (* Correctly rejected by the typechecker: a function is never eternal, and f
    is used a tick after it was bound:
 
-     Typing error: Type unit → int of variable f is not eternal and resource
-       inequality 1 <= 0 failed
+     Typing error: Variable `f` is used after grade `1` has elapsed, but its
+       type `unit → int` is not eternal
+       Note: the resource inequality `1 <= 0` does not hold
 *)
 (*
 let function_later () =
@@ -41,8 +42,9 @@ let use_now () =
 
 (* Correctly rejected by the typechecker:
 
-     Typing error: Type ticket of variable c is not eternal and resource
-       inequality 1 <= 0 failed
+     Typing error: Variable `c` is used after grade `1` has elapsed, but its
+       type `ticket` is not eternal
+       Note: the resource inequality `1 <= 0` does not hold
 *)
 (*
 let use_late () =
@@ -63,10 +65,11 @@ run keep (Stamp 1)
 
 (* Correctly rejected by the typechecker:
 
-     Typing error: Type unit → unit is not eternal, as required by the type
-       of keep
+     Typing error: `unit → unit` is not eternal, but `keep` needs the type of
+       `x` to be eternal
 
-     Typing error: Type token is not eternal, as required by the type of keep
+     Typing error: `token` is not eternal, but `keep` needs the type of `x`
+       to be eternal
 *)
 (*
 run keep (fun () -> ())
@@ -92,8 +95,9 @@ run after (fun () -> ()) (fun () -> ())
 
 (* Correctly rejected by the typechecker: neither holds,
 
-     Typing error: Type unit → unit is not eternal and resource inequality
-       2 <= 0 failed, as required by the type of after
+     Typing error: `unit → unit` is not eternal, but `after` needs the type
+       of `x` to be eternal
+       Note: the resource inequality `2 <= 0` does not hold
 *)
 (*
 run after (fun () -> delay 2) (fun () -> ())
@@ -112,8 +116,8 @@ run handle (perform Tick (); 1) with h 2
 (* Correctly rejected by the typechecker: a function is not, and the grade of
    the continuation does not decide it, whatever it is:
 
-     Typing error: Type unit → unit is not eternal, as required by the type
-       of h
+     Typing error: `unit → unit` is not eternal, but `h` needs the type of
+       `x` to be eternal
 *)
 (*
 run handle (perform Tick (); (fun () -> ())) with h (fun () -> ())

@@ -80,7 +80,9 @@ run
    print the moment it is made, with nothing banked towards the five ticks it
    has to cool:
 
-     Typing error: Comparing resource inequality 0 >= 5 failed
+     Typing error: This expression is unboxed before any grade has elapsed,
+       but its box grade is `5`
+       Note: the resource inequality `0 >= 5` does not hold
 *)
 (*
 run

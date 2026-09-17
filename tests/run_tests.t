@@ -606,15 +606,11 @@
   File "eternal_tyvars_reject_function.mlt", line 9, characters 4-8:
   9 | run keep (fun () -> ())
           ^^^^
-  Typing error: Type `unit → unit` is not eternal, as required by the type of `keep`
+  Typing error: `unit → unit` is not eternal, but `keep` needs the type of `x` to be eternal
     File "eternal_tyvars_reject_function.mlt", line 5, characters 0-23:
     5 | let keep x = delay 1; x
         ^^^^^^^^^^^^^^^^^^^^^^^
     `keep` is defined here
-    File "eternal_tyvars_reject_function.mlt", line 5, characters 22-23:
-    5 | let keep x = delay 1; x
-                              ^
-    because of this use inside `keep`
     File "eternal_tyvars_reject_function.mlt", line 5, characters 9-10:
     5 | let keep x = delay 1; x
                  ^
@@ -623,21 +619,21 @@
     5 | let keep x = delay 1; x
                      ^^^^^^^
     `delay 1` elapses here
+    File "eternal_tyvars_reject_function.mlt", line 5, characters 22-23:
+    5 | let keep x = delay 1; x
+                              ^
+    `x` is used here after grade `1` has elapsed, which only an eternal type allows
   ======================================================================
   eternal_tyvars_reject_handler.mlt
   ======================================================================
   File "eternal_tyvars_reject_handler.mlt", line 12, characters 48-49:
   12 | run handle (perform Op (); (fun () -> ())) with h (fun () -> ())
                                                        ^
-  Typing error: Type `unit → unit` is not eternal, as required by the type of `h`
+  Typing error: `unit → unit` is not eternal, but `h` needs the type of `x` to be eternal
     File "eternal_tyvars_reject_handler.mlt", line 9, characters 0-70:
     9 | let h x = handler | y -> y | Op p k -> let r = continue k with () in x
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     `h` is defined here
-    File "eternal_tyvars_reject_handler.mlt", line 9, characters 69-70:
-    9 | let h x = handler | y -> y | Op p k -> let r = continue k with () in x
-                                                                             ^
-    because of this use inside `h`
     File "eternal_tyvars_reject_handler.mlt", line 9, characters 6-7:
     9 | let h x = handler | y -> y | Op p k -> let r = continue k with () in x
               ^
@@ -646,21 +642,21 @@
     9 | let h x = handler | y -> y | Op p k -> let r = continue k with () in x
                                                        ^^^^^^^^^^^^^^^^^^
     this computation runs here (grade `ρ₀`)
+    File "eternal_tyvars_reject_handler.mlt", line 9, characters 69-70:
+    9 | let h x = handler | y -> y | Op p k -> let r = continue k with () in x
+                                                                             ^
+    `x` is used here after grade `ρ₀` has elapsed, which only an eternal type allows
   ======================================================================
   eternal_tyvars_reject_higher_order.mlt
   ======================================================================
   File "eternal_tyvars_reject_higher_order.mlt", line 9, characters 4-9:
   9 | run after (fun () -> delay 2) (fun () -> ())
           ^^^^^
-  Typing error: Type `unit → unit` is not eternal, as required by the type of `after`
+  Typing error: `unit → unit` is not eternal, but `after` needs the type of `x` to be eternal
     File "eternal_tyvars_reject_higher_order.mlt", line 5, characters 0-23:
     5 | let after g x = g (); x
         ^^^^^^^^^^^^^^^^^^^^^^^
     `after` is defined here
-    File "eternal_tyvars_reject_higher_order.mlt", line 5, characters 22-23:
-    5 | let after g x = g (); x
-                              ^
-    because of this use inside `after`
     File "eternal_tyvars_reject_higher_order.mlt", line 5, characters 12-13:
     5 | let after g x = g (); x
                     ^
@@ -669,6 +665,10 @@
     5 | let after g x = g (); x
                         ^^^^
     this computation runs here (grade `2`)
+    File "eternal_tyvars_reject_higher_order.mlt", line 5, characters 22-23:
+    5 | let after g x = g (); x
+                              ^
+    `x` is used here after grade `2` has elapsed, which only an eternal type allows
     Note: the resource inequality `2 <= 0` does not hold
   ======================================================================
   eternal_tyvars_reject_noneternal.mlt
@@ -676,15 +676,11 @@
   File "eternal_tyvars_reject_noneternal.mlt", line 11, characters 4-8:
   11 | run keep Token
            ^^^^
-  Typing error: Type `token` is not eternal, as required by the type of `keep`
+  Typing error: `token` is not eternal, but `keep` needs the type of `x` to be eternal
     File "eternal_tyvars_reject_noneternal.mlt", line 7, characters 0-23:
     7 | let keep x = delay 1; x
         ^^^^^^^^^^^^^^^^^^^^^^^
     `keep` is defined here
-    File "eternal_tyvars_reject_noneternal.mlt", line 7, characters 22-23:
-    7 | let keep x = delay 1; x
-                              ^
-    because of this use inside `keep`
     File "eternal_tyvars_reject_noneternal.mlt", line 7, characters 9-10:
     7 | let keep x = delay 1; x
                  ^
@@ -693,6 +689,10 @@
     7 | let keep x = delay 1; x
                      ^^^^^^^
     `delay 1` elapses here
+    File "eternal_tyvars_reject_noneternal.mlt", line 7, characters 22-23:
+    7 | let keep x = delay 1; x
+                              ^
+    `x` is used here after grade `1` has elapsed, which only an eternal type allows
   ======================================================================
   invalid_match_type.mlt
   ======================================================================
@@ -875,15 +875,11 @@
   File "noneternal_reject_unknown_grade.mlt", line 34, characters 19-23:
   34 | let hold_token g = hold g Token
                           ^^^^
-  Typing error: Type `token` is not eternal, as required by the type of `hold`
+  Typing error: `token` is not eternal, but `hold` needs the type of `y` to be eternal
     File "noneternal_reject_unknown_grade.mlt", lines 26-30, characters 0-3:
     26 | let hold g x =
          ^^^^^^^^^^^^^^
     `hold` is defined here
-    File "noneternal_reject_unknown_grade.mlt", line 30, characters 2-3:
-    30 |   y
-           ^
-    because of this use inside `hold`
     File "noneternal_reject_unknown_grade.mlt", line 27, characters 6-7:
     27 |   let y = x in
                ^
@@ -896,6 +892,10 @@
     29 |   delay 1;
            ^^^^^^^
     `delay 1` elapses here
+    File "noneternal_reject_unknown_grade.mlt", line 30, characters 2-3:
+    30 |   y
+           ^
+    `y` is used here after grade `ρ₀ + 1` has elapsed, which only an eternal type allows
     Note: grade `ρ₀ + 1` cannot be compared with `0`
   ======================================================================
   noneternal_type.mlt

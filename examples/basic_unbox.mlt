@@ -8,6 +8,7 @@
 
      Typing error: Variable `boxed` is unboxed after grade `4` has elapsed,
        which does not match its box grade `5`
+       Note: the resource inequality `4 >= 5` does not hold
 *)
 run
     let x = (10, 10) in

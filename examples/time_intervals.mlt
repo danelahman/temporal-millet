@@ -59,7 +59,9 @@ let foo5 () =
 (* Correctly rejected by the typechecker: five ticks overshoot the upper end of
    the (1, 4) interval the box demands:
 
-     Typing error: Comparing resource inequality (5,5) <= (1,4) failed
+     Typing error: Variable `r` is unboxed after grade `(5,5)` has elapsed,
+       which does not match its box grade `(1,4)`
+       Note: the resource inequality `(5,5) <= (1,4)` does not hold
 *)
 (*
 let foo6 () = 
@@ -73,8 +75,9 @@ let foo6 () =
    not eternal, so it cannot be used after the three ticks that follow its
    binding:
 
-     Typing error: Type [(1,4)]int is not eternal and resource inequality
-       (3,3) <= (0,0) failed
+     Typing error: Variable `r` is used after grade `(3,3)` has elapsed, but
+       its type `[(1,4)]int` is not eternal
+       Note: the resource inequality `(3,3) <= (0,0)` does not hold
 *)
 (*
 let foo7 () =

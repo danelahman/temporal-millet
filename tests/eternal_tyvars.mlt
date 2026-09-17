@@ -56,8 +56,8 @@ run handle (perform Op (); 5) with h 6
 
 (* Correctly rejected by the typechecker: a function is never eternal,
 
-     Typing error: Type unit → unit is not eternal, as required by the type
-       of keep
+     Typing error: `unit → unit` is not eternal, but `keep` needs the type of
+       `x` to be eternal
 *)
 (*
 run keep (fun () -> ())
@@ -65,7 +65,8 @@ run keep (fun () -> ())
 
 (* Correctly rejected by the typechecker: neither is a noneternal type,
 
-     Typing error: Type token is not eternal, as required by the type of keep
+     Typing error: `token` is not eternal, but `keep` needs the type of `x`
+       to be eternal
 *)
 (*
 run keep Token
@@ -74,8 +75,9 @@ run keep Token
 (* Correctly rejected by the typechecker: neither side of the disjunction
    holds,
 
-     Typing error: Type unit → unit is not eternal and resource inequality
-       2 <= 0 failed, as required by the type of after
+     Typing error: `unit → unit` is not eternal, but `after` needs the type
+       of `x` to be eternal
+       Note: the resource inequality `2 <= 0` does not hold
 *)
 (*
 run after (fun () -> delay 2) (fun () -> ())

@@ -62,6 +62,14 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let describe x =
     match var_name x with Some name -> name | None -> "this expression"
 
+  (* What a definition needs eternal, as "f needs ... to be eternal" continues.
+     A compiler-invented variable has no name to give, so the phrase says what
+     the definition holds on to instead. *)
+  let needed_eternal x =
+    match var_name x with
+    | Some name -> "the type of " ^ name
+    | None -> "the type it keeps across a delay"
+
   (* ------------------------------------------------------------------ *)
   (* Universally quantified continuation grades                          *)
   (* ------------------------------------------------------------------ *)
@@ -197,6 +205,48 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             | None -> "this value is bound " ^ here);
         ]
 
+  (* The use an eternality obligation began at, as [(use_at, var, bound_at,
+     elapsed)]: a scheme's eternality obligation always starts at a use after
+     time, and the [InstanceOf] levels only record which definitions it came
+     through. *)
+  let rec use_after_time (reason : reason) =
+    match reason.why with
+    | Ast.InstanceOf { inner; _ } -> use_after_time inner
+    | Ast.UseAfterTime { var; bound_at; elapsed } ->
+        Some (reason.at, var, bound_at, elapsed)
+    | _ -> None
+
+  (* The grades of [elapsed] as one sum, in source order, or [None] when there
+     are none; the printer simplifies it. *)
+  let total_elapsed = function
+    | [] -> None
+    | (rho, _, _) :: rest ->
+        Some
+          (List.fold_left
+             (fun acc (rho, _, _) -> Ast.RhoAdd (acc, rho))
+             rho rest)
+
+  (** The story of a use after time, in source order: where the variable was
+      bound, where the grade was spent, and the use itself. The use says what it
+      needs, because a headline built on it speaks of the definition instead. *)
+  let use_after_time_labels p ~elapsed:show_elapsed ~use_at var bound_at elapsed
+      =
+    let spent = if show_elapsed then elapsed_labels p elapsed else [] in
+    let total = if show_elapsed then total_elapsed elapsed else None in
+    let use =
+      match total with
+      | Some g when not (p.is_zero g) ->
+          Printf.sprintf
+            "%s is used %s after grade %s has elapsed, which only an eternal \
+             type allows"
+            (describe var) here (p.rho g)
+      | _ -> Printf.sprintf "%s is used %s" (describe var) here
+    in
+    List.stable_sort
+      (fun (l1 : Diagnostic.label) (l2 : Diagnostic.label) ->
+        Location.compare l1.span l2.span)
+      (binding_labels var (Some bound_at) @ spent @ [ label use_at use ])
+
   (** The related places a reason contributes: where a variable was bound, where
       time passed since, where an operation was declared, and the chain back
       into the definition that needs the constraint.
@@ -219,15 +269,21 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     | Ast.Unboxed { var; bound_at; elapsed } ->
         binding_labels var bound_at @ elapsed_labels elapsed
     | Ast.InstanceOf { var; defined_at; inner } ->
-        let name = describe var in
         let definition =
           match defined_at with
           | None -> []
-          | Some at -> [ label at (name ^ " is defined " ^ here) ]
+          | Some at -> [ label at (describe var ^ " is defined " ^ here) ]
         in
-        definition
-        @ [ label inner.at ("because of this use inside " ^ name) ]
-        @ labels_of_reason p ~elapsed inner
+        (* A chain of definitions lists them outermost first and then tells the
+           story of the use that started it all; the recursion does both. *)
+        let rest =
+          match inner.why with
+          | Ast.UseAfterTime { var; bound_at; elapsed = spent } ->
+              use_after_time_labels p ~elapsed ~use_at:inner.at var bound_at
+                spent
+          | _ -> labels_of_reason p ~elapsed inner
+        in
+        definition @ rest
     | Ast.HandlerCase { op; signature_at }
     | Ast.ContinuationGrade { op; signature_at }
     | Ast.PerformArgument { op; signature_at }
@@ -624,6 +680,18 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         ineq_failed_generic p ~rigids ~rs ~stated:(s1, s2) rho1 rho2 reason
           witness
 
+  (* An obligation inherited from a definition: the headline names the
+     definition it came from and what that definition needs eternal, and leaves
+     the constraint itself to the labels. *)
+  let instance_eternal p ty var inner =
+    match use_after_time inner with
+    | Some (_, x, _, _) ->
+        Printf.sprintf "%s is not eternal, but %s needs %s to be eternal"
+          (p.ty ty) (describe var) (needed_eternal x)
+    | None ->
+        Printf.sprintf "Type %s is not eternal, as required by the type of %s"
+          (p.ty ty) (describe var)
+
   let not_eternal p ty (reason : reason) =
     let t = p.ty ty in
     let message =
@@ -633,9 +701,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             "%s has type %s, which is not eternal, but is used after a grade \
              has elapsed"
             (subject var) t
-      | Ast.InstanceOf { var; _ } ->
-          Printf.sprintf "Type %s is not eternal, as required by the type of %s"
-            t (describe var)
+      | Ast.InstanceOf { var; inner; _ } -> instance_eternal p ty var inner
       | _ -> Printf.sprintf "Type %s is not eternal" t
     in
     fail ~loc:reason.at ~labels:(labels_of_reason p reason) ~notes:[] message
@@ -652,10 +718,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                eternal"
               (subject var) (p.rho s1) t,
             [ ineq_text p ~rigids rho1 rho2 witness ] )
-      | Ast.InstanceOf { var; _ } ->
-          ( Printf.sprintf
-              "Type %s is not eternal, as required by the type of %s" t
-              (describe var),
+      | Ast.InstanceOf { var; inner; _ } ->
+          ( instance_eternal p ty var inner,
             [ ineq_text p ~rigids rho1 rho2 witness ] )
       | _ ->
           ( Printf.sprintf "Type %s is not eternal and %s" t
@@ -678,10 +742,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                eternal and grade %s cannot be compared with %s"
               (subject var) g1 t g1 g2,
             [] )
-      | Ast.InstanceOf { var; _ } ->
-          ( Printf.sprintf
-              "Type %s is not eternal, as required by the type of %s" t
-              (describe var),
+      | Ast.InstanceOf { var; inner; _ } ->
+          ( instance_eternal p ty var inner,
             [ Printf.sprintf "grade %s cannot be compared with %s" g1 g2 ] )
       | _ ->
           ( Printf.sprintf

@@ -111,6 +111,7 @@ let h_abandon =
 
      Typing error: The continuation `k` in the case for `Get` may have any
        grade `ρ₀`, but here `ρ₀` is required to equal `0`
+       Note: while matching `unit → β # ρ₁ + ρ₂` against `unit → α`
 *)
 (*
 let h_fixed =

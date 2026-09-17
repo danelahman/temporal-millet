@@ -22,7 +22,9 @@ let foo2 () =
 (* Correctly rejected by the typechecker: four ticks overrun the three the box
    allows:
 
-     Typing error: Comparing resource inequality 4 <= 3 failed
+     Typing error: Variable `r` is unboxed after grade `4` has elapsed, which
+       does not match its box grade `3`
+       Note: the resource inequality `4 <= 3` does not hold
 *)
 (*
 let foo3 () = 
