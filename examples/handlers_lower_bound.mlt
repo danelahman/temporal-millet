@@ -55,6 +55,15 @@ let h_twice =
       let y = continue k with 42 in
       continue k with y
 
+(* Correctly accepted by the typechecker: 'n' is bound outside the handler,
+   but an int is eternal, so the case may use it however late it runs. *)
+let h_offset n =
+  handler
+  | x -> x + n
+  | Get () k ->
+      delay 71;
+      continue k with n
+
 (* Correctly rejected by the typechecker: the continuation may be resumed
    only once 71 ticks have passed since the call, but this clause delays
    only 70:
@@ -120,6 +129,23 @@ let h_fixed =
   | Get () k -> (fun () -> let f = continue k with 42 in f ())
 *)
 
+(* Correctly rejected by the typechecker: 'f' is bound outside the handler
+   like 'n' above, but a function is never eternal, so the case may not use
+   it:
+
+     Typing error: Variable `f` has type `unit → int # ρ₀`, which is not
+       eternal, so it cannot be used in the case for `Get`: the case runs at
+       a time the handler does not fix
+*)
+(*
+let h_helper f =
+  handler
+  | x -> x
+  | Get () k ->
+      delay 71;
+      continue k with (f ())
+*)
+
 (* Correctly rejected by the typechecker: a case keeps nothing but eternal
    types from outside it, and g is a function. Were it admitted, the
    continuation's arbitrary grade would escape into the type of h_leak
@@ -146,6 +172,14 @@ run
     let x = perform Get () in
     return x + 3
   with h_twice
+
+(* The run handles a 'Get' with 'h_offset 10': the case resumes with the
+   captured 10 and the return case adds it again, so the run returns 23. *)
+run
+  handle
+    let x = perform Get () in
+    return x + 3
+  with h_offset 10
 
 (* The run handles a 'Get' with 'h', whose return case then performs a 'Set';
    the 'Set' clause forwards it and nothing outside catches it, so the run

@@ -32,6 +32,15 @@ let h_fast =
       delay 10;
       continue k with 42
 
+(* Correctly accepted by the typechecker: 'n' is bound outside the handler,
+   but an int is eternal, so the case may use it however late it runs. *)
+let h_offset n =
+  handler
+  | x -> x
+  | Get () k ->
+      delay 10;
+      continue k with n
+
 (* Correctly rejected by the typechecker: 72 ticks overrun the 71 the
    continuation must be resumed within:
 
@@ -149,3 +158,11 @@ run
     let x = perform Get () in
     return x + 3
   with h_before
+
+(* The run handles a 'Get' with 'h_offset 39', whose case resumes with the
+   captured 39, so the run returns 42. *)
+run
+  handle
+    let x = perform Get () in
+    return x + 3
+  with h_offset 39
