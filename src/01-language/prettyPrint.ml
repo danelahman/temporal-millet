@@ -326,11 +326,13 @@ let print_vars_and_tys rho_module rho_of print_var_and_ty lst ppf =
         print_rho rho_module rho_pp (rho_of n) ppf;
         Print.print ppf "\n";
         print_list rest
+    (* A barrier has nothing to print: it carries no binding and no grade. *)
+    | Barrier _ :: rest -> print_list rest
   in
   print_list (List.rev lst)
 
 let print_vars_and_exprs rho_module print_var_and_expr
-    (lst : ('var, 'map, 'rho) Ast.context_elem_ty list) ppf =
+    (lst : ('var, 'map, 'rho, 'bar) Ast.context_elem_ty list) ppf =
   let print_var_map map ppf =
     let elements = VariableMap.bindings map in
     Format.fprintf ppf "@[<hv 2>{ ";
@@ -350,8 +352,12 @@ let print_vars_and_exprs rho_module print_var_and_expr
     | Rho n ->
         let rho_pp = RhoPrintParam.create () in
         print_rho rho_module rho_pp n ppf
+    | Barrier _ -> ()
   in
-  let elems = List.rev lst in
+  (* A barrier has nothing to print: it carries no binding and no grade. *)
+  let elems =
+    List.filter (function Barrier _ -> false | _ -> true) (List.rev lst)
+  in
   match elems with
   | [] -> Format.fprintf ppf "State: []@\n"
   | _ ->

@@ -1,0 +1,15 @@
+(* Run this test with the default 'time-lower-bound' grading monoid, e.g.
+
+     ./temporal-millet tests/op_case_context_reject_unbox.mlt *)
+
+operation Op : unit ~> int # 0
+
+(* Correctly rejected by the typechecker: unboxing is a use like any other, and
+   a box type is never eternal, so a box bound outside the case cannot be
+   opened inside it. *)
+let h b =
+  handler
+  | x -> x
+  | Op p k ->
+      unbox b as v in
+      continue k with v

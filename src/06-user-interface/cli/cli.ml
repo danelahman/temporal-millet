@@ -21,14 +21,15 @@ let user_defined_variables ~stdlib_vars ~final_vars =
   let in_stdlib var =
     List.exists
       (function
-        | Ast.VarMap m -> Ast.VariableMap.mem var m | Ast.Rho _ -> false)
+        | Ast.VarMap m -> Ast.VariableMap.mem var m
+        | Ast.Rho _ | Ast.Barrier _ -> false)
       stdlib_vars
   in
   List.map
     (function
       | Ast.VarMap m ->
           Ast.VarMap (Ast.VariableMap.filter (fun k _ -> not (in_stdlib k)) m)
-      | Ast.Rho _ as r -> r)
+      | (Ast.Rho _ | Ast.Barrier _) as r -> r)
     final_vars
 
 type config = {

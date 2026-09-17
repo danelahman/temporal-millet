@@ -4,8 +4,8 @@
 
 operation Op : unit ~> unit # 1
 
-(* The grade of the continuation k is arbitrary, so x, used after continuing,
-   must be eternal: h gets the type {eternal α} α → (α # ρ₀ ⇒ α # ρ₁). *)
+(* An operation case keeps only eternal types from outside it, so x must be
+   eternal: h gets the type {eternal α} α → (α # ρ₀ ⇒ α # ρ₁). *)
 let h x = handler | y -> y | Op p k -> let r = continue k with () in x
 
 (* Correctly rejected by the typechecker: a function is never eternal. *)

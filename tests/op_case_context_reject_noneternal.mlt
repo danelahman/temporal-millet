@@ -1,0 +1,15 @@
+(* Run this test with the default 'time-lower-bound' grading monoid, e.g.
+
+     ./temporal-millet tests/op_case_context_reject_noneternal.mlt *)
+
+(* A single-use token, fixed to be non-eternal whatever its structure. *)
+noneternal type token = Token
+
+operation Op : unit ~> token # 0
+
+(* Correctly rejected by the typechecker: 't' is bound outside the case, and a
+   token is not eternal, so the case may not resume with it. *)
+let h t =
+  handler
+  | x -> x
+  | Op p k -> continue k with t

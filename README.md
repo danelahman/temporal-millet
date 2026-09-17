@@ -161,10 +161,10 @@ get the types `{eternal α} α → α # 1` and
 `keep 5` is accepted, `keep (fun () -> ())` is rejected, and
 `after (fun () -> delay 2) 5` is accepted because `5` is eternal, while
 `after (fun () -> ()) (fun () -> ())` is accepted because the grade of `g` is
-zero. Only a constraint on a variable of the definition's type is kept: a
-grade of a handler continuation is arbitrary, so a local variable used after
-`continue` must be eternal outright, and a variable occurring in no exported
-type is instantiated as the constraint needs. See
+zero. Only a constraint on a variable of the definition's type is kept: an
+operation case runs at a time the handler does not fix, so a local variable
+captured anywhere in a case must be eternal outright, and a variable occurring
+in no exported type is instantiated as the constraint needs. See
 [`examples/eternal_types.mlt`](examples/eternal_types.mlt) and the end of
 [`examples/3dprint_traces.mlt`](examples/3dprint_traces.mlt).
 
@@ -271,10 +271,46 @@ Resuming twice under `Op # 1` fails likewise under an upper bound, since
 accepted, as `rho >= 0` always holds.
 
 Nested handlers quantify over one grade per case, and a message names the
-continuation each grade belongs to, so that an inner case whose constraint
-mentions the outer continuation's grade can be read.
+continuation each grade belongs to, so that a constraint mentioning several of
+them can be read.
 
-See [`examples/handlers_lower_bound.mlt`](examples/handlers_lower_bound.mlt),
+### The context of an operation case
+
+An operation case runs at a time the handler does not fix: the call may come
+at any point of the handled computation, and the case must be well-typed for
+every grade its continuation may have. So a case is checked not in the ambient
+context but in its *eternal restriction* — of the variables bound outside the
+case only those of eternal type survive, and the grades accumulated before it
+are erased. Using a variable of non-eternal type inside a case is rejected
+outright, whatever the grades are:
+
+    Variable `f` has type `unit → int # ρ₀`, which is not eternal, so it
+    cannot be used in the case for `Op`: the case runs at a time the handler
+    does not fix
+
+The case's own `p` and `k`, and everything bound inside it, are unaffected:
+they obey the usual rule that a non-eternal variable may not be used once a
+grade has elapsed. When the type is a type variable the obligation becomes a
+qualifier of the definition's scheme, as above, so
+`let h x = handler | y -> y | Op p k -> let r = continue k with () in x` gets
+the type `{eternal α} α → (α # ρ₀ ⇒ α # ρ₁)`, usable at `int` and not at
+`unit -> unit`.
+
+A continuation is a box, and a box type is never eternal, so an inner case
+cannot resume an outer handler's continuation: in nested handlers each case
+resumes its own continuation, and the outer one is resumed after the inner
+`handle` returns. The same restriction stops a rigid continuation grade
+escaping into the type of a definition through a captured function, for which
+the check above is now only a safety net.
+
+Top-level definitions are exempt: they are closed, time-invariant values, so
+they stay in scope inside a case whatever their type. This is a deliberate
+deviation from the formalisation, where the restriction applies to the whole
+context.
+
+See [`tests/op_case_context.mlt`](tests/op_case_context.mlt) and the
+`tests/op_case_context_reject_*.mlt` files, and
+[`examples/handlers_lower_bound.mlt`](examples/handlers_lower_bound.mlt),
 [`examples/handlers_upper_bound.mlt`](examples/handlers_upper_bound.mlt),
 [`examples/handlers_nested.mlt`](examples/handlers_nested.mlt),
 [`examples/handlers_nested_reject.mlt`](examples/handlers_nested_reject.mlt)

@@ -103,8 +103,8 @@ run after (fun () -> ()) (fun () -> ())
 run after (fun () -> delay 2) (fun () -> ())
 *)
 
-(* The grade of a handler's continuation is arbitrary, so a variable used
-   after continuing must be eternal outright: h gets the type
+(* An operation case runs at a time the handler does not fix, so a variable
+   captured anywhere in a case must be eternal outright: h gets the type
    {eternal α} α → α # ρ ⇒ α # 0. *)
 operation Tick : unit ~> unit # 1
 
@@ -113,8 +113,8 @@ let h x = handler | y -> y | Tick p k -> let r = continue k with () in x
 (* Correctly accepted by the typechecker: an int is eternal. *)
 run handle (perform Tick (); 1) with h 2
 
-(* Correctly rejected by the typechecker: a function is not, and the grade of
-   the continuation does not decide it, whatever it is:
+(* Correctly rejected by the typechecker: a function is not, whatever the
+   case does with it:
 
      Typing error: `unit → unit` is not eternal, but `h` needs the type of
        `x` to be eternal

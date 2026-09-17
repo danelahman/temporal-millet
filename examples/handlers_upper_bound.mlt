@@ -107,13 +107,14 @@ let h_after =
       f () + y
 *)
 
-(* Correctly rejected by the typechecker: the continuation's arbitrary grade
-   would escape into the type of 'h_leak' through 'g', where a caller could
-   pick it:
+(* Correctly rejected by the typechecker: a case keeps nothing but eternal
+   types from outside it, and 'g' is a function. Were it admitted, the
+   continuation's arbitrary grade would escape into the type of 'h_leak'
+   through 'g', where a caller could pick it:
 
-     Typing error: The type `([71](int → α # ρ₀) → β # ρ₁) → α # ρ₂ ⇒ α # 0`
-       of `h_leak` mentions `ρ₀`, the grade of the continuation `k` in the
-       case for `Get`, which may be any grade and so cannot occur in it
+     Typing error: Variable `g` has type `[71](int → α # ρ₀) → β # ρ₁`, which
+       is not eternal, so it cannot be used in the case for `Get`: the case
+       runs at a time the handler does not fix
 *)
 (*
 let h_leak g =

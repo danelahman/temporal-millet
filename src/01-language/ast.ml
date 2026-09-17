@@ -122,6 +122,16 @@ type 'a why =
   | HandlerCase of { op : operation; signature_at : Location.t }
   | ContinuationGrade of { op : operation; signature_at : Location.t }
       (** the case's grade ≾ the grade of [Op] plus the continuation's *)
+  | OpCaseCapture of {
+      var : variable;
+      bound_at : Location.t;
+      op : operation;
+      signature_at : Location.t;
+      case_at : Location.t;
+      elapsed : ('a rho * Location.t * elapsed_kind) list;
+    }
+      (** a variable bound outside the case for [op] is used inside it, where
+          only an eternal type survives *)
   | PerformArgument of { op : operation; signature_at : Location.t }
   | PerformContinuation of { op : operation; signature_at : Location.t }
   | HandleWith  (** at = the handler expression of a [handle] *)
@@ -272,8 +282,16 @@ type 'a plain_command =
   | TopDo of 'a computation
 
 type 'a command = 'a plain_command located
-type ('var, 'map, 'rho) context_elem_ty = VarMap of 'map | Rho of 'rho
-type ('var, 'map, 'rho) context = ('var, 'map, 'rho) context_elem_ty list
+
+(* [Barrier] marks where an operation case restricts the ambient context. It
+   carries no grade and takes no part in the grade arithmetic. *)
+type ('var, 'map, 'rho, 'bar) context_elem_ty =
+  | VarMap of 'map
+  | Rho of 'rho
+  | Barrier of 'bar
+
+type ('var, 'map, 'rho, 'bar) context =
+  ('var, 'map, 'rho, 'bar) context_elem_ty list
 
 let rec substitute_rho subst = function
   | (RhoConst _ | RhoRigid _) as rho -> rho
@@ -320,6 +338,7 @@ let rec substitute_reason rho_subst reason =
     match reason.why with
     | Unboxed u -> Unboxed { u with elapsed = elapsed u.elapsed }
     | UseAfterTime u -> UseAfterTime { u with elapsed = elapsed u.elapsed }
+    | OpCaseCapture u -> OpCaseCapture { u with elapsed = elapsed u.elapsed }
     | InstanceOf i ->
         InstanceOf { i with inner = substitute_reason rho_subst i.inner }
     | why -> why

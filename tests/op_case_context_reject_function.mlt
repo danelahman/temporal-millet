@@ -1,0 +1,14 @@
+(* Run this test with the default 'time-lower-bound' grading monoid, e.g.
+
+     ./temporal-millet tests/op_case_context_reject_function.mlt *)
+
+operation Op : unit ~> int # 0
+
+(* Correctly rejected by the typechecker: 'f' is bound outside the case, whose
+   context keeps nothing but eternal types, and a function is never eternal. *)
+let h f =
+  handler
+  | x -> x
+  | Op p k ->
+      let v = f () in
+      continue k with v

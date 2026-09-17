@@ -7,14 +7,17 @@ module type S = sig
   type var
   type base
   type elapsed
+  type barrier
   type 'a map_or_rho
   type 'a t
 
   val empty : 'a t
   val add_temp : elapsed -> 'a t -> 'a t
   val add_variable : var -> 'a -> 'a t -> 'a t
+  val add_barrier : barrier -> 'a t -> 'a t
   val find_variable : var -> 'a t -> 'a
   val find_variable_opt : var -> 'a t -> 'a option
+  val barrier_after : var -> 'a t -> barrier option
   val sum_rhos_added_after : var -> 'a t -> base rho
   val elapsed_after : var -> 'a t -> elapsed list
   val abstract_rho_sum : 'a t -> base rho
@@ -26,7 +29,9 @@ end
     as it is and only ever reads a grade out of: the interpreter needs the grade
     alone, while the typechecker also remembers where it came from, so that an
     error can point at the [delay], [perform] or sequenced computation that
-    spent it. *)
+    spent it. [Barrier] is a payload of the same kind, stored at the point an
+    operation case restricts the context and never read by the context itself.
+*)
 module Make
     (Variable : Symbol.S)
     (VariableMap : Map.S with type key = Variable.t)
@@ -35,14 +40,18 @@ module Make
       type t
 
       val rho : t -> Base.t rho
+    end)
+    (Barrier : sig
+      type t
     end) =
 struct
   type var = Variable.t
   type base = Base.t
   type base_rho = base rho
   type elapsed = Elapsed.t
-  type 'a map_or_rho = (var, 'a VariableMap.t, elapsed) context_elem_ty
-  type 'a t = (var, 'a VariableMap.t, elapsed) context
+  type barrier = Barrier.t
+  type 'a map_or_rho = (var, 'a VariableMap.t, elapsed, barrier) context_elem_ty
+  type 'a t = (var, 'a VariableMap.t, elapsed, barrier) context
 
   let empty : 'a t = []
 
@@ -50,6 +59,8 @@ struct
     match Elapsed.rho n with
     | RhoConst z when z = Base.zero -> lst
     | _ -> Rho n :: lst
+
+  let add_barrier (b : barrier) (lst : 'a t) : 'a t = Barrier b :: lst
 
   let add_variable (key : var) (value : 'a) (lst : 'a t) : 'a t =
     match lst with
@@ -68,7 +79,7 @@ struct
           match VariableMap.find_opt key map with
           | Some v -> v
           | None -> find rest)
-      | Rho _ :: rest -> find rest
+      | (Rho _ | Barrier _) :: rest -> find rest
     in
     find lst
 
@@ -79,9 +90,25 @@ struct
           match VariableMap.find_opt key map with
           | Some v -> Some v
           | None -> find rest)
-      | Rho _ :: rest -> find rest
+      | (Rho _ | Barrier _) :: rest -> find rest
     in
     find lst
+
+  (** [barrier_after key lst] is the outermost barrier standing between the
+      binding of [key] and the front of [lst], if any: walking front-to-binding
+      meets it last. *)
+  let barrier_after (key : var) (lst : 'a t) : barrier option =
+    let rec go outermost = function
+      | [] ->
+          raise (VariableNotFound (Format.asprintf "%t" (Variable.print key)))
+      | Barrier b :: rest -> go (Some b) rest
+      | Rho _ :: rest -> go outermost rest
+      | VarMap map :: rest -> (
+          match VariableMap.find_opt key map with
+          | Some _ -> outermost
+          | None -> go outermost rest)
+    in
+    go None lst
 
   (** [sum_rhos_added_after key lst] is the sum of the resource grades recorded
       in [lst] since [key] was bound. The context is kept most-recent-first, so
@@ -95,6 +122,7 @@ struct
       | [] ->
           raise (VariableNotFound (Format.asprintf "%t" (Variable.print key)))
       | Rho t :: rest -> go (Ast.RhoAdd (Elapsed.rho t, acc)) rest
+      | Barrier _ :: rest -> go acc rest
       | VarMap map :: rest -> (
           match VariableMap.find_opt key map with
           | Some _ -> acc
@@ -110,6 +138,7 @@ struct
       | [] ->
           raise (VariableNotFound (Format.asprintf "%t" (Variable.print key)))
       | Rho t :: rest -> go (t :: acc) rest
+      | Barrier _ :: rest -> go acc rest
       | VarMap map :: rest -> (
           match VariableMap.find_opt key map with
           | Some _ -> acc
@@ -123,7 +152,7 @@ struct
     let rec sum acc = function
       | [] -> acc
       | Rho t :: rest -> sum (RhoAdd (Elapsed.rho t, acc)) rest
-      | VarMap _ :: rest -> sum acc rest
+      | (VarMap _ | Barrier _) :: rest -> sum acc rest
     in
     sum (RhoConst Base.zero) lst
 

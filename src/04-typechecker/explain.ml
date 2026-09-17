@@ -194,6 +194,13 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         else Some (label at (elapsed_text p rho kind)))
       elapsed
 
+  (* Labels a reader meets in the order the program reads. *)
+  let in_span_order labels =
+    List.stable_sort
+      (fun (l1 : Diagnostic.label) (l2 : Diagnostic.label) ->
+        Location.compare l1.span l2.span)
+      labels
+
   let binding_labels x bound_at =
     match bound_at with
     | None -> []
@@ -212,7 +219,8 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
   let rec use_after_time (reason : reason) =
     match reason.why with
     | Ast.InstanceOf { inner; _ } -> use_after_time inner
-    | Ast.UseAfterTime { var; bound_at; elapsed } ->
+    | Ast.UseAfterTime { var; bound_at; elapsed }
+    | Ast.OpCaseCapture { var; bound_at; elapsed; _ } ->
         Some (reason.at, var, bound_at, elapsed)
     | _ -> None
 
@@ -242,9 +250,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             (describe var) here (p.rho g)
       | _ -> Printf.sprintf "%s is used %s" (describe var) here
     in
-    List.stable_sort
-      (fun (l1 : Diagnostic.label) (l2 : Diagnostic.label) ->
-        Location.compare l1.span l2.span)
+    in_span_order
       (binding_labels var (Some bound_at) @ spent @ [ label use_at use ])
 
   (** The related places a reason contributes: where a variable was bound, where
@@ -268,6 +274,12 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         binding_labels var (Some bound_at) @ elapsed_labels elapsed
     | Ast.Unboxed { var; bound_at; elapsed } ->
         binding_labels var bound_at @ elapsed_labels elapsed
+    | Ast.OpCaseCapture { var; bound_at; op; signature_at; case_at; elapsed } ->
+        in_span_order
+          (label signature_at
+             ("operation " ^ op_name op ^ " is declared " ^ here)
+          :: label case_at ("the case for " ^ op_name op ^ " begins " ^ here)
+          :: (binding_labels var (Some bound_at) @ elapsed_labels elapsed))
     | Ast.InstanceOf { var; defined_at; inner } ->
         let definition =
           match defined_at with
@@ -281,6 +293,16 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           | Ast.UseAfterTime { var; bound_at; elapsed = spent } ->
               use_after_time_labels p ~elapsed ~use_at:inner.at var bound_at
                 spent
+          | Ast.OpCaseCapture { var; op; _ } ->
+              (* The capture itself is inside the definition, so the use needs
+                 a label of its own here. *)
+              in_span_order
+                (labels_of_reason p ~elapsed inner
+                @ [
+                    label inner.at
+                      (describe var ^ " is used " ^ here ^ ", in the case for "
+                     ^ op_name op);
+                  ])
           | _ -> labels_of_reason p ~elapsed inner
         in
         definition @ rest
@@ -701,10 +723,20 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
             "%s has type %s, which is not eternal, but is used after a grade \
              has elapsed"
             (subject var) t
+      | Ast.OpCaseCapture { var; op; _ } ->
+          Printf.sprintf
+            "%s has type %s, which is not eternal, so it cannot be used in the \
+             case for %s: the case runs at a time the handler does not fix"
+            (subject var) t (op_name op)
       | Ast.InstanceOf { var; inner; _ } -> instance_eternal p ty var inner
       | _ -> Printf.sprintf "Type %s is not eternal" t
     in
-    fail ~loc:reason.at ~labels:(labels_of_reason p reason) ~notes:[] message
+    let notes =
+      match (reason.why, ty) with
+      | Ast.OpCaseCapture _, Ast.TyBox _ -> [ "a box type is never eternal" ]
+      | _ -> []
+    in
+    fail ~loc:reason.at ~labels:(labels_of_reason p reason) ~notes message
 
   (** A disjunction [eternal τ ∨ ρ₁ ≾ ρ₂] with both sides refuted. *)
   let eternal_or_ineq_failed p ~rigids ty rho1 rho2 (reason : reason) witness =

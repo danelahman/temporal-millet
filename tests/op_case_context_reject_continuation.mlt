@@ -1,0 +1,25 @@
+(* Run this test with the default 'time-lower-bound' grading monoid, e.g.
+
+     ./temporal-millet tests/op_case_context_reject_continuation.mlt *)
+
+operation Op1 : unit ~> unit # 0
+operation Op2 : unit ~> unit # 0
+
+(* Correctly rejected by the typechecker: the outer continuation 'k' is bound
+   outside the inner case, and a continuation is a box, which is never
+   eternal; the grades would allow the resumption, only the context does not. *)
+let h =
+  handler
+  | x -> x
+  | Op1 p k ->
+      handle
+        perform Op2 ();
+        continue k with ()
+      with
+        (handler
+         | y -> y
+         | Op2 q k' ->
+             let a = continue k' with () in
+             continue k with ())
+
+run handle (perform Op1 (); 7) with h

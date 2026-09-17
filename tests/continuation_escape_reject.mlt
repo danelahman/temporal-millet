@@ -4,8 +4,10 @@
 
 operation Op : unit ~> unit # 1
 
-(* Correctly rejected by the typechecker: the grade of k would escape into
-   the type of h through g, and a use of h could then instantiate it. *)
+(* Correctly rejected by the typechecker: g is bound outside the case, whose
+   context keeps nothing but eternal types, and a function is never eternal.
+   Were g admitted, the grade of k would escape into the type of h through it,
+   which the rigid-escape check catches as a safety net. *)
 let h g = handler | x -> x | Op p k -> g k; delay 1; continue k with ()
 
 run handle (perform Op (); delay 5; 3) with h

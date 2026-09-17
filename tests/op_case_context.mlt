@@ -1,0 +1,32 @@
+(* Run this test with the default 'time-lower-bound' grading monoid, e.g.
+
+     ./temporal-millet tests/op_case_context.mlt
+
+   An operation case is checked in the eternal restriction of the ambient
+   context: a variable bound outside the case survives only if its type is
+   eternal. 'Op' takes no time, so nothing but that restriction can fail. *)
+
+operation Op : int ~> int # 0
+
+type stamp = Stamp of int
+
+(* A top-level definition is a closed, time-invariant value, so it stays in
+   scope inside a case whatever its type. *)
+let double x = 2 * x
+
+(* Correctly accepted by the typechecker: the case uses its own 'p' and 'k',
+   the captured int 'n', the captured stamp 's' of eternals, and the
+   top-level 'double'. *)
+let h n s =
+  handler
+  | x -> x
+  | Op p k ->
+      let (Stamp i) = s in
+      continue k with (double (p + n + i))
+
+(* The run performs 'Op' with 1, so the case resumes with 2 * (1 + 2 + 3). *)
+run
+  handle
+    let v = perform Op 1 in
+    return v
+  with h 2 (Stamp 3)

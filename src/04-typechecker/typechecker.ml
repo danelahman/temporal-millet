@@ -23,9 +23,20 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     let rho e = e.rho
   end
 
+  (* The case an operation-case barrier belongs to, so that a message about a
+     variable captured across it can name the case and the operation. *)
+  module Barrier = struct
+    type t = {
+      op : Ast.operation;
+      signature_at : Location.t;
+      case_at : Location.t;
+    }
+  end
+
   module ContextHolderModule =
     Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (ResourceGrade)
       (Elapsed)
+      (Barrier)
 
   module P = Primitives.Make (ResourceGrade)
 
@@ -266,6 +277,16 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
     in
     { state with variables = updated_variables }
 
+  (* An operation case is checked in the eternal restriction of the ambient
+     context; the barrier marks where that restriction begins. *)
+  let extend_op_case_barrier state ~op ~signature_at ~case_at =
+    let updated_variables =
+      ContextHolderModule.add_barrier
+        { Barrier.op; signature_at; case_at }
+        state.variables
+    in
+    { state with variables = updated_variables }
+
   (* The grades accumulated since [x] was bound, oldest first, each with where
      it was spent: a label is only printed once its grade is known not to be
      zero, and here most of them are still unsolved parameters. *)
@@ -409,24 +430,39 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
         let ty = scheme.Ast.ty in
         let use_constrs =
           match scope with
-          | Local ->
+          | Local -> (
+              let binder_at = Option.value bound_at ~default:e.at in
+              let elapsed = elapsed_after x state in
+              match ContextHolderModule.barrier_after x state.variables with
+              (* Captured from outside an operation case: nothing but an
+                 eternal type survives the case's restricted context. *)
+              | Some { Barrier.op; signature_at; case_at } ->
+                  let why =
+                    Ast.OpCaseCapture
+                      {
+                        var = x;
+                        bound_at = binder_at;
+                        op;
+                        signature_at;
+                        case_at;
+                        elapsed;
+                      }
+                  in
+                  [ Ast.Eternal (ty, because e.at why) ]
               (* A local variable may be used only if its type is eternal or
                  nothing has elapsed since it was bound. *)
-              let why =
-                Ast.UseAfterTime
-                  {
-                    var = x;
-                    bound_at = Option.value bound_at ~default:e.at;
-                    elapsed = elapsed_after x state;
-                  }
-              in
-              [
-                Ast.EternalOrIneq
-                  ( ty,
-                    ContextHolderModule.sum_rhos_added_after x state.variables,
-                    Ast.RhoConst ResourceGrade.zero,
-                    because e.at why );
-              ]
+              | None ->
+                  let why =
+                    Ast.UseAfterTime { var = x; bound_at = binder_at; elapsed }
+                  in
+                  [
+                    Ast.EternalOrIneq
+                      ( ty,
+                        ContextHolderModule.sum_rhos_added_after x
+                          state.variables,
+                        Ast.RhoConst ResourceGrade.zero,
+                        because e.at why );
+                  ])
           | Global -> []
         in
         let ty_subst = refreshing_ty_subst scheme.Ast.ty_params in
@@ -525,9 +561,14 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
                   Error.typing ~loc:case_at "Case for an unknown operation `%s`"
                     (Ast.OpName.string_of op)
               | Some (param_ty, arity_ty, op_rho, signature_at) ->
+                  (* The case runs at a time the handler does not fix, so it is
+                     checked in the eternal restriction of the context. *)
+                  let case_state =
+                    extend_op_case_barrier state ~op ~signature_at ~case_at
+                  in
                   let op_args_ty, Ast.CompTy (op_case_ty, op_case_rho), case_cs
                       =
-                    infer_abstraction state op_case
+                    infer_abstraction case_state op_case
                   in
                   (* The case must be well-typed for every grade of the
                      continuation, so that grade is rigid. *)
@@ -667,7 +708,7 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           | _ -> Error.typing ~loc:e'.Ast.at "Only a variable can be unboxed"
         in
         let x = find_var e in
-        let { scheme; scope = _; bound_at } =
+        let { scheme; scope; bound_at } =
           ContextHolderModule.find_variable x state.variables
         in
         let ty_subst = refreshing_ty_subst scheme.Ast.ty_params in
@@ -686,9 +727,33 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           because c.at
             (Ast.Unboxed { var = x; bound_at; elapsed = elapsed_after x state })
         in
+        (* Unboxing is a use like any other: across a case barrier it asks for
+           an eternal type, which a box type never is. Stated first, so that
+           the capture is reported before the box grade. *)
+        let capture =
+          match scope with
+          | Global -> []
+          | Local -> (
+              match ContextHolderModule.barrier_after x state.variables with
+              | None -> []
+              | Some { Barrier.op; signature_at; case_at } ->
+                  let why =
+                    Ast.OpCaseCapture
+                      {
+                        var = x;
+                        bound_at = Option.value bound_at ~default:c.at;
+                        op;
+                        signature_at;
+                        case_at;
+                        elapsed = elapsed_after x state;
+                      }
+                  in
+                  [ Ast.Eternal (boxed_ty, because c.at why) ])
+        in
         ( comp_ty,
           concat
             [
+              constrs capture;
               ty_eq r (Ast.TyBox (rho, value_ty)) boxed_ty;
               cs;
               ineq r sum_rhos_added_after rho;
@@ -1931,8 +1996,13 @@ module Make (ResourceGrade : Language.ResourceGrade.Grade) = struct
           | Some bounds -> Ast.RhoConst (ResourceGrade.of_bounds bounds)
           | None -> op_rho
         in
+        (* A default implementation is an operation case too, so the same
+           restriction applies; at the top level there is nothing to restrict. *)
+        let impl_state =
+          extend_op_case_barrier state ~op ~signature_at ~case_at:loc
+        in
         let arg_ty, CompTy (res_ty, impl_rho), cs =
-          infer_abstraction state abs
+          infer_abstraction impl_state abs
         in
         (* The two equations of a default share a reason, so the step that
            tells them apart is recorded in its path. *)

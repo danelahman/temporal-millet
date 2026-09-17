@@ -36,9 +36,15 @@ module Make (T : Language.ResourceGrade.Grade) = struct
     let rho r = r
   end
 
+  (* Operation-case barriers are a typing device; the interpreter builds none. *)
+  module Barrier = struct
+    type t = unit
+  end
+
   module ContextHolderModule =
     Context.Make (Ast.Variable) (Map.Make (Ast.Variable)) (ResourceGrade)
       (Elapsed)
+      (Barrier)
 
   module P = Primitives.Make (ResourceGrade)
   include Types

@@ -178,14 +178,22 @@
   ======================================================================
   continuation_escape_reject.mlt
   ======================================================================
-  File "continuation_escape_reject.mlt", line 9, characters 0-71:
-  9 | let h g = handler | x -> x | Op p k -> g k; delay 1; continue k with ()
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  Typing error: The type `([1](unit → α # ρ₀) → β) → α # ρ₁ ⇒ α # 0` of `h` mentions `ρ₀`, the grade of the continuation `k` in the case for `Op`, which may be any grade and so cannot occur in it
-    File "continuation_escape_reject.mlt", line 9, characters 34-35:
-    9 | let h g = handler | x -> x | Op p k -> g k; delay 1; continue k with ()
-                                          ^
-    `k` may have any grade `ρ₀`
+  File "continuation_escape_reject.mlt", line 11, characters 39-40:
+  11 | let h g = handler | x -> x | Op p k -> g k; delay 1; continue k with ()
+                                              ^
+  Typing error: Variable `g` has type `[1](unit → α # ρ₀) → β`, which is not eternal, so it cannot be used in the case for `Op`: the case runs at a time the handler does not fix
+    File "continuation_escape_reject.mlt", line 5, characters 0-31:
+    5 | operation Op : unit ~> unit # 1
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    operation `Op` is declared here
+    File "continuation_escape_reject.mlt", line 11, characters 6-7:
+    11 | let h g = handler | x -> x | Op p k -> g k; delay 1; continue k with ()
+               ^
+    `g` is bound here
+    File "continuation_escape_reject.mlt", line 11, characters 29-71:
+    11 | let h g = handler | x -> x | Op p k -> g k; delay 1; continue k with ()
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    the case for `Op` begins here
   ======================================================================
   continuation_fixed_reject.mlt
   ======================================================================
@@ -205,34 +213,38 @@
   ======================================================================
   continuation_nested_discard_reject_lower.mlt
   ======================================================================
-  File "continuation_nested_discard_reject_lower.mlt", line 21, characters 11-41:
-  21 |          | Op2 q k' -> continue k with ())
-                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  Typing error: For every grade `ρ₀` the continuation `k` may have and every grade `ρ₁` the continuation `k'` may have, the case for `Op2` must have a grade matching `3 + ρ₁`, but its grade `ρ₀` does not
+  File "continuation_nested_discard_reject_lower.mlt", line 21, characters 13-43:
+  21 |            | Op2 q k' -> delay 3; return ())
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  Typing error: For every grade `ρ₀` the continuation `k'` may have, the case for `Op2` must have a grade matching `3 + ρ₀`, but its grade `3` does not
     File "continuation_nested_discard_reject_lower.mlt", line 6, characters 0-32:
     6 | operation Op2 : unit ~> unit # 3
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     operation `Op2` is declared here
-    File "continuation_nested_discard_reject_lower.mlt", line 14, characters 10-11:
-    14 |   | Op1 p k ->
-                   ^
-    `k` may have any grade `ρ₀`
-    File "continuation_nested_discard_reject_lower.mlt", line 21, characters 17-19:
-    21 |          | Op2 q k' -> continue k with ())
-                          ^^
-    `k'` may have any grade `ρ₁`
-    Note: the resource inequality `∀ρ₀ ρ₁. ρ₀ >= ρ₁ + 3` does not hold: for `ρ₀ = 0` and `ρ₁ = 0` it becomes `0 >= 3`
+    File "continuation_nested_discard_reject_lower.mlt", line 21, characters 19-21:
+    21 |            | Op2 q k' -> delay 3; return ())
+                            ^^
+    `k'` may have any grade `ρ₀`
+    Note: the resource inequality `∀ρ₀. 0 >= ρ₀` does not hold: for `ρ₀ = 1` it becomes `0 >= 1`
   ======================================================================
   continuation_nested_escape_reject.mlt
   ======================================================================
-  File "continuation_nested_escape_reject.mlt", lines 10-20, characters 0-58:
-  10 | let h g =
-       ^^^^^^^^^
-  Typing error: The type `([1](unit → α # ρ₀) → β) → α # ρ₁ ⇒ α # 0` of `h` mentions `ρ₀`, the grade of the continuation `k'` in the case for `Op2`, which may be any grade and so cannot occur in it
-    File "continuation_nested_escape_reject.mlt", line 20, characters 17-19:
-    20 |          | Op2 q k' -> g k'; delay 1; continue k' with ())
-                          ^^
-    `k'` may have any grade `ρ₀`
+  File "continuation_nested_escape_reject.mlt", line 23, characters 23-24:
+  23 |          | Op2 q k' -> g k'; delay 1; continue k' with ())
+                              ^
+  Typing error: Variable `g` has type `[1](unit → α # ρ₀) → β`, which is not eternal, so it cannot be used in the case for `Op1`: the case runs at a time the handler does not fix
+    File "continuation_nested_escape_reject.mlt", line 5, characters 0-32:
+    5 | operation Op1 : unit ~> unit # 1
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    operation `Op1` is declared here
+    File "continuation_nested_escape_reject.mlt", line 13, characters 6-7:
+    13 | let h g =
+               ^
+    `g` is bound here
+    File "continuation_nested_escape_reject.mlt", lines 16-23, characters 4-58:
+    16 |   | Op1 p k ->
+             ^^^^^^^^^^
+    the case for `Op1` begins here
   ======================================================================
   continuation_nested_fixed_reject.mlt
   ======================================================================
@@ -252,23 +264,19 @@
   ======================================================================
   continuation_nested_twice_reject_upper.mlt
   ======================================================================
-  File "continuation_nested_twice_reject_upper.mlt", lines 21-24, characters 11-31:
-  21 |          | Op2 q k' ->
-                  ^^^^^^^^^^^
-  Typing error: For every grade `ρ₀` the continuation `k` may have and every grade `ρ₁` the continuation `k'` may have, the case for `Op2` must have a grade matching `1 + ρ₁`, but its grade `ρ₁ + ρ₁ + ρ₀` does not
+  File "continuation_nested_twice_reject_upper.mlt", lines 22-24, characters 13-34:
+  22 |            | Op2 q k' ->
+                    ^^^^^^^^^^^
+  Typing error: For every grade `ρ₀` the continuation `k'` may have, the case for `Op2` must have a grade matching `1 + ρ₀`, but its grade `ρ₀ + ρ₀` does not
     File "continuation_nested_twice_reject_upper.mlt", line 6, characters 0-32:
     6 | operation Op2 : unit ~> unit # 1
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     operation `Op2` is declared here
-    File "continuation_nested_twice_reject_upper.mlt", line 14, characters 10-11:
-    14 |   | Op1 p k ->
-                   ^
-    `k` may have any grade `ρ₀`
-    File "continuation_nested_twice_reject_upper.mlt", line 21, characters 17-19:
-    21 |          | Op2 q k' ->
-                          ^^
-    `k'` may have any grade `ρ₁`
-    Note: the resource inequality `∀ρ₀ ρ₁. ρ₀ + ρ₁ <= 1` does not hold: for `ρ₀ = 1` and `ρ₁ = 1` it becomes `2 <= 1`
+    File "continuation_nested_twice_reject_upper.mlt", line 22, characters 19-21:
+    22 |            | Op2 q k' ->
+                            ^^
+    `k'` may have any grade `ρ₀`
+    Note: the resource inequality `∀ρ₀. ρ₀ <= 1` does not hold: for `ρ₀ = 2` it becomes `2 <= 1`
   ======================================================================
   continuation_twice_lower.mlt
   ======================================================================
@@ -634,10 +642,18 @@
     9 | let h x = handler | y -> y | Op p k -> let r = continue k with () in x
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     `h` is defined here
+    File "eternal_tyvars_reject_handler.mlt", line 5, characters 0-31:
+    5 | operation Op : unit ~> unit # 1
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    operation `Op` is declared here
     File "eternal_tyvars_reject_handler.mlt", line 9, characters 6-7:
     9 | let h x = handler | y -> y | Op p k -> let r = continue k with () in x
               ^
     `x` is bound here
+    File "eternal_tyvars_reject_handler.mlt", line 9, characters 29-70:
+    9 | let h x = handler | y -> y | Op p k -> let r = continue k with () in x
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    the case for `Op` begins here
     File "eternal_tyvars_reject_handler.mlt", line 9, characters 47-65:
     9 | let h x = handler | y -> y | Op p k -> let r = continue k with () in x
                                                        ^^^^^^^^^^^^^^^^^^
@@ -645,7 +661,7 @@
     File "eternal_tyvars_reject_handler.mlt", line 9, characters 69-70:
     9 | let h x = handler | y -> y | Op p k -> let r = continue k with () in x
                                                                              ^
-    `x` is used here after grade `ρ₀` has elapsed, which only an eternal type allows
+    `x` is used here, in the case for `Op`
   ======================================================================
   eternal_tyvars_reject_higher_order.mlt
   ======================================================================
@@ -917,6 +933,116 @@
   1 | run let rec f x = f in f
                     ^^^^^
   Typing error: Cannot construct the infinite type `α = β → α`
+  ======================================================================
+  op_case_context.mlt
+  ======================================================================
+  === Run 1 ===
+  return 12
+  State: [
+    { resource_1 ↦
+        fun op_var ↦
+          handle
+            let v = return op_var in
+            return v
+          with handler
+               | return x ↦ return x
+               | Op (p, k) ↦
+                      let Stamp i = return (Stamp 3) in
+                      let b =
+                        (let b =
+                           (let b = (let b = (let b = (+) p in
+                                              b 2) in
+                                     (+) b) in
+                            b i) in
+                         double b) in
+                      unbox k as unbox_var in
+                      unbox_var b
+        # 0
+    }
+  ]
+  
+  ======================================================================
+  op_case_context_reject_continuation.mlt
+  ======================================================================
+  File "op_case_context_reject_continuation.mlt", line 23, characters 13-31:
+  23 |              continue k with ())
+                    ^^^^^^^^^^^^^^^^^^
+  Typing error: Variable `k` has type `[0](unit → α # ρ₀)`, which is not eternal, so it cannot be used in the case for `Op2`: the case runs at a time the handler does not fix
+    File "op_case_context_reject_continuation.mlt", line 6, characters 0-32:
+    6 | operation Op2 : unit ~> unit # 0
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    operation `Op2` is declared here
+    File "op_case_context_reject_continuation.mlt", line 14, characters 10-11:
+    14 |   | Op1 p k ->
+                   ^
+    `k` is bound here
+    File "op_case_context_reject_continuation.mlt", lines 21-23, characters 11-31:
+    21 |          | Op2 q k' ->
+                    ^^^^^^^^^^^
+    the case for `Op2` begins here
+    File "op_case_context_reject_continuation.mlt", line 22, characters 21-40:
+    22 |              let a = continue k' with () in
+                              ^^^^^^^^^^^^^^^^^^^
+    this computation runs here (grade `ρ₁`)
+    Note: a box type is never eternal
+  ======================================================================
+  op_case_context_reject_function.mlt
+  ======================================================================
+  File "op_case_context_reject_function.mlt", line 13, characters 14-15:
+  13 |       let v = f () in
+                     ^
+  Typing error: Variable `f` has type `unit → int # ρ₀`, which is not eternal, so it cannot be used in the case for `Op`: the case runs at a time the handler does not fix
+    File "op_case_context_reject_function.mlt", line 5, characters 0-30:
+    5 | operation Op : unit ~> int # 0
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    operation `Op` is declared here
+    File "op_case_context_reject_function.mlt", line 9, characters 6-7:
+    9 | let h f =
+              ^
+    `f` is bound here
+    File "op_case_context_reject_function.mlt", lines 12-14, characters 4-23:
+    12 |   | Op p k ->
+             ^^^^^^^^^
+    the case for `Op` begins here
+  ======================================================================
+  op_case_context_reject_noneternal.mlt
+  ======================================================================
+  File "op_case_context_reject_noneternal.mlt", line 15, characters 30-31:
+  15 |   | Op p k -> continue k with t
+                                     ^
+  Typing error: Variable `t` has type `token`, which is not eternal, so it cannot be used in the case for `Op`: the case runs at a time the handler does not fix
+    File "op_case_context_reject_noneternal.mlt", line 8, characters 0-32:
+    8 | operation Op : unit ~> token # 0
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    operation `Op` is declared here
+    File "op_case_context_reject_noneternal.mlt", line 12, characters 6-7:
+    12 | let h t =
+               ^
+    `t` is bound here
+    File "op_case_context_reject_noneternal.mlt", line 15, characters 4-31:
+    15 |   | Op p k -> continue k with t
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    the case for `Op` begins here
+  ======================================================================
+  op_case_context_reject_unbox.mlt
+  ======================================================================
+  File "op_case_context_reject_unbox.mlt", lines 14-15, characters 6-23:
+  14 |       unbox b as v in
+             ^^^^^^^^^^^^^^^
+  Typing error: Variable `b` has type `[ρ₀]int`, which is not eternal, so it cannot be used in the case for `Op`: the case runs at a time the handler does not fix
+    File "op_case_context_reject_unbox.mlt", line 5, characters 0-30:
+    5 | operation Op : unit ~> int # 0
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    operation `Op` is declared here
+    File "op_case_context_reject_unbox.mlt", line 10, characters 6-7:
+    10 | let h b =
+               ^
+    `b` is bound here
+    File "op_case_context_reject_unbox.mlt", lines 13-15, characters 4-23:
+    13 |   | Op p k ->
+             ^^^^^^^^^
+    the case for `Op` begins here
+    Note: a box type is never eternal
   ======================================================================
   orelse_andalso.mlt
   ======================================================================

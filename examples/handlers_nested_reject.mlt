@@ -6,20 +6,24 @@ operation Op1 : unit ~> unit # 2
 operation Op2 : unit ~> unit # 3
 
 (* Correctly rejected by the typechecker: 'examples/handlers_nested.mlt' with
-   one mistake, the inner case never resuming 'k'', so its grade is the outer
-   continuation's alone and misses the inner one's. *)
+   one mistake, the inner case never resuming 'k'', so its grade is the 3
+   ticks it delays alone and misses the inner continuation's. *)
 let h =
   handler
   | x -> x
   | Op1 p k ->
-      handle
-        perform Op2 ();
-        continue k with ()
-      with
-        (handler
-         | y -> y
-         | Op2 q k' ->
-             continue k with ())      (* <- k' is never resumed *)
+      let a =
+        handle
+          perform Op2 ();
+          return ()
+        with
+          (handler
+           | y -> y
+           | Op2 q k' ->
+               delay 3;
+               return ())      (* <- k' is never resumed *)
+      in
+      continue k with ()
 
 run
   handle

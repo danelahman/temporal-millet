@@ -31,7 +31,7 @@ let keep_pair x y = delay 1; (x, y)
 let twice_keep x = keep (keep x)
 
 (* Correctly accepted by the typechecker: a local variable of eternal type
-   survives the grade accumulated by continuing the handled computation. *)
+   may be captured by an operation case. *)
 operation Op : unit ~> unit # 1
 let h x = handler | y -> y | Op p k -> let r = continue k with () in x
 

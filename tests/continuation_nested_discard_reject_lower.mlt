@@ -5,19 +5,21 @@
 operation Op1 : unit ~> unit # 2
 operation Op2 : unit ~> unit # 3
 
-(* Correctly rejected by the typechecker: the inner case discards k' and only
-   resumes the outer k, so its grade is the outer continuation's alone and
-   misses the inner one's. *)
+(* Correctly rejected by the typechecker: the inner case discards k', so its
+   grade misses the inner continuation's. *)
 let h =
   handler
   | x -> x
   | Op1 p k ->
-      handle
-        perform Op2 ();
-        continue k with ()
-      with
-        (handler
-         | y -> y
-         | Op2 q k' -> continue k with ())
+      let a =
+        handle
+          perform Op2 ();
+          return ()
+        with
+          (handler
+           | y -> y
+           | Op2 q k' -> delay 3; return ())
+      in
+      continue k with ()
 
 run handle (perform Op1 (); 7) with h

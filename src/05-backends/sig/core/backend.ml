@@ -11,20 +11,23 @@ module type S = sig
       ( Ast.Variable.t,
         (ResourceGrade.t Ast.rho * ResourceGrade.t Ast.expression)
         Ast.VariableMap.t,
-        ResourceGrade.t Ast.rho )
+        ResourceGrade.t Ast.rho,
+        unit )
       Ast.context_elem_ty
       list;
     variables :
       ( Ast.Variable.t,
         ResourceGrade.t Ast.expression Ast.VariableMap.t,
-        ResourceGrade.t Ast.rho )
+        ResourceGrade.t Ast.rho,
+        unit )
       Ast.context_elem_ty
       list;
     builtin_functions :
       ( Ast.Variable.t,
         (ResourceGrade.t Ast.expression -> ResourceGrade.t Ast.computation)
         Ast.VariableMap.t,
-        ResourceGrade.t Ast.rho )
+        ResourceGrade.t Ast.rho,
+        unit )
       Ast.context_elem_ty
       list;
     resource_counter : int;
