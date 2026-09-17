@@ -146,6 +146,26 @@ let h_helper f =
       continue k with (f ())
 *)
 
+(* A single-use token, declared non-eternal whatever its structure. *)
+noneternal type token = Token
+
+(* Correctly rejected by the typechecker: 't' is bound outside the handler
+   and a token is declared noneternal, so the case may not use it:
+
+     Typing error: Variable `t` has type `token`, which is not eternal, so
+       it cannot be used in the case for `Get`: the case runs at a time the
+       handler does not fix
+*)
+(*
+let h_token t =
+  handler
+  | x -> x
+  | Get () k ->
+      delay 71;
+      let (Token) = t in
+      continue k with 42
+*)
+
 (* Correctly rejected by the typechecker: a case keeps nothing but eternal
    types from outside it, and g is a function. Were it admitted, the
    continuation's arbitrary grade would escape into the type of h_leak
