@@ -1,0 +1,7 @@
+(* Correctly rejected by the typechecker: unboxing reads off the grade that has
+   elapsed since the box was bound, so it needs a variable to look that up for.
+   A constant is not one --- and, unlike a compound term, it is not hoisted into
+   a variable by the desugarer either, so it reaches the typechecker as it was
+   written. *)
+
+run unbox 42 as v in v

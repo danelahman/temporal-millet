@@ -1,0 +1,34 @@
+(* Run this test with the 'time-upper-bound' grading monoid, e.g.
+
+     ./temporal-millet --resources time-upper-bound tests/noneternal_reject_unknown_grade.mlt
+
+   Both rejections below are the same disjunction 'eternal τ or ρ ≾ 0' with its
+   inequality left open rather than refuted: the grade that has elapsed is the
+   unknown grade of a function argument plus a delay, so it can be compared
+   with neither 0 nor anything else, while the type is known not to be eternal.
+   A bare unknown grade would instead be taken to be 0 and the constraint
+   discharged; it is the '+ 1' that keeps the comparison open. *)
+
+noneternal type token = Token
+
+(* Correctly rejected by the typechecker: the token is used after g has run and
+   a tick has passed, and whether that amounts to nothing depends on a grade
+   nobody knows. The constraint is reported where it arises. *)
+let keep g =
+  let t = Token in
+  let r = g () in
+  delay 1;
+  t
+
+(* Correctly accepted by the typechecker: the same body, but the value kept is
+   the polymorphic argument x, so the disjunction cannot be decided here and is
+   carried in the type scheme of 'hold' instead, to be owed again at each use. *)
+let hold g x =
+  let y = x in
+  let r = g () in
+  delay 1;
+  y
+
+(* Correctly rejected by the typechecker: the use owes that constraint with x
+   taken to be a token, and now the eternality side is settled --- against it. *)
+let hold_token g = hold g Token

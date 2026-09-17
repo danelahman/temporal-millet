@@ -38,7 +38,8 @@ and edit_msg =
   | ChangeSource of string
   | InsertIndent of string * int * int
       (** Tab pressed in the editor: the source as the browser has it, and the
-          selection to replace with an indentation. *)
+          selection to replace with an indentation, in the UTF-16 code units the
+          browser counts selections in. *)
   | LoadExample of string * string * string
       (** Load a bundled example: its title, the name of the resource grade it
           is meant to be run with, and its source. *)
@@ -62,6 +63,10 @@ and msg =
       (** The pointer has entered the given label of a reported error, or left
           them. Top-level, since the error display belongs to neither the editor
           nor the run. *)
+  | CaretAt of int
+      (** The caret has been placed at the given offset of the editor, in UTF-16
+          code units: the error whose span it lands in, if any, becomes the
+          active one. *)
 
 type edit_model = {
   use_stdlib : bool;
@@ -88,11 +93,34 @@ let edit_init =
 (** What a Tab in the editor inserts; the editor's [tab-size] matches. *)
 let indentation = "  "
 
+(** [byte_offset source offset] is the byte of [source] that the browser's
+    [offset] points at. A selection is counted in UTF-16 code units while an
+    OCaml string holds the same text as UTF-8 bytes, and the two part company at
+    the first character outside ASCII. *)
+let byte_offset source offset =
+  let length = String.length source in
+  let rec go byte units =
+    if units >= offset || byte >= length then byte
+    else
+      let lead = Char.code source.[byte] in
+      let width =
+        if lead < 0x80 then 1
+        else if lead < 0xE0 then 2
+        else if lead < 0xF0 then 3
+        else 4
+      in
+      (* A character outside the basic plane is a surrogate pair, so two code
+         units rather than one. *)
+      go (byte + width) (units + if width = 4 then 2 else 1)
+  in
+  go 0 0
+
 let edit_update edit_model = function
   | UseStdlib use_stdlib -> { edit_model with use_stdlib }
   | ChangeSource input ->
       { edit_model with unparsed_code = input; selected_example = None }
   | InsertIndent (source, start, stop) ->
+      let start = byte_offset source start and stop = byte_offset source stop in
       let before = String.sub source 0 start
       and after = String.sub source stop (String.length source - stop) in
       {
@@ -168,9 +196,21 @@ type model = {
   edit_model : edit_model;
   run_model : (run_model, load_error list) result;
       (** [Error []] is the edit view with nothing to report. *)
+  active_error : int option;
+      (** The error the caret sits in, singled out among the messages. *)
+  stale_errors : bool;
+      (** Whether the source has been edited since the errors were reported.
+          Their spans then point at bytes that have moved, so the editor stops
+          marking them and the messages are shown as out of date. *)
 }
 
-let init = { edit_model = edit_init; run_model = Error [] }
+let init =
+  {
+    edit_model = edit_init;
+    run_model = Error [];
+    active_error = None;
+    stale_errors = false;
+  }
 
 (* An error that is not a diagnostic of its own, such as an exception escaping
    the interpreter: there is nothing to point at, only what went wrong. *)
@@ -187,9 +227,31 @@ let fatal message =
     hovered_label = None;
   }
 
+(* Whether an edit moves the text that the reported errors point into. *)
+let edits_source = function
+  | ChangeSource _ | InsertIndent _ | LoadExample _ -> true
+  | UseStdlib _ | SelectResource _ -> false
+
+(* The first error whose primary span covers [offset], a byte of the editor's
+   text. A point span is widened to the byte it points at, as the editor
+   widens it when marking it. *)
+let error_at errors offset =
+  let covers (error : load_error) =
+    match error.diagnostic.primary with
+    | Some { filename = ""; start; stop } ->
+        start.offset <= offset && offset <= max stop.offset (start.offset + 1)
+    | _ -> false
+  in
+  List.find_index covers errors
+
 let update model = function
   | EditMsg edit_msg ->
-      { model with edit_model = edit_update model.edit_model edit_msg }
+      {
+        model with
+        edit_model = edit_update model.edit_model edit_msg;
+        active_error = None;
+        stale_errors = model.stale_errors || edits_source edit_msg;
+      }
   | RunMsg run_msg -> (
       match model.run_model with
       | Ok run_model ->
@@ -273,8 +335,14 @@ let update model = function
         | Invalid_argument message -> Error [ fatal message ]
         | exn -> Error [ fatal (Printexc.to_string exn) ]
       in
-      { model with run_model }
-  | EditCode -> { model with run_model = Error [] }
+      { model with run_model; active_error = None; stale_errors = false }
+  | EditCode ->
+      {
+        model with
+        run_model = Error [];
+        active_error = None;
+        stale_errors = false;
+      }
   | HoverLabel hovered_label -> (
       match model.run_model with
       | Error errors ->
@@ -283,3 +351,11 @@ let update model = function
           in
           { model with run_model = Error errors }
       | Ok _ -> model)
+  | CaretAt offset -> (
+      (* Once the source has been edited the spans no longer say where the
+         caret is, so a click then singles out nothing. *)
+      match model.run_model with
+      | Error errors when not model.stale_errors ->
+          let offset = byte_offset model.edit_model.unparsed_code offset in
+          { model with active_error = error_at errors offset }
+      | _ -> model)

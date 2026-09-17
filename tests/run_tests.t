@@ -314,6 +314,13 @@
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     operation Op is declared here
   ======================================================================
+  error_unbox_nonvariable.mlt
+  ======================================================================
+  File "error_unbox_nonvariable.mlt", line 7, characters 10-12:
+  7 | run unbox 42 as v in v
+                ^^
+  Typing error: Only a variable can be unboxed
+  ======================================================================
   error_use_after_delay.mlt
   ======================================================================
   File "error_use_after_delay.mlt", line 21, characters 2-3:
@@ -333,6 +340,28 @@
            ^^^^^^^^^^^^^^^
     Ping is performed here (grade 1)
     Note: the resource inequality 3 <= 0 does not hold
+  ======================================================================
+  error_variant_arity.mlt
+  ======================================================================
+  File "error_variant_arity.mlt", line 12, characters 4-9:
+  12 | run Red 1
+           ^^^^^
+  Typing error: Constructor Red takes no argument but is given one
+  
+  File "error_variant_arity.mlt", line 14, characters 4-8:
+  14 | run Wrap
+           ^^^^
+  Typing error: Constructor Wrap takes an argument but is given none
+  
+  File "error_variant_arity.mlt", line 17, characters 6-11:
+  17 |     | Red x -> 0
+             ^^^^^
+  Typing error: Constructor Red takes no argument but is given one
+  
+  File "error_variant_arity.mlt", line 21, characters 6-10:
+  21 |     | Wrap -> 0
+             ^^^^
+  Typing error: Constructor Wrap takes an argument but is given none
   ======================================================================
   errors_multiple.mlt
   ======================================================================
@@ -739,6 +768,51 @@
   5 | noneternal type seconds = int
       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   Typing error: type seconds is an alias and cannot be declared noneternal; wrap it in a constructor, as in 'noneternal type seconds = Seconds of ...'
+  ======================================================================
+  noneternal_reject_unknown_grade.mlt
+  ======================================================================
+  File "noneternal_reject_unknown_grade.mlt", line 21, characters 2-3:
+  21 |   t
+         ^
+  Typing error: Variable t is used after grade ρ₀ + 1 has elapsed, but its type token is not eternal and grade ρ₀ + 1 cannot be compared with 0
+    File "noneternal_reject_unknown_grade.mlt", line 18, characters 6-7:
+    18 |   let t = Token in
+               ^
+    t is bound here
+    File "noneternal_reject_unknown_grade.mlt", line 19, characters 10-14:
+    19 |   let r = g () in
+                   ^^^^
+    this computation runs here (grade ρ₀)
+    File "noneternal_reject_unknown_grade.mlt", line 20, characters 2-9:
+    20 |   delay 1;
+           ^^^^^^^
+    delay 1 elapses here
+  
+  File "noneternal_reject_unknown_grade.mlt", line 34, characters 19-23:
+  34 | let hold_token g = hold g Token
+                          ^^^^
+  Typing error: Type token is not eternal, as required by the type of hold
+    File "noneternal_reject_unknown_grade.mlt", lines 26-30, characters 0-3:
+    26 | let hold g x =
+         ^^^^^^^^^^^^^^
+    hold is defined here
+    File "noneternal_reject_unknown_grade.mlt", line 30, characters 2-3:
+    30 |   y
+           ^
+    because of this use inside hold
+    File "noneternal_reject_unknown_grade.mlt", line 27, characters 6-7:
+    27 |   let y = x in
+               ^
+    y is bound here
+    File "noneternal_reject_unknown_grade.mlt", line 28, characters 10-14:
+    28 |   let r = g () in
+                   ^^^^
+    this computation runs here (grade ρ₀)
+    File "noneternal_reject_unknown_grade.mlt", line 29, characters 2-9:
+    29 |   delay 1;
+           ^^^^^^^
+    delay 1 elapses here
+    Note: grade ρ₀ + 1 cannot be compared with 0
   ======================================================================
   noneternal_type.mlt
   ======================================================================

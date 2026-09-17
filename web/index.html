@@ -12,12 +12,17 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.0/css/bulma.min.css">
   <script src="web.bc.js"></script>
   <style>
-    .aside {
-      position: sticky;
-      /* Safari */
-      position: -webkit-sticky;
-      top: 0;
-      height: 100%;
+    /* From the tablet breakpoint up the side panel follows the page; on a
+       phone the columns stack, and a sticky panel would then hover over the
+       editor it is meant to sit beside. */
+    @media screen and (min-width: 769px) {
+      .aside {
+        position: sticky;
+        /* Safari */
+        position: -webkit-sticky;
+        top: 0;
+        height: 100%;
+      }
     }
 
     .panel-block {
@@ -136,7 +141,6 @@
       overflow: hidden;
       background: #f6f8fa;
       color: #24292e;
-      z-index: 1;
     }
 
     .code-editor .code-editor-input {
@@ -211,18 +215,79 @@
       font-size: 0.9rem;
     }
 
-    /* Under the run button, in the sticky panel: where the error is. */
-    .error-pointer {
-      display: block;
+    /* Under the run button, in the side panel: every error reported, numbered
+       as the messages under the editor are, each a link to its message. */
+    .error-list {
       margin-top: 0.6rem;
-      text-align: center;
+      padding-left: 1.6em;
+      list-style: decimal outside;
       font-size: 0.9rem;
       color: #f14668;
     }
 
-    .error-pointer:hover {
+    .error-list li {
+      margin-top: 0.15em;
+      overflow-wrap: anywhere;
+    }
+
+    /* reported before the source was edited, as the messages are */
+    .error-list.is-stale {
+      opacity: 0.55;
+    }
+
+    /* the error the caret is in */
+    .error-list li.is-active {
+      font-weight: 600;
+    }
+
+    .error-list a {
+      color: inherit;
+    }
+
+    .error-list a:hover {
       color: #cc0f35;
       text-decoration: underline;
+    }
+
+    /* The number of the error a marked span belongs to, put right after the
+       span and linking to its message.
+
+       The badge hangs off an empty inline of no width and is absolutely
+       positioned just past it, so that it adds nothing to the line: the
+       overlay has to keep measuring exactly as the textarea laid over it does,
+       or the caret would drift from the text on the very lines an error is on.
+
+       The transparent textarea lies over the highlighted text, so the badge
+       also has to be lifted above it: the <pre> keeps no z-index of its own (a
+       positioned z-index would open a stacking context and trap the badge
+       underneath the textarea), and the badge opts back into receiving the
+       pointer that the <pre> declines. */
+    .error-badge-anchor {
+      position: relative;
+    }
+
+    .error-badge {
+      position: absolute;
+      left: 100%;
+      top: -0.9em;
+      margin-left: 0.1em;
+      white-space: nowrap;
+      line-height: 1;
+      z-index: 3;
+      pointer-events: auto;
+      font-size: 0.7em;
+      color: #fff;
+      background: #f14668;
+      border-radius: 1em;
+      padding: 0 0.4em;
+      text-decoration: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .error-badge:hover {
+      background: #cc0f35;
+      color: #fff;
     }
 
     /* The span an error points at: a soft band under a wavy red underline.
@@ -284,7 +349,35 @@
       font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
       font-size: 0.9rem;
       white-space: pre-wrap;
-      overflow-wrap: break-word;
+      /* a type long enough to need it is broken rather than let out of the
+         viewport, there being nowhere narrower to put it */
+      overflow-wrap: anywhere;
+    }
+
+    /* The error the caret sits in, singled out among the messages. */
+    .editor-error.is-active {
+      border-left: 4px solid #f14668;
+      border-radius: 4px;
+    }
+
+    /* Messages reported before the source was edited: their spans have moved,
+       so the editor no longer marks them and they are greyed until the
+       program is run again. */
+    .editor-error.is-stale {
+      opacity: 0.55;
+    }
+
+    .editor-error .message-header .show-in-editor,
+    .editor-error .message-header .stale-note {
+      flex-shrink: 0;
+      margin-left: 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 400;
+    }
+
+    .editor-error .message-header .show-in-editor {
+      color: inherit;
+      text-decoration: underline dotted;
     }
 
     .code-editor-input::placeholder {
@@ -341,17 +434,24 @@
       gap: 0.75rem;
       /* Line the mark up with the left edge of the editor box below. */
       padding-left: 0;
+      /* Bulma holds a navbar item at the width of its contents, which on a
+         phone pushes the tagline off the right of the page; let the brand
+         shrink instead, so that the text inside it wraps. */
+      flex-shrink: 1;
+      min-width: 0;
     }
 
     .navbar-brand .brand-text {
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
+      min-width: 0;
     }
 
     .navbar-brand .brand-title .title {
       margin: 0;
       line-height: 1;
+      overflow-wrap: anywhere;
     }
 
     .navbar-brand .brand-tagline {
@@ -367,7 +467,22 @@
       max-height: 3.5rem;
       height: 3.5rem;
       width: 3.5rem;
+      flex-shrink: 0;
       display: block;
+    }
+
+    /* Below Bulma's tablet breakpoint the tagline takes several lines, so the
+       mark gives back the room it would need beside them. */
+    @media screen and (max-width: 768px) {
+      .navbar-brand .brand-logo {
+        max-height: 2.5rem;
+        height: 2.5rem;
+        width: 2.5rem;
+      }
+
+      .navbar-brand .brand-title .title {
+        font-size: 1.75rem;
+      }
     }
 
     .site-footer {

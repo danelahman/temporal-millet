@@ -202,7 +202,15 @@ let tokens s =
   done;
   List.rev !toks
 
-type mark = { from : int; until : int; mark_cls : string; id : string option }
+type mark = {
+  from : int;
+  until : int;
+  mark_cls : string;
+  id : string option;
+  badge : (string * string) option;
+      (** A label and a link put right after the marked range, such as the
+          number of the error the range belongs to. *)
+}
 (** A range of the text to wrap in a class of its own, such as the span of an
     error, with an optional element id to scroll to or link to. Unlike tokens,
     marks may nest, overlap and be given in any order. *)
@@ -226,6 +234,20 @@ let node ?id classes text =
       in
       let a = match id with None -> a | Some id -> Vdom.attr "id" id :: a in
       Vdom.elt "span" ~a [ Vdom.text text ]
+
+(* The marker put right after a marked range, as a link to whatever explains
+   the mark. It hangs off an empty inline anchor of its own and is taken out of
+   the flow, so that it adds no width to the line: the editor's overlay must go
+   on measuring the same as the textarea laid over it. It is clickable through
+   that textarea; see the [.error-badge] rules in web/index.html. *)
+let badge_node (label, href) =
+  Vdom.elt "span"
+    ~a:[ Vdom.class_ "error-badge-anchor" ]
+    [
+      Vdom.elt "a"
+        ~a:[ Vdom.class_ "error-badge"; Vdom.attr "href" href ]
+        [ Vdom.text label ];
+    ]
 
 let highlight_text s =
   List.map
@@ -293,7 +315,15 @@ let highlight_with_marks ~marks s =
           | [] -> ([], None)
           | id :: extra -> (List.map (fun id -> node ~id [] "") extra, Some id)
         in
-        (anchors @ [ node ?id classes (displayed_text s start stop) ])
+        (* A mark's badge goes after the last segment it covers, so that it
+           sits right at the end of the marked range. *)
+        let badges =
+          List.filter_map
+            (fun m ->
+              if m.until = stop then Option.map badge_node m.badge else None)
+            covering
+        in
+        (anchors @ [ node ?id classes (displayed_text s start stop) ] @ badges)
         @ segments (ids @ placed) toks cuts
     | _ -> []
   in

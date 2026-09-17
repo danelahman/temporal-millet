@@ -1,0 +1,21 @@
+(* Correctly rejected by the typechecker four times over, once for each way a
+   constructor can be given the wrong number of arguments. The parser already
+   refuses a label applied to more than one argument, so what is left is a
+   constructor that takes none being handed one, and a constructor that takes
+   one being handed none --- each of which can be written in an expression and
+   in a pattern. *)
+
+type colour = Red | Green
+
+type wrapped = Wrap of int
+
+run Red 1
+
+run Wrap
+
+run match Red with
+    | Red x -> 0
+    | Green -> 1
+
+run match Wrap 1 with
+    | Wrap -> 0

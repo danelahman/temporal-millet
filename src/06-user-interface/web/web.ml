@@ -22,7 +22,8 @@ let scroll_to id =
   | None -> ()
 
 (* Setting the editor's value from the model leaves the caret at the end; put
-   it back where the edit happened. *)
+   it back where the edit happened. The position is counted in the browser's
+   own UTF-16 code units, as the selection it sets is. *)
 let set_caret position =
   match
     Js_browser.Document.query_selector_all Js_browser.document
